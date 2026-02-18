@@ -8,7 +8,7 @@ export interface SkillInstruction {
   id: string;
   name: string;
   description: string;
-  category: 'token-type' | 'standard' | 'approval' | 'feature';
+  category: 'token-type' | 'standard' | 'approval' | 'feature' | 'advanced';
   instructions: string;
 }
 
@@ -198,7 +198,7 @@ Use \`predeterminedBalances.incrementedBalances\` to automatically increment tok
         "allowOverrideWithAnyValidToken": false
       },
       "orderCalculationMethod": {
-        "useOverallNumTransfers": true,
+        "useOverallNumTransfers": true,  // CRITICAL: Exactly ONE must be true
         "usePerToAddressNumTransfers": false,
         "usePerFromAddressNumTransfers": false,
         "usePerInitiatedByAddressNumTransfers": false,
@@ -210,6 +210,11 @@ Use \`predeterminedBalances.incrementedBalances\` to automatically increment tok
   }
 }
 \`\`\`
+
+**CRITICAL: orderCalculationMethod Rule**
+- When using \`predeterminedBalances\`, \`orderCalculationMethod\` MUST have exactly ONE method set to \`true\`
+- The increment is calculated based on this method - \`useOverallNumTransfers: true\` makes minting sequential (order 0 → 1 → 2)
+- Default: \`useOverallNumTransfers: true\`
 
 #### 3. Auto-Deletions
 
@@ -256,6 +261,7 @@ Use \`maxNumTransfers\` to limit minting:
 - **coinTransfers override flags**: Should be false for standard mint payments
 - **predeterminedBalances vs approvalAmounts**: These are incompatible - use one or the other
 - **incrementTokenIdsBy**: Use "1" to increment token IDs sequentially
+- **orderCalculationMethod**: MUST have exactly ONE method set to true (default: useOverallNumTransfers). Determines order for increments.
 - **amountTrackerId**: Required when using maxNumTransfers or approvalAmounts`
   },
   {
@@ -488,28 +494,55 @@ Use {id} in metadata URIs to create unique metadata per token:
 
 Time-based subscriptions with recurring payments.
 
-### Required Structure
+### Required Structure (ALL MUST BE FOLLOWED)
 
-1. **Standards**: Include "Subscriptions"
+1. **Standards**: MUST include "Subscriptions"
    \`\`\`json
    "standards": ["Subscriptions"]
    \`\`\`
 
-2. **Time-Dependent Balances**: Use predeterminedBalances with incrementedBalances
+2. **validTokenIds**: MUST be exactly one token ID
+   \`\`\`json
+   "validTokenIds": [{ "start": "1", "end": "1" }]
+   \`\`\`
 
-3. **Payment**: Use coinTransfers in approvalCriteria
+3. **Subscription Faucet Approval Requirements** (ALL MANDATORY):
+   - fromListId: MUST be "Mint"
+   - tokenIds: MUST be exactly 1 token: [{ "start": "1", "end": "1" }]
+   - coinTransfers: MUST have at least 1 entry with NO override flags
+     - overrideFromWithApproverAddress: MUST be false
+     - overrideToWithInitiator: MUST be false
+   - predeterminedBalances.incrementedBalances:
+     - startBalances: MUST have 1 entry with amount: "1", tokenIds matching approval tokenIds
+     - durationFromTimestamp: MUST be non-zero (subscription duration in milliseconds)
+     - allowOverrideTimestamp: MUST be true
+     - incrementTokenIdsBy: "0"
+     - incrementOwnershipTimesBy: "0"
+     - recurringOwnershipTimes: all fields "0"
+   - orderCalculationMethod: MUST have EXACTLY ONE method set to true (default: useOverallNumTransfers: true)
+   - requireFromEqualsInitiatedBy: false
+   - requireToEqualsInitiatedBy: false
+   - overridesToIncomingApprovals: false
+   - merkleChallenges: []
+   - overridesFromOutgoingApprovals: true (REQUIRED for Mint approvals)
 
 ### Subscription Approval Structure
 
 \`\`\`json
 {
+  "standards": ["Subscriptions"],
+  "validTokenIds": [{ "start": "1", "end": "1" }],
   "collectionApprovals": [{
     "fromListId": "Mint",
     "toListId": "All",
     "initiatedByListId": "All",
-    "approvalId": "monthly-subscription",
+    "approvalId": "subscription-mint",
+    "tokenIds": [{ "start": "1", "end": "1" }],
+    "transferTimes": [{ "start": "1", "end": "18446744073709551615" }],
+    "ownershipTimes": [{ "start": "1", "end": "18446744073709551615" }],
+    "uri": "ipfs://...",
+    "customData": "",
     "approvalCriteria": {
-      "overridesFromOutgoingApprovals": true,
       "coinTransfers": [{
         "to": "bb1creator...",
         "coins": [{ "denom": "ubadge", "amount": "5000000000" }],
@@ -521,24 +554,21 @@ Time-based subscriptions with recurring payments.
           "startBalances": [{
             "amount": "1",
             "tokenIds": [{ "start": "1", "end": "1" }],
-            "ownershipTimes": [{
-              "start": "1",
-              "end": "2592000000"  // 30 days in milliseconds
-            }]
+            "ownershipTimes": [{ "start": "1", "end": "18446744073709551615" }]
           }],
           "incrementTokenIdsBy": "0",
           "incrementOwnershipTimesBy": "0",
-          "durationFromTimestamp": "2592000000",  // 30 days
+          "durationFromTimestamp": "2592000000",
           "allowOverrideTimestamp": true,
           "recurringOwnershipTimes": {
             "startTime": "0",
-            "intervalLength": "2592000000",  // 30 days
-            "chargePeriodLength": "2592000000"  // 30 days
+            "intervalLength": "0",
+            "chargePeriodLength": "0"
           },
           "allowOverrideWithAnyValidToken": false
         },
         "orderCalculationMethod": {
-          "useOverallNumTransfers": false,
+          "useOverallNumTransfers": true,
           "usePerToAddressNumTransfers": false,
           "usePerFromAddressNumTransfers": false,
           "usePerInitiatedByAddressNumTransfers": false,
@@ -546,25 +576,33 @@ Time-based subscriptions with recurring payments.
           "challengeTrackerId": ""
         },
         "manualBalances": []
-      }
-    }
+      },
+      "requireFromEqualsInitiatedBy": false,
+      "requireToEqualsInitiatedBy": false,
+      "overridesToIncomingApprovals": false,
+      "overridesFromOutgoingApprovals": true,
+      "merkleChallenges": []
+    },
+    "version": "0"
   }]
 }
 \`\`\`
 
-### Time Calculations
+### Duration Constants (in milliseconds)
 
-- 1 day: 86400000 ms
-- 1 week: 604800000 ms
-- 30 days: 2592000000 ms
-- 1 year: 31536000000 ms
+- Daily: "86400000" (24 hours)
+- Weekly: "604800000" (7 days)
+- Monthly: "2592000000" (30 days)
+- Annual: "31536000000" (365 days)
 
-### Key Points
+### Subscription-Specific Gotchas (CRITICAL)
 
-- ownershipTimes define subscription validity period
-- Use recurringOwnershipTimes for auto-renewal capability
-- Payment recipient in coinTransfers
-- durationFromTimestamp sets subscription length from mint time`
+- MUST have exactly 1 token ID (validTokenIds: [{ "start": "1", "end": "1" }])
+- coinTransfers override flags MUST be false (NOT true)
+- durationFromTimestamp MUST be non-zero (this is the subscription duration)
+- allowOverrideTimestamp MUST be true
+- orderCalculationMethod MUST have EXACTLY ONE method set to true
+- recurringOwnershipTimes should have all fields "0" for standard subscriptions`
   },
   {
     id: 'tradable',
@@ -640,8 +678,25 @@ Configure how tokens can be transferred after minting.
 
 ### Non-Transferable (Soulbound)
 
-For soulbound tokens, simply don't include any post-mint transfer approvals.
-Only include Mint approvals (fromListId: "Mint").
+For soulbound tokens, you have two options:
+1. **Simply omit post-mint transfer approvals** - Only include Mint approvals (fromListId: "Mint")
+2. **Use maxNumTransfers with 0** - Create approval with overallMaxNumTransfers: "0"
+
+\`\`\`json
+{
+  "collectionApprovals": [{
+    "fromListId": "!Mint",
+    "toListId": "All",
+    "initiatedByListId": "All",
+    "approvalId": "no-transfers",
+    "approvalCriteria": {
+      "maxNumTransfers": {
+        "overallMaxNumTransfers": "0"
+      }
+    }
+  }]
+}
+\`\`\`
 
 ### Manager-Only Transfers
 
@@ -794,6 +849,349 @@ When you fund the escrow, minting approvals can release those coins:
 - Escrow is funded during collection creation`
   },
   {
+    id: 'custom-2fa',
+    name: 'Custom 2FA',
+    category: 'token-type',
+    description: 'Time-expiring 2FA token collection for authentication',
+    instructions: `## Custom-2FA Configuration
+
+When creating a Custom-2FA collection, follow these requirements:
+
+### Required Structure
+
+1. **Standards**: MUST include "Custom-2FA"
+   \`\`\`json
+   "standards": ["Custom-2FA"]
+   \`\`\`
+
+2. **Approval Requirements**:
+   - autoDeletionOptions.allowPurgeIfExpired: MUST be true
+   - This allows expired tokens to be automatically purged
+
+3. **Time-Dependent Ownership**: Use time-dependent ownershipTimes in MsgTransferTokens
+   - Calculate timestamps: current time + expiration duration
+   - Example: 5 minutes = Date.now() + (5 * 60 * 1000)
+   - Timestamps are in milliseconds since Unix epoch
+
+### Complete Example
+
+\`\`\`json
+{
+  "messages": [
+    {
+      "typeUrl": "/tokenization.MsgUniversalUpdateCollection",
+      "value": {
+        "creator": "bb1...",
+        "collectionId": "0",
+        "updateStandards": true,
+        "standards": ["Custom-2FA"],
+        "updateCollectionApprovals": true,
+        "collectionApprovals": [{
+          "fromListId": "Mint",
+          "toListId": "All",
+          "initiatedByListId": "bb1manager...",
+          "approvalId": "2fa-mint",
+          "tokenIds": [{ "start": "1", "end": "18446744073709551615" }],
+          "transferTimes": [{ "start": "1", "end": "18446744073709551615" }],
+          "ownershipTimes": [{ "start": "1", "end": "18446744073709551615" }],
+          "uri": "ipfs://...",
+          "customData": "",
+          "approvalCriteria": {
+            "overridesFromOutgoingApprovals": true,
+            "autoDeletionOptions": {
+              "allowPurgeIfExpired": true
+            }
+          },
+          "version": "0"
+        }]
+      }
+    },
+    {
+      "typeUrl": "/tokenization.MsgTransferTokens",
+      "value": {
+        "creator": "bb1...",
+        "collectionId": "0",
+        "transfers": [{
+          "from": "Mint",
+          "toAddresses": ["bb1recipient..."],
+          "balances": [{
+            "amount": "1",
+            "tokenIds": [{ "start": "1", "end": "1" }],
+            "ownershipTimes": [{
+              "start": "1706000000000",
+              "end": "1706000300000"
+            }]
+          }],
+          "prioritizedApprovals": [{
+            "approvalId": "2fa-mint",
+            "approvalLevel": "collection",
+            "approverAddress": "",
+            "version": "0"
+          }],
+          "onlyCheckPrioritizedCollectionApprovals": false,
+          "onlyCheckPrioritizedIncomingApprovals": false,
+          "onlyCheckPrioritizedOutgoingApprovals": false,
+          "memo": ""
+        }]
+      }
+    }
+  ]
+}
+\`\`\`
+
+### Time Calculations
+
+- 5 minutes: 300000 ms
+- 15 minutes: 900000 ms
+- 1 hour: 3600000 ms
+- 24 hours: 86400000 ms
+
+### 2FA-Specific Gotchas (CRITICAL)
+
+- MUST set allowPurgeIfExpired: true in autoDeletionOptions
+- Use time-dependent ownershipTimes in transfers (NOT forever)
+- Calculate expiration timestamps correctly (milliseconds since Unix epoch)
+- Tokens automatically expire and can be purged after expiration
+- Manager-only minting is typical for 2FA (initiatedByListId: "bb1manager...")`
+  },
+  {
+    id: 'time-dependent-balances',
+    name: 'Time-Dependent Balances',
+    category: 'approval',
+    description: 'Configure time-dependent ownership and expiring tokens',
+    instructions: `## Time-Dependent Balances Configuration
+
+Configure tokens that automatically expire after a specific time period.
+
+### Structure
+
+\`\`\`json
+{
+  "predeterminedBalances": {
+    "incrementedBalances": {
+      "startBalances": [{
+        "amount": "1",
+        "tokenIds": [{ "start": "1", "end": "1" }],
+        "ownershipTimes": [{ "start": "1706000000000", "end": "1706002592000" }]
+      }],
+      "incrementTokenIdsBy": "0",
+      "incrementOwnershipTimesBy": "0",
+      "durationFromTimestamp": "3600000",
+      "allowOverrideTimestamp": true,
+      "recurringOwnershipTimes": {
+        "startTime": "0",
+        "intervalLength": "0",
+        "chargePeriodLength": "0"
+      },
+      "allowOverrideWithAnyValidToken": false
+    },
+    "orderCalculationMethod": {
+      "useOverallNumTransfers": true,
+      "usePerToAddressNumTransfers": false,
+      "usePerFromAddressNumTransfers": false,
+      "usePerInitiatedByAddressNumTransfers": false,
+      "useMerkleChallengeLeafIndex": false,
+      "challengeTrackerId": ""
+    },
+    "manualBalances": []
+  }
+}
+\`\`\`
+
+### Time Calculations (milliseconds)
+
+- 5 minutes: 300000
+- 1 hour: 3600000
+- 1 day: 86400000
+- 1 week: 604800000
+- 30 days: 2592000000
+- 1 year: 31536000000
+
+### Key Rules
+
+- durationFromTimestamp: Duration in ms (not an absolute timestamp)
+- allowOverrideTimestamp: Typically true
+- orderCalculationMethod: MUST have exactly ONE method set to true
+- For recurring subscriptions, use the Subscriptions standard instead`
+  },
+  {
+    id: 'forceful-overrides',
+    name: 'Forceful Overrides',
+    category: 'approval',
+    description: 'Configure approvals that override sender/recipient checks',
+    instructions: `## Forceful Overrides Configuration
+
+### overridesFromOutgoingApprovals
+
+**MUST be true for:**
+- Mint approvals (fromListId: "Mint") - REQUIRED
+
+**MUST be false for:**
+- IBC backing addresses (Smart Tokens)
+- Post-mint transfers when noForcefulPostMintTransfers: true
+
+### overridesToIncomingApprovals
+
+Almost always false. Use true only to force tokens to recipients without their approval.
+
+### Critical Rules
+
+- Mint approvals: overridesFromOutgoingApprovals MUST be true
+- Backing addresses: overridesFromOutgoingApprovals MUST be false
+- Check noForcefulPostMintTransfers invariant before using overrides for post-mint`
+  },
+  {
+    id: 'ibc-backed-minting',
+    name: 'IBC Backed Minting',
+    category: 'advanced',
+    description: 'Configure IBC-backed token minting for vaults and Smart Tokens',
+    instructions: `## IBC Backed Minting Configuration
+
+### Key Rules (CRITICAL)
+
+1. DO NOT use overridesFromOutgoingApprovals: true when fromListId is a backing address
+2. Use allowBackedMinting: true for IBC backed operations
+3. Use mustPrioritize: true (required)
+4. Backing Address: Use backing address as fromListId (NOT "Mint")
+
+### Approval Pattern
+
+\`\`\`json
+{
+  "fromListId": "bb1backingaddress...",
+  "toListId": "All",
+  "approvalCriteria": {
+    "allowBackedMinting": true,
+    "mustPrioritize": true,
+    "overridesFromOutgoingApprovals": false
+  }
+}
+\`\`\`
+
+### Gotchas
+
+- NEVER use fromListId: "Mint" for IBC backed operations
+- MUST use allowBackedMinting: true
+- MUST use mustPrioritize: true
+- DO NOT use overridesFromOutgoingApprovals: true with backing addresses`
+  },
+  {
+    id: 'public-mint',
+    name: 'Public Mint with Payment',
+    category: 'approval',
+    description: 'Enable public minting with payment requirement',
+    instructions: `## Public Mint with Payment
+
+\`\`\`json
+{
+  "fromListId": "Mint",
+  "toListId": "All",
+  "initiatedByListId": "All",
+  "approvalId": "public-mint",
+  "approvalCriteria": {
+    "overridesFromOutgoingApprovals": true,
+    "coinTransfers": [{
+      "to": "bb1creator...",
+      "coins": [{ "denom": "ubadge", "amount": "5000000000" }],
+      "overrideFromWithApproverAddress": false,
+      "overrideToWithInitiator": false
+    }],
+    "maxNumTransfers": {
+      "perInitiatedByAddressMaxNumTransfers": "1"
+    }
+  }
+}
+\`\`\`
+
+### Gotchas
+
+- MUST have overridesFromOutgoingApprovals: true
+- coinTransfers override flags should be false
+- Use perInitiatedByAddressMaxNumTransfers to limit mints per user`
+  },
+  {
+    id: 'cosmos-coin-wrapper',
+    name: 'Cosmos Coin Wrapper',
+    category: 'advanced',
+    description: 'Configure Cosmos SDK coin wrapping functionality',
+    instructions: `## Cosmos Coin Wrapper Configuration
+
+### Key Rules
+
+1. Use allowSpecialWrapping: true for Cosmos wrapper operations
+2. Wrapper Address: Generated deterministically from denom
+3. Denom: Auto-generated from symbol (lowercase)
+
+### Wrapper Path Structure
+
+\`\`\`json
+{
+  "cosmosCoinWrapperPathsToAdd": [{
+    "denom": "uatom",
+    "symbol": "uatom",
+    "conversion": {
+      "sideA": { "amount": "1" },
+      "sideB": [{
+        "amount": "1",
+        "tokenIds": [{ "start": "1", "end": "1" }],
+        "ownershipTimes": [{ "start": "1", "end": "18446744073709551615" }]
+      }]
+    },
+    "denomUnits": [{
+      "decimals": "6",
+      "symbol": "ATOM",
+      "isDefaultDisplay": true,
+      "metadata": { "uri": "ipfs://...", "customData": "" }
+    }],
+    "metadata": { "uri": "ipfs://...", "customData": "" }
+  }]
+}
+\`\`\`
+
+### Important Notes
+
+- CRITICAL: Add metadata to BOTH base wrapper path AND all denomUnits
+- MUST use allowSpecialWrapping: true
+- Often requires mustPrioritize: true
+- Currently only supports static (1:1) conversions`
+  },
+  {
+    id: 'alias-path',
+    name: 'Alias Path Configuration',
+    category: 'advanced',
+    description: 'Configure custom display denominations and alias paths',
+    instructions: `## Alias Path Configuration
+
+### Structure
+
+\`\`\`json
+{
+  "aliasPathsToAdd": [{
+    "denom": "uvatom",
+    "symbol": "uvatom",
+    "conversion": {
+      "sideA": { "amount": "1" },
+      "sideB": [{ "amount": "1", "tokenIds": [{ "start": "1", "end": "1" }], "ownershipTimes": [{ "start": "1", "end": "18446744073709551615" }] }]
+    },
+    "denomUnits": [{
+      "decimals": "6",
+      "symbol": "vATOM",
+      "isDefaultDisplay": true,
+      "metadata": { "uri": "ipfs://...", "customData": "" }
+    }],
+    "metadata": { "uri": "ipfs://...", "customData": "" }
+  }]
+}
+\`\`\`
+
+### Rules
+
+- symbol: Base unit symbol (e.g., "uvatom")
+- denomUnits: Display units with decimals > 0 ONLY
+- Base decimals (0) is implicit - do NOT include in denomUnits
+- CRITICAL: Metadata MUST be added to BOTH the base alias path AND all denomUnits`
+  },
+  {
     id: 'avoid-manual-balances',
     name: 'Avoid Manual Balances',
     category: 'feature',
@@ -857,8 +1255,18 @@ When you fund the escrow, minting approvals can release those coins:
 This pattern:
 - Starts at token ID 1
 - Increments by 1 for each mint
-- Uses overall transfer count for ordering
-- Keeps manualBalances empty`
+- Uses overall transfer count for ordering (order 0 → 1 → 2)
+- Keeps manualBalances empty
+
+### CRITICAL: orderCalculationMethod Rule
+
+When using predeterminedBalances, the orderCalculationMethod MUST have **exactly ONE** method set to true. The increment is calculated based on this:
+- useOverallNumTransfers: true → Sequential from order 0 to 1 to 2 (most common)
+- usePerToAddressNumTransfers: true → Sequential per recipient
+- usePerFromAddressNumTransfers: true → Sequential per sender
+- usePerInitiatedByAddressNumTransfers: true → Sequential per initiator
+
+You CANNOT have zero methods true, and you CANNOT have multiple methods true.`
   }
 ];
 
@@ -877,12 +1285,13 @@ export function getSkillsByCategory(category: SkillInstruction['category']): Ski
 export function formatSkillInstructionsForDisplay(): string {
   let output = '# BitBadges Builder Skills\n\n';
 
-  const categories = ['token-type', 'standard', 'approval', 'feature'] as const;
+  const categories = ['token-type', 'standard', 'approval', 'feature', 'advanced'] as const;
   const categoryNames = {
     'token-type': 'Token Types',
     'standard': 'Standards',
     'approval': 'Approval Configuration',
-    'feature': 'Features'
+    'feature': 'Features',
+    'advanced': 'Advanced Configuration'
   };
 
   for (const category of categories) {

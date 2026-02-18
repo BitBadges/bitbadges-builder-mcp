@@ -185,9 +185,111 @@ function findAndValidateUintRanges(obj: unknown, path: string, issues: Validatio
 }
 
 /**
+ * Validate orderCalculationMethod has exactly one true value
+ */
+function validateOrderCalculationMethod(
+  orderCalc: Record<string, unknown>,
+  path: string,
+  issues: ValidationIssue[]
+): void {
+  const methods = [
+    'useOverallNumTransfers',
+    'usePerToAddressNumTransfers',
+    'usePerFromAddressNumTransfers',
+    'usePerInitiatedByAddressNumTransfers',
+    'useMerkleChallengeLeafIndex'
+  ];
+
+  const trueCount = methods.filter(m => orderCalc[m] === true).length;
+
+  if (trueCount > 1) {
+    issues.push({
+      severity: 'error',
+      message: 'orderCalculationMethod MUST have exactly ONE method set to true, found ' + trueCount,
+      path
+    });
+  } else if (trueCount === 0) {
+    // Only warn if any incrementedBalances.startBalances are defined
+    issues.push({
+      severity: 'warning',
+      message: 'orderCalculationMethod should have exactly ONE method set to true (default: useOverallNumTransfers)',
+      path
+    });
+  }
+}
+
+/**
+ * Validate subscription-specific requirements
+ */
+function validateSubscriptionApproval(
+  approval: Record<string, unknown>,
+  path: string,
+  issues: ValidationIssue[]
+): void {
+  const criteria = approval.approvalCriteria as Record<string, unknown> | undefined;
+  if (!criteria) return;
+
+  // Check coinTransfers override flags
+  if (Array.isArray(criteria.coinTransfers)) {
+    (criteria.coinTransfers as unknown[]).forEach((ct, ctIndex) => {
+      if (!ct || typeof ct !== 'object') return;
+      const coinTransfer = ct as Record<string, unknown>;
+
+      if (coinTransfer.overrideFromWithApproverAddress === true) {
+        issues.push({
+          severity: 'warning',
+          message: 'Subscription coinTransfers should have overrideFromWithApproverAddress: false',
+          path: `${path}.approvalCriteria.coinTransfers[${ctIndex}].overrideFromWithApproverAddress`
+        });
+      }
+      if (coinTransfer.overrideToWithInitiator === true) {
+        issues.push({
+          severity: 'warning',
+          message: 'Subscription coinTransfers should have overrideToWithInitiator: false',
+          path: `${path}.approvalCriteria.coinTransfers[${ctIndex}].overrideToWithInitiator`
+        });
+      }
+    });
+  }
+
+  // Check predeterminedBalances.incrementedBalances requirements
+  const predeterminedBalances = criteria.predeterminedBalances as Record<string, unknown> | undefined;
+  if (predeterminedBalances) {
+    const incrementedBalances = predeterminedBalances.incrementedBalances as Record<string, unknown> | undefined;
+    if (incrementedBalances) {
+      // Check durationFromTimestamp is non-zero
+      if (incrementedBalances.durationFromTimestamp === '0' || incrementedBalances.durationFromTimestamp === 0) {
+        issues.push({
+          severity: 'warning',
+          message: 'Subscription durationFromTimestamp should be non-zero (subscription duration in ms)',
+          path: `${path}.approvalCriteria.predeterminedBalances.incrementedBalances.durationFromTimestamp`
+        });
+      }
+
+      // Check allowOverrideTimestamp is true
+      if (incrementedBalances.allowOverrideTimestamp !== true) {
+        issues.push({
+          severity: 'warning',
+          message: 'Subscription allowOverrideTimestamp should be true',
+          path: `${path}.approvalCriteria.predeterminedBalances.incrementedBalances.allowOverrideTimestamp`
+        });
+      }
+    }
+
+    // Check orderCalculationMethod
+    const orderCalc = predeterminedBalances.orderCalculationMethod as Record<string, unknown> | undefined;
+    if (orderCalc) {
+      validateOrderCalculationMethod(orderCalc, `${path}.approvalCriteria.predeterminedBalances.orderCalculationMethod`, issues);
+    }
+  }
+}
+
+/**
  * Validate approvals
  */
-function validateApprovals(approvals: unknown[], path: string, issues: ValidationIssue[]): void {
+function validateApprovals(approvals: unknown[], path: string, issues: ValidationIssue[], standards?: string[]): void {
+  const isSubscription = Array.isArray(standards) && standards.includes('Subscriptions');
+
   approvals.forEach((approval, index) => {
     if (!approval || typeof approval !== 'object') {
       return;
@@ -218,6 +320,11 @@ function validateApprovals(approvals: unknown[], path: string, issues: Validatio
           message: 'Mint approvals MUST have overridesFromOutgoingApprovals: true',
           path: `${approvalPath}.approvalCriteria.overridesFromOutgoingApprovals`
         });
+      }
+
+      // Subscription-specific validations
+      if (isSubscription) {
+        validateSubscriptionApproval(a, approvalPath, issues);
       }
     }
 
@@ -416,7 +523,31 @@ export function handleValidateTransaction(input: ValidateTransactionInput): Vali
 
       // Validate collectionApprovals
       if (Array.isArray(value.collectionApprovals)) {
-        validateApprovals(value.collectionApprovals, `${msgPath}.value.collectionApprovals`, issues);
+        const standards = Array.isArray(value.standards) ? value.standards as string[] : undefined;
+        validateApprovals(value.collectionApprovals, `${msgPath}.value.collectionApprovals`, issues, standards);
+      }
+
+      // Validate subscription-specific: validTokenIds must be exactly 1 token
+      if (Array.isArray(value.standards) && (value.standards as string[]).includes('Subscriptions')) {
+        if (Array.isArray(value.validTokenIds)) {
+          const tokenIds = value.validTokenIds as unknown[];
+          if (tokenIds.length !== 1) {
+            issues.push({
+              severity: 'warning',
+              message: 'Subscription collections should have exactly 1 validTokenIds range',
+              path: `${msgPath}.value.validTokenIds`
+            });
+          } else {
+            const range = tokenIds[0] as Record<string, unknown>;
+            if (range && (range.start !== '1' || range.end !== '1')) {
+              issues.push({
+                severity: 'warning',
+                message: 'Subscription collections should have validTokenIds: [{ "start": "1", "end": "1" }]',
+                path: `${msgPath}.value.validTokenIds`
+              });
+            }
+          }
+        }
       }
 
       // Validate tokenMetadata
@@ -447,6 +578,22 @@ export function handleValidateTransaction(input: ValidateTransactionInput): Vali
           severity: 'error',
           message: 'MsgTransferTokens missing "transfers" array',
           path: `${msgPath}.value.transfers`
+        });
+      } else {
+        // Validate each transfer
+        (value.transfers as unknown[]).forEach((transfer, tIndex) => {
+          if (!transfer || typeof transfer !== 'object') return;
+          const t = transfer as Record<string, unknown>;
+          const transferPath = `${msgPath}.value.transfers[${tIndex}]`;
+
+          // Check prioritizedApprovals is specified
+          if (!('prioritizedApprovals' in t)) {
+            issues.push({
+              severity: 'warning',
+              message: 'prioritizedApprovals should always be explicitly specified (use [] if none needed)',
+              path: `${transferPath}.prioritizedApprovals`
+            });
+          }
         });
       }
     }

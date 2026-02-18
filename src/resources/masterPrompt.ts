@@ -73,7 +73,11 @@ When the user wants to:
    - **TokenIdsActionPermission**: "canUpdateTokenMetadata": [] (NOT [{ "tokenIds": [...], "permanentlyPermittedTimes": [], "permanentlyForbiddenTimes": [] }])
    - **CollectionApprovalPermission**: "canUpdateCollectionApprovals": [] (if both time arrays are empty)
    - **Rule**: If both time arrays are empty, the permission provides no restrictions, so use [] instead of the full object structure
-14. **Token IDs vs Supply**: Think carefully about whether the user wants 1 token ID with high supply (e.g., 1 ID with 1000 supply for a fungible token) vs many token IDs with 1 supply each (e.g., 1000 IDs with 1 supply each for an NFT collection). This is especially important for NFTs and collections that could have multiple IDs.`,
+14. **Token IDs vs Supply**: Think carefully about whether the user wants 1 token ID with high supply (e.g., 1 ID with 1000 supply for a fungible token) vs many token IDs with 1 supply each (e.g., 1000 IDs with 1 supply each for an NFT collection). This is especially important for NFTs and collections that could have multiple IDs.
+15. **prioritizedApprovals MUST be specified**: In MsgTransferTokens, the prioritizedApprovals field MUST always be explicitly specified (use [] if no specific approvals needed).
+16. **orderCalculationMethod - EXACTLY ONE true**: When using incrementedBalances with startBalances, exactly ONE orderCalculationMethod field must be true. Default: useOverallNumTransfers: true.
+17. **canUpdateValidTokenIds default**: Should be **forbidden (frozen)** unless user explicitly specifies otherwise - most collections have fixed token ID ranges.
+18. **canUpdateCollectionApprovals SECURITY**: Should be **forbidden (frozen)** by default, especially with Mint approvals. If manager can update approvals, they can create new mint approvals = unlimited minting.`,
 
   transactionStructure: `## Transaction Structure
 
@@ -284,12 +288,12 @@ Here is the COMPLETE structure with ALL required fields and their types:
         "tokenIds": [{ "start": "1", "end": "1" }],  // REQUIRED
         "ownershipTimes": [{ "start": "1", "end": "18446744073709551615" }]  // REQUIRED
       }],
-      "prioritizedApprovals": [{  // REQUIRED: Array of approval priority objects
+      "prioritizedApprovals": [{  // REQUIRED: MUST always be specified (use [] if none needed)
         "approvalId": "my-approval",  // REQUIRED
-        "approvalLevel": "collection",  // REQUIRED
-        "approverAddress": "",  // REQUIRED: Empty for collection approvals
+        "approvalLevel": "collection",  // REQUIRED: "collection" for collection approvals
+        "approverAddress": "",  // REQUIRED: Empty string for collection approvals
         "version": "0"  // REQUIRED
-      }],
+      }],  // CRITICAL: Always specify this field explicitly, even if empty []
       "onlyCheckPrioritizedCollectionApprovals": false,  // REQUIRED
       "onlyCheckPrioritizedIncomingApprovals": false,  // REQUIRED
       "onlyCheckPrioritizedOutgoingApprovals": false,  // REQUIRED
@@ -297,6 +301,13 @@ Here is the COMPLETE structure with ALL required fields and their types:
     }]
   }
 }
+
+### prioritizedApprovals - CRITICAL
+
+The prioritizedApprovals field MUST always be explicitly specified:
+- If you want to use a specific approval, include it in the array
+- If no specific approvals needed, use empty array: \`"prioritizedApprovals": []\`
+- NEVER omit this field
 
 ### Time-Dependent Ownership
 
@@ -484,7 +495,47 @@ For senderChecks/recipientChecks/initiatorChecks, ONLY these fields are valid:
 }
 \`\`\`
 
-**Purpose**: Require that the specified party owns tokens from a specific dynamic store collection.`,
+**Purpose**: Require that the specified party owns tokens from a specific dynamic store collection.
+
+### AltTimeChecks Structure
+
+\`\`\`json
+{
+  "altTimeChecks": {
+    "offlineHours": [
+      { "start": "0", "end": "5" }  // Block transfers from midnight to 5 AM (0-23 hours)
+    ],
+    "offlineDays": [
+      { "start": "0", "end": "0" }  // Block transfers on Sundays (0=Sunday, 6=Saturday)
+    ]
+  }
+}
+\`\`\`
+
+**Purpose**: Block transfers during specific hours or days of the week.
+
+### VotingChallenges Structure
+
+\`\`\`json
+{
+  "votingChallenges": [
+    {
+      "collectionId": "123",  // The collection containing the vote/proposal
+      "proposalId": "proposal-1",  // The proposal ID within the collection
+      "voters": [
+        {
+          "address": "bb1voter1...",
+          "weight": "100"  // Voting weight
+        }
+      ],
+      "quorumThreshold": "50",  // Min percentage (0-100) of weight that must vote "yes"
+      "ownershipCheckParty": "initiator"  // "initiator" | "sender" | "recipient"
+    }
+  ]
+}
+\`\`\`
+
+**Purpose**: Require that a governance proposal has passed before allowing transfers.`,
 
   metadataRequirements: `## Metadata Requirements
 
@@ -631,6 +682,29 @@ These three systems control **which tokens** can be transferred and **how many t
 - **incrementedBalances**: Dynamic tokens that increment over time
 - **orderCalculationMethod**: How to determine which tokens to transfer first
 
+**CRITICAL: orderCalculationMethod Rule**
+When using \`predeterminedBalances\` (either \`manualBalances\` or \`incrementedBalances\` with \`startBalances\`), the \`orderCalculationMethod\` MUST have **exactly ONE** method set to \`true\`. The increment is calculated based on this method - for example, \`useOverallNumTransfers: true\` makes it sequential from order 0 to order 1 to order 2.
+
+\`\`\`json
+{
+  "orderCalculationMethod": {
+    "useOverallNumTransfers": true,  // EXACTLY ONE must be true
+    "usePerToAddressNumTransfers": false,
+    "usePerFromAddressNumTransfers": false,
+    "usePerInitiatedByAddressNumTransfers": false,
+    "useMerkleChallengeLeafIndex": false,
+    "challengeTrackerId": ""
+  }
+}
+\`\`\`
+
+**Available methods:**
+- \`useOverallNumTransfers\`: Sequential based on overall transfer count (most common, default)
+- \`usePerToAddressNumTransfers\`: Sequential per recipient address
+- \`usePerFromAddressNumTransfers\`: Sequential per sender address
+- \`usePerInitiatedByAddressNumTransfers\`: Sequential per initiator address
+- \`useMerkleChallengeLeafIndex\`: Use merkle challenge leaf index (requires \`challengeTrackerId\`)
+
 ### 2. approvalAmounts
 
 **Purpose**: Limit the total amount of tokens that can be transferred (tallied/counted).
@@ -740,6 +814,12 @@ For the vast majority of collections, you should use:
 | Think deeply about IDs vs supply | 1 ID with 1000 supply vs 1000 IDs with 1 supply |
 | canUpdateValidTokenIds default | Should be forbidden (frozen) unless specified |
 | canUpdateCollectionApprovals security | Should be forbidden, especially with Mint approvals |
+| prioritizedApprovals always specified | In MsgTransferTokens, always include (use [] if none) |
+| orderCalculationMethod exactly ONE true | When using incrementedBalances with startBalances |
+| Subscription validTokenIds | MUST be exactly [{ "start": "1", "end": "1" }] |
+| Subscription coinTransfers override flags | MUST be false (NOT true) |
+| Subscription durationFromTimestamp | MUST be non-zero |
+| Subscription allowOverrideTimestamp | MUST be true |
 
 ### MUST NOT DO
 
@@ -753,6 +833,10 @@ For the vast majority of collections, you should use:
 | Missing periods in descriptions | Always end with proper punctuation |
 | Redundant empty permission objects | Use [] if both time arrays empty |
 | Assuming supply = IDs | Don't assume "1000 tokens" means 1000 IDs |
+| Missing prioritizedApprovals | Always specify, even if empty [] |
+| Multiple orderCalculationMethod true | Exactly ONE must be true |
+| Subscription coinTransfers overrides true | MUST be false for subscriptions |
+| Subscription durationFromTimestamp "0" | MUST be non-zero (duration in ms) |
 
 ### List ID Rules
 
