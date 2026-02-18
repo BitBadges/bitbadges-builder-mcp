@@ -28,7 +28,26 @@ import {
   buildFungibleTokenTool,
   handleBuildFungibleToken,
   buildNFTCollectionTool,
-  handleBuildNFTCollection
+  handleBuildNFTCollection,
+  // Address utilities
+  convertAddressTool,
+  handleConvertAddress,
+  validateAddressTool,
+  handleValidateAddress,
+  // Documentation
+  fetchDocsTool,
+  handleFetchDocs,
+  // Query tools
+  queryCollectionTool,
+  handleQueryCollection,
+  queryBalanceTool,
+  handleQueryBalance,
+  simulateTransactionTool,
+  handleSimulateTransaction,
+  verifyOwnershipTool,
+  handleVerifyOwnership,
+  searchTool,
+  handleSearch
 } from './tools/index.js';
 
 // Import resources
@@ -41,7 +60,18 @@ import {
   getSmartTokenRules,
   getSkillInstructions,
   getAllSkillInstructions,
-  formatSkillInstructionsForDisplay
+  formatSkillInstructionsForDisplay,
+  // Documentation resources
+  conceptsDocsResourceInfo,
+  getConceptsDocsContent,
+  sdkDocsResourceInfo,
+  getSdkDocsContent,
+  messagesDocsResourceInfo,
+  getMessagesDocsContent,
+  apiDocsResourceInfo,
+  getApiDocsContent,
+  examplesDocsResourceInfo,
+  getExamplesDocsContent
 } from './resources/index.js';
 
 /**
@@ -107,7 +137,21 @@ export function createServer(): Server {
             properties: {},
             required: []
           }
-        }
+        },
+
+        // Address utilities
+        convertAddressTool,
+        validateAddressTool,
+
+        // Documentation
+        fetchDocsTool,
+
+        // Query tools (require API key)
+        queryCollectionTool,
+        queryBalanceTool,
+        simulateTransactionTool,
+        verifyOwnershipTool,
+        searchTool
       ]
     };
   });
@@ -229,6 +273,65 @@ export function createServer(): Server {
           };
         }
 
+        // Address utilities
+        case 'convert_address': {
+          const result = handleConvertAddress(args as Parameters<typeof handleConvertAddress>[0]);
+          return {
+            content: [{ type: 'text', text: JSON.stringify(result, null, 2) }]
+          };
+        }
+
+        case 'validate_address': {
+          const result = handleValidateAddress(args as Parameters<typeof handleValidateAddress>[0]);
+          return {
+            content: [{ type: 'text', text: JSON.stringify(result, null, 2) }]
+          };
+        }
+
+        // Documentation
+        case 'fetch_docs': {
+          const result = await handleFetchDocs(args as Parameters<typeof handleFetchDocs>[0]);
+          return {
+            content: [{ type: 'text', text: JSON.stringify(result, null, 2) }]
+          };
+        }
+
+        // Query tools
+        case 'query_collection': {
+          const result = await handleQueryCollection(args as Parameters<typeof handleQueryCollection>[0]);
+          return {
+            content: [{ type: 'text', text: JSON.stringify(result, null, 2) }]
+          };
+        }
+
+        case 'query_balance': {
+          const result = await handleQueryBalance(args as Parameters<typeof handleQueryBalance>[0]);
+          return {
+            content: [{ type: 'text', text: JSON.stringify(result, null, 2) }]
+          };
+        }
+
+        case 'simulate_transaction': {
+          const result = await handleSimulateTransaction(args as Parameters<typeof handleSimulateTransaction>[0]);
+          return {
+            content: [{ type: 'text', text: JSON.stringify(result, null, 2) }]
+          };
+        }
+
+        case 'verify_ownership': {
+          const result = await handleVerifyOwnership(args as Parameters<typeof handleVerifyOwnership>[0]);
+          return {
+            content: [{ type: 'text', text: JSON.stringify(result, null, 2) }]
+          };
+        }
+
+        case 'search': {
+          const result = await handleSearch(args as Parameters<typeof handleSearch>[0]);
+          return {
+            content: [{ type: 'text', text: JSON.stringify(result, null, 2) }]
+          };
+        }
+
         default:
           throw new Error(`Unknown tool: ${name}`);
       }
@@ -254,7 +357,13 @@ export function createServer(): Server {
           name: 'Skill Instructions',
           description: 'Instructions for all builder skills',
           mimeType: 'text/markdown'
-        }
+        },
+        // Documentation resources
+        conceptsDocsResourceInfo,
+        sdkDocsResourceInfo,
+        messagesDocsResourceInfo,
+        apiDocsResourceInfo,
+        examplesDocsResourceInfo
       ]
     };
   });
@@ -291,6 +400,57 @@ export function createServer(): Server {
             uri,
             mimeType: 'text/markdown',
             text: formatSkillInstructionsForDisplay()
+          }]
+        };
+      }
+
+      // Documentation resources
+      case 'bitbadges://docs/concepts': {
+        return {
+          contents: [{
+            uri,
+            mimeType: 'text/markdown',
+            text: getConceptsDocsContent()
+          }]
+        };
+      }
+
+      case 'bitbadges://docs/sdk': {
+        return {
+          contents: [{
+            uri,
+            mimeType: 'text/markdown',
+            text: getSdkDocsContent()
+          }]
+        };
+      }
+
+      case 'bitbadges://docs/messages': {
+        return {
+          contents: [{
+            uri,
+            mimeType: 'text/markdown',
+            text: getMessagesDocsContent()
+          }]
+        };
+      }
+
+      case 'bitbadges://docs/api': {
+        return {
+          contents: [{
+            uri,
+            mimeType: 'text/markdown',
+            text: getApiDocsContent()
+          }]
+        };
+      }
+
+      case 'bitbadges://docs/examples': {
+        return {
+          contents: [{
+            uri,
+            mimeType: 'text/markdown',
+            text: getExamplesDocsContent()
           }]
         };
       }

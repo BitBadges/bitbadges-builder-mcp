@@ -27,11 +27,20 @@ Add to your Claude Desktop config (`~/.config/claude/config.json` or similar):
   "mcpServers": {
     "bitbadges-builder": {
       "command": "node",
-      "args": ["/path/to/bitbadges-builder-mcp/dist/index.js"]
+      "args": ["/path/to/bitbadges-builder-mcp/dist/index.js"],
+      "env": {
+        "BITBADGES_API_KEY": "your-api-key-here"
+      }
     }
   }
 }
 ```
+
+### API Key (Optional)
+
+To use query tools (`query_collection`, `query_balance`, `simulate_transaction`, `verify_ownership`, `search`), set the `BITBADGES_API_KEY` environment variable.
+
+Get your API key at: https://bitbadges.io/developer
 
 ### Development
 
@@ -70,13 +79,50 @@ npm test       # Run tests
 | `get_skill_instructions` | Get instructions for specific skill |
 | `get_master_prompt` | Get complete builder rules |
 
+### Address Tools
+
+| Tool | Description |
+|------|-------------|
+| `convert_address` | Convert between ETH (0x) and BitBadges (bb1) formats |
+| `validate_address` | Check if an address is valid and detect chain type |
+
+### Documentation Tools
+
+| Tool | Description |
+|------|-------------|
+| `fetch_docs` | Fetch live documentation from docs.bitbadges.io |
+
+### Query Tools (Require API Key)
+
+| Tool | Description |
+|------|-------------|
+| `query_collection` | Fetch collection details from BitBadges API |
+| `query_balance` | Check token balance for an address |
+| `simulate_transaction` | Dry-run a transaction for validity/gas |
+| `verify_ownership` | Verify if address meets ownership requirements |
+| `search` | Search collections, accounts, and tokens |
+
+**Note**: Query tools require `BITBADGES_API_KEY` environment variable.
+
 ## MCP Resources
+
+### Existing Resources
 
 | URI | Content |
 |-----|---------|
 | `bitbadges://tokens/registry` | IBC denoms, symbols, decimals, backing addresses |
 | `bitbadges://rules/critical` | Critical rules for transaction building |
 | `bitbadges://skills/all` | All skill instructions |
+
+### Documentation Resources (NEW)
+
+| URI | Content |
+|-----|---------|
+| `bitbadges://docs/concepts` | Core concepts: transferability, approvals, permissions, balances |
+| `bitbadges://docs/sdk` | SDK quick reference: installation, address conversion, patterns |
+| `bitbadges://docs/messages` | Message type reference: MsgUniversalUpdateCollection, etc. |
+| `bitbadges://docs/api` | API reference: endpoints, authentication, rate limits |
+| `bitbadges://docs/examples` | Full transaction JSON examples for common use cases |
 
 ## Examples
 
