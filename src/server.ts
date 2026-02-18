@@ -13,6 +13,8 @@ import {
   handleValidateTransaction,
   getCurrentTimestampTool,
   handleGetCurrentTimestamp,
+  publishToBitbadgesTool,
+  handlePublishToBitbadges,
   generateBackingAddressTool,
   handleGenerateBackingAddress,
   generateApprovalTool,
@@ -67,6 +69,7 @@ export function createServer(): Server {
         lookupTokenInfoTool,
         validateTransactionTool,
         getCurrentTimestampTool,
+        publishToBitbadgesTool,
 
         // Components
         generateBackingAddressTool,
@@ -132,6 +135,13 @@ export function createServer(): Server {
 
         case 'get_current_timestamp': {
           const result = handleGetCurrentTimestamp(args as { offsetMs?: number; offsetDays?: number; offsetHours?: number });
+          return {
+            content: [{ type: 'text', text: JSON.stringify(result, null, 2) }]
+          };
+        }
+
+        case 'publish_to_bitbadges': {
+          const result = await handlePublishToBitbadges(args as Parameters<typeof handlePublishToBitbadges>[0]);
           return {
             content: [{ type: 'text', text: JSON.stringify(result, null, 2) }]
           };
