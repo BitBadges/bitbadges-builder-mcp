@@ -1,6 +1,6 @@
 {
   "name": "bitbadges-builder-mcp",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "MCP server for building BitBadges collections via natural language",
   "type": "module",
   "main": "dist/index.js",
