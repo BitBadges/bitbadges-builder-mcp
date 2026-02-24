@@ -262,7 +262,8 @@ Here is the COMPLETE structure with ALL required fields and their types:
   "maxSupplyPerId": "0",
   "noForcefulPostMintTransfers": false,
   "disablePoolCreation": true,
-  "cosmosCoinBackedPath": null
+  "cosmosCoinBackedPath": null,
+  "evmQueryChallenges": []
 }
 
 | Field | Description |
@@ -271,7 +272,8 @@ Here is the COMPLETE structure with ALL required fields and their types:
 | maxSupplyPerId | Maximum supply per token ID (0 = unlimited) |
 | noForcefulPostMintTransfers | If true, can't force transfers post-mint |
 | disablePoolCreation | If true, can't create liquidity pools |
-| cosmosCoinBackedPath | IBC backing configuration for Smart Tokens |`,
+| cosmosCoinBackedPath | IBC backing configuration for Smart Tokens |
+| evmQueryChallenges | EVM query challenges checked after ALL transfers (v25+) |`,
 
   msgTransferTokens: `## MsgTransferTokens - Complete Structure
 
@@ -450,6 +452,7 @@ For expiring tokens, calculate timestamps:
 | merkleChallenges | [] | If using merkle proofs |
 | requireToEqualsInitiatedBy | false | If recipient must be initiator |
 | autoDeletionOptions.afterOneUse | false | If approval should delete after use |
+| evmQueryChallenges | [] | EVM contract query validation (v25+) |
 
 ### Valid Check Fields
 
@@ -929,7 +932,153 @@ The metadataPlaceholders system allows you to generate metadata for collection, 
 - Collection and token metadata require \`name\`, \`description\`, and \`image\`
 - You can use any placeholder URI format (e.g., \`ipfs://METADATA_APPROVAL_public-mint\`)
 - The placeholder URI in the message must exactly match the key in \`metadataPlaceholders\`
-- Always include proper descriptions ending with periods`
+- Always include proper descriptions ending with periods`,
+
+  evmQueryChallenges: `## EVM Query Challenges (v25+)
+
+EVM Query Challenges allow you to validate transfers by calling read-only EVM smart contracts. They can be used in two contexts:
+
+### 1. In ApprovalCriteria (per-transfer validation)
+Challenges are checked for EACH transfer that matches the approval.
+
+### 2. In CollectionInvariants (post-transfer validation)
+Challenges are checked ONCE after ALL transfers in a message complete. This is useful for checking aggregate state.
+
+### EVMQueryChallenge Structure
+
+\`\`\`json
+{
+  "evmQueryChallenges": [{
+    "contractAddress": "0x1234567890abcdef1234567890abcdef12345678",
+    "calldata": "0x70a08231$sender",
+    "expectedResult": "0x0000000000000000000000000000000000000000000000000000000000000001",
+    "comparisonOperator": "gte",
+    "gasLimit": "100000",
+    "uri": "",
+    "customData": ""
+  }]
+}
+\`\`\`
+
+### Fields
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| contractAddress | Yes | EVM contract address (0x format or bb1 bech32) |
+| calldata | Yes | ABI-encoded function call (hex string with 0x prefix). Supports placeholders. |
+| expectedResult | No | Expected return value (hex string with 0x prefix). If empty, any non-error result passes. |
+| comparisonOperator | No | How to compare result: "eq" (default), "ne", "gt", "gte", "lt", "lte" |
+| gasLimit | No | Gas limit as string. Default: "100000", Max: "500000" |
+| uri | No | Metadata URI for the challenge |
+| customData | No | Arbitrary custom data |
+
+### Calldata Placeholders
+
+The following placeholders are replaced at runtime with the actual values (32-byte padded hex):
+
+| Placeholder | ApprovalCriteria | Invariants | Description |
+|-------------|------------------|------------|-------------|
+| \`$initiator\` | ✅ | ✅ | Transaction initiator address |
+| \`$sender\` | ✅ | ✅ | Token sender address |
+| \`$recipient\` | ✅ | ✅ | Token recipient address (first recipient for invariants) |
+| \`$collectionId\` | ✅ | ✅ | Collection ID as uint256 |
+| \`$recipients\` | ❌ | ✅ | ALL recipient addresses concatenated (invariants only) |
+
+### Comparison Operators
+
+| Operator | Description |
+|----------|-------------|
+| eq | Equal (default) |
+| ne | Not equal |
+| gt | Greater than (numeric) |
+| gte | Greater than or equal (numeric) |
+| lt | Less than (numeric) |
+| lte | Less than or equal (numeric) |
+
+### Gas Limits
+
+- Default per-challenge: 100,000
+- Maximum per-challenge: 500,000
+- Maximum total across all challenges: 1,000,000
+
+### Example: Require ERC-20 Balance
+
+\`\`\`json
+{
+  "approvalCriteria": {
+    "evmQueryChallenges": [{
+      "contractAddress": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+      "calldata": "0x70a08231$initiator",
+      "expectedResult": "0x00000000000000000000000000000000000000000000000000000000000f4240",
+      "comparisonOperator": "gte",
+      "gasLimit": "100000"
+    }]
+  }
+}
+\`\`\`
+
+This checks that the initiator has at least 1,000,000 (0xf4240) units of the ERC-20 token.
+
+### Example: Post-Transfer Invariant
+
+\`\`\`json
+{
+  "invariants": {
+    "evmQueryChallenges": [{
+      "contractAddress": "0x1234...",
+      "calldata": "0x...$sender$recipients",
+      "expectedResult": "0x0000...0001",
+      "comparisonOperator": "eq",
+      "gasLimit": "200000"
+    }]
+  }
+}
+\`\`\`
+
+### Building Calldata
+
+To call a function like \`balanceOf(address)\`:
+1. Get the function selector: \`keccak256("balanceOf(address)")[:4]\` = \`0x70a08231\`
+2. Append the address parameter: Use placeholder \`$initiator\`, \`$sender\`, or \`$recipient\`
+3. Full calldata: \`0x70a08231$initiator\`
+
+For boolean return values:
+- true = \`0x0000000000000000000000000000000000000000000000000000000000000001\`
+- false = \`0x0000000000000000000000000000000000000000000000000000000000000000\``,
+
+  collectionStats: `## Collection Stats Query (v25+)
+
+The \`getCollectionStats\` query returns real-time statistics for a collection.
+
+### Query
+
+\`\`\`
+GET /tokenization/collections/{collectionId}/stats
+\`\`\`
+
+### Response
+
+\`\`\`json
+{
+  "stats": {
+    "holderCount": "1234",
+    "circulatingSupply": "5678000000"
+  }
+}
+\`\`\`
+
+### Fields
+
+| Field | Description |
+|-------|-------------|
+| holderCount | Number of unique addresses holding tokens (excludes Mint, Total, backing addresses) |
+| circulatingSupply | Total circulating supply for Smart Tokens (backed tokens) |
+
+### Notes
+
+- \`holderCount\` excludes protocol addresses (Mint, Total) and backing addresses
+- \`circulatingSupply\` is tracked for Smart Tokens and updates on backing/unbacking operations
+- Stats are updated automatically on transfers`
 };
 
 /**

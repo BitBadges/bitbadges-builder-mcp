@@ -1267,6 +1267,153 @@ When using predeterminedBalances, the orderCalculationMethod MUST have **exactly
 - usePerInitiatedByAddressNumTransfers: true → Sequential per initiator
 
 You CANNOT have zero methods true, and you CANNOT have multiple methods true.`
+  },
+  {
+    id: 'evm-query-challenges',
+    name: 'EVM Query Challenges',
+    category: 'advanced',
+    description: 'Validate transfers by calling read-only EVM smart contracts (v25+)',
+    instructions: `## EVM Query Challenges Configuration (v25+)
+
+EVM Query Challenges allow you to validate transfers by making read-only calls to EVM smart contracts deployed on the BitBadges chain. This enables powerful use cases like requiring holders of external tokens, checking on-chain state, or validating complex conditions.
+
+### Two Contexts
+
+1. **In ApprovalCriteria**: Checked for EACH transfer that matches the approval
+2. **In CollectionInvariants**: Checked ONCE after ALL transfers in a message complete
+
+### Structure
+
+\`\`\`json
+{
+  "evmQueryChallenges": [{
+    "contractAddress": "0x1234567890abcdef1234567890abcdef12345678",
+    "calldata": "0x70a08231$sender",
+    "expectedResult": "0x0000000000000000000000000000000000000000000000000000000000000001",
+    "comparisonOperator": "gte",
+    "gasLimit": "100000",
+    "uri": "",
+    "customData": ""
+  }]
+}
+\`\`\`
+
+### Fields Reference
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| contractAddress | Yes | EVM contract address (0x format or bb1 bech32) |
+| calldata | Yes | ABI-encoded function call (hex with 0x prefix). Supports placeholders. |
+| expectedResult | No | Expected return value (hex). If empty, any non-error result passes. |
+| comparisonOperator | No | How to compare: "eq" (default), "ne", "gt", "gte", "lt", "lte" |
+| gasLimit | No | Gas limit as string. Default: "100000", Max: "500000" |
+| uri | No | Metadata URI |
+| customData | No | Arbitrary custom data |
+
+### Calldata Placeholders
+
+Placeholders are replaced at runtime with 32-byte padded hex addresses:
+
+| Placeholder | Context | Description |
+|-------------|---------|-------------|
+| \`$initiator\` | Both | Transaction initiator |
+| \`$sender\` | Both | Token sender |
+| \`$recipient\` | Both | Token recipient |
+| \`$collectionId\` | Both | Collection ID as uint256 |
+| \`$recipients\` | Invariants only | ALL recipients concatenated |
+
+### Comparison Operators
+
+| Operator | Description |
+|----------|-------------|
+| eq | Equal (default) |
+| ne | Not equal |
+| gt | Greater than (numeric) |
+| gte | Greater than or equal (numeric) |
+| lt | Less than (numeric) |
+| lte | Less than or equal (numeric) |
+
+### Example: Require ERC-20 Balance in Approval
+
+\`\`\`json
+{
+  "fromListId": "Mint",
+  "toListId": "All",
+  "initiatedByListId": "All",
+  "approvalId": "erc20-gated-mint",
+  "tokenIds": [{ "start": "1", "end": "1" }],
+  "transferTimes": [{ "start": "1", "end": "18446744073709551615" }],
+  "ownershipTimes": [{ "start": "1", "end": "18446744073709551615" }],
+  "uri": "ipfs://...",
+  "customData": "",
+  "approvalCriteria": {
+    "overridesFromOutgoingApprovals": true,
+    "evmQueryChallenges": [{
+      "contractAddress": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+      "calldata": "0x70a08231$initiator",
+      "expectedResult": "0x00000000000000000000000000000000000000000000000000000000000f4240",
+      "comparisonOperator": "gte",
+      "gasLimit": "100000"
+    }]
+  },
+  "version": "0"
+}
+\`\`\`
+
+This requires initiator to have at least 1,000,000 units (0xf4240) of the ERC-20 token to mint.
+
+### Example: Post-Transfer Invariant
+
+\`\`\`json
+{
+  "invariants": {
+    "evmQueryChallenges": [{
+      "contractAddress": "0x1234567890abcdef1234567890abcdef12345678",
+      "calldata": "0x12345678$sender$collectionId",
+      "expectedResult": "0x0000000000000000000000000000000000000000000000000000000000000001",
+      "comparisonOperator": "eq",
+      "gasLimit": "200000"
+    }],
+    "noCustomOwnershipTimes": false,
+    "maxSupplyPerId": "0",
+    "noForcefulPostMintTransfers": false,
+    "disablePoolCreation": true,
+    "cosmosCoinBackedPath": null
+  }
+}
+\`\`\`
+
+This checks the invariant ONCE after ALL transfers complete.
+
+### Building Calldata
+
+1. **Get function selector**: First 4 bytes of keccak256(function signature)
+   - \`balanceOf(address)\` → \`0x70a08231\`
+   - \`ownerOf(uint256)\` → \`0x6352211e\`
+   - \`isApprovedForAll(address,address)\` → \`0xe985e9c5\`
+
+2. **Append parameters**: Use placeholders or hex-encoded values
+   - \`0x70a08231$initiator\` - balanceOf(initiator)
+   - \`0xe985e9c5$sender$recipient\` - isApprovedForAll(sender, recipient)
+
+3. **Common return values**:
+   - Boolean true: \`0x0000000000000000000000000000000000000000000000000000000000000001\`
+   - Boolean false: \`0x0000000000000000000000000000000000000000000000000000000000000000\`
+
+### Gas Limits
+
+- Default per-challenge: 100,000
+- Maximum per-challenge: 500,000
+- Maximum total across all challenges: 1,000,000 (DoS protection)
+
+### Key Gotchas
+
+- contractAddress can be 0x format or bb1 bech32
+- calldata must include 0x prefix
+- expectedResult must include 0x prefix (if provided)
+- gasLimit is a string (like all numbers in BitBadges)
+- Multiple challenges are ANDed together (all must pass)
+- For invariants, $recipients gives ALL recipients concatenated`
   }
 ];
 
