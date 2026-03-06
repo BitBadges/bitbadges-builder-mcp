@@ -13,3 +13,8 @@ export * from './validateAddress.js';
 
 // Documentation
 export * from './fetchDocs.js';
+
+// Knowledge base
+export * from './searchKnowledgeBase.js';
+export * from './addLearning.js';
+export * from './diagnoseError.js';

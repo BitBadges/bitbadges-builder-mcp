@@ -47,6 +47,7 @@ export interface BuildSmartTokenResult {
     decimals: number;
     features: string[];
   };
+  nextSteps?: string;
   error?: string;
 }
 
@@ -395,6 +396,16 @@ export function handleBuildSmartToken(input: BuildSmartTokenInput): BuildSmartTo
           })
         ],
 
+        defaultBalances: {
+          balances: [],
+          outgoingApprovals: [],
+          incomingApprovals: [],
+          autoApproveAllIncomingTransfers: true,
+          autoApproveSelfInitiatedOutgoingTransfers: true,
+          autoApproveSelfInitiatedIncomingTransfers: true,
+          userPermissions: {}
+        },
+
         updateStandards: true,
         standards,
 
@@ -469,7 +480,8 @@ export function handleBuildSmartToken(input: BuildSmartTokenInput): BuildSmartTo
         symbol: input.symbol,
         decimals,
         features
-      }
+      },
+      nextSteps: 'IMPORTANT: Run audit_collection on this transaction before deploying. Then validate_transaction → simulate_transaction → sign_and_broadcast.'
     };
   } catch (error) {
     return {

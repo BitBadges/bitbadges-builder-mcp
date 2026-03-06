@@ -31,6 +31,7 @@ export interface BuildNFTCollectionResult {
     totalSupply: string;
     features: string[];
   };
+  nextSteps?: string;
   error?: string;
 }
 
@@ -310,6 +311,16 @@ export function handleBuildNFTCollection(input: BuildNFTCollectionInput): BuildN
           buildTransferApproval(input.totalSupply)
         ],
 
+        defaultBalances: {
+          balances: [],
+          outgoingApprovals: [],
+          incomingApprovals: [],
+          autoApproveAllIncomingTransfers: true,
+          autoApproveSelfInitiatedOutgoingTransfers: true,
+          autoApproveSelfInitiatedIncomingTransfers: true,
+          userPermissions: {}
+        },
+
         updateStandards: true,
         standards,
 
@@ -340,7 +351,8 @@ export function handleBuildNFTCollection(input: BuildNFTCollectionInput): BuildN
       summary: {
         totalSupply: input.totalSupply,
         features
-      }
+      },
+      nextSteps: 'IMPORTANT: Run audit_collection on this transaction before deploying. Then validate_transaction → simulate_transaction → sign_and_broadcast.'
     };
   } catch (error) {
     return {

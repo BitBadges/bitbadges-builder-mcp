@@ -47,7 +47,35 @@ import {
   verifyOwnershipTool,
   handleVerifyOwnership,
   searchTool,
-  handleSearch
+  handleSearch,
+  // Signing tools
+  signAndBroadcastTool,
+  handleSignAndBroadcast,
+  broadcastTool,
+  handleBroadcast,
+  // Knowledge base tools
+  searchKnowledgeBaseTool,
+  handleSearchKnowledgeBase,
+  addLearningTool,
+  handleAddLearning,
+  diagnoseErrorTool,
+  handleDiagnoseError,
+  // Collection analysis tools
+  analyzeCollectionTool,
+  handleAnalyzeCollection,
+  buildTransferTool,
+  handleBuildTransfer,
+  // Dynamic store tools
+  buildDynamicStoreTool,
+  handleBuildDynamicStore,
+  queryDynamicStoreTool,
+  handleQueryDynamicStore,
+  // Audit tool
+  auditCollectionTool,
+  handleAuditCollection,
+  // Explain tool
+  explainCollectionTool,
+  handleExplainCollection
 } from './tools/index.js';
 
 // Import resources
@@ -71,7 +99,18 @@ import {
   apiDocsResourceInfo,
   getApiDocsContent,
   examplesDocsResourceInfo,
-  getExamplesDocsContent
+  getExamplesDocsContent,
+  // Knowledge base resources
+  recipesResourceInfo,
+  getRecipesContent,
+  learningsResourceInfo,
+  getLearningsContent,
+  errorPatternsResourceInfo,
+  getErrorPatternsContent,
+  frontendDocsResourceInfo,
+  getFrontendDocsContent,
+  workflowsResourceInfo,
+  getWorkflowsContent
 } from './resources/index.js';
 
 /**
@@ -115,13 +154,13 @@ export function createServer(): Server {
         // Skill instructions tool
         {
           name: 'get_skill_instructions',
-          description: 'Get instructions for a specific skill (smart-token, fungible-token, nft-collection, subscription)',
+          description: 'Get instructions for a specific skill (smart-token, fungible-token, nft-collection, subscription, bb-402)',
           inputSchema: {
             type: 'object',
             properties: {
               skillId: {
                 type: 'string',
-                description: 'Skill ID: smart-token, fungible-token, nft-collection, or subscription'
+                description: 'Skill ID: smart-token, fungible-token, nft-collection, subscription, or bb-402'
               }
             },
             required: ['skillId']
@@ -146,12 +185,35 @@ export function createServer(): Server {
         // Documentation
         fetchDocsTool,
 
+        // Signing tools
+        signAndBroadcastTool,
+        broadcastTool,
+
+        // Knowledge base tools
+        searchKnowledgeBaseTool,
+        addLearningTool,
+        diagnoseErrorTool,
+
         // Query tools (require API key)
         queryCollectionTool,
         queryBalanceTool,
         simulateTransactionTool,
         verifyOwnershipTool,
-        searchTool
+        searchTool,
+
+        // Collection analysis (require API key)
+        analyzeCollectionTool,
+        buildTransferTool,
+
+        // Dynamic store tools
+        buildDynamicStoreTool,
+        queryDynamicStoreTool,
+
+        // Audit tool
+        auditCollectionTool,
+
+        // Explain tool
+        explainCollectionTool
       ]
     };
   });
@@ -242,6 +304,20 @@ export function createServer(): Server {
           };
         }
 
+        case 'audit_collection': {
+          const result = handleAuditCollection(args as Parameters<typeof handleAuditCollection>[0]);
+          return {
+            content: [{ type: 'text', text: JSON.stringify(result, null, 2) }]
+          };
+        }
+
+        case 'explain_collection': {
+          const result = handleExplainCollection(args as Parameters<typeof handleExplainCollection>[0]);
+          return {
+            content: [{ type: 'text', text: result.success ? result.explanation : JSON.stringify(result, null, 2) }]
+          };
+        }
+
         // Skill instructions
         case 'get_skill_instructions': {
           const skillId = (args as { skillId: string }).skillId;
@@ -296,6 +372,43 @@ export function createServer(): Server {
           };
         }
 
+        // Knowledge base tools
+        case 'search_knowledge_base': {
+          const result = handleSearchKnowledgeBase(args as Parameters<typeof handleSearchKnowledgeBase>[0]);
+          return {
+            content: [{ type: 'text', text: JSON.stringify(result, null, 2) }]
+          };
+        }
+
+        case 'add_learning': {
+          const result = handleAddLearning(args as Parameters<typeof handleAddLearning>[0]);
+          return {
+            content: [{ type: 'text', text: JSON.stringify(result, null, 2) }]
+          };
+        }
+
+        case 'diagnose_error': {
+          const result = handleDiagnoseError(args as Parameters<typeof handleDiagnoseError>[0]);
+          return {
+            content: [{ type: 'text', text: JSON.stringify(result, null, 2) }]
+          };
+        }
+
+        // Signing tools
+        case 'sign_and_broadcast': {
+          const result = await handleSignAndBroadcast(args as Parameters<typeof handleSignAndBroadcast>[0]);
+          return {
+            content: [{ type: 'text', text: JSON.stringify(result, null, 2) }]
+          };
+        }
+
+        case 'broadcast': {
+          const result = await handleBroadcast(args as Parameters<typeof handleBroadcast>[0]);
+          return {
+            content: [{ type: 'text', text: JSON.stringify(result, null, 2) }]
+          };
+        }
+
         // Query tools
         case 'query_collection': {
           const result = await handleQueryCollection(args as Parameters<typeof handleQueryCollection>[0]);
@@ -332,6 +445,36 @@ export function createServer(): Server {
           };
         }
 
+        // Collection analysis tools
+        case 'analyze_collection': {
+          const result = await handleAnalyzeCollection(args as Parameters<typeof handleAnalyzeCollection>[0]);
+          return {
+            content: [{ type: 'text', text: JSON.stringify(result, null, 2) }]
+          };
+        }
+
+        case 'build_transfer': {
+          const result = await handleBuildTransfer(args as Parameters<typeof handleBuildTransfer>[0]);
+          return {
+            content: [{ type: 'text', text: JSON.stringify(result, null, 2) }]
+          };
+        }
+
+        // Dynamic store tools
+        case 'build_dynamic_store': {
+          const result = handleBuildDynamicStore(args as Parameters<typeof handleBuildDynamicStore>[0]);
+          return {
+            content: [{ type: 'text', text: JSON.stringify(result, null, 2) }]
+          };
+        }
+
+        case 'query_dynamic_store': {
+          const result = await handleQueryDynamicStore(args as Parameters<typeof handleQueryDynamicStore>[0]);
+          return {
+            content: [{ type: 'text', text: JSON.stringify(result, null, 2) }]
+          };
+        }
+
         default:
           throw new Error(`Unknown tool: ${name}`);
       }
@@ -363,7 +506,13 @@ export function createServer(): Server {
         sdkDocsResourceInfo,
         messagesDocsResourceInfo,
         apiDocsResourceInfo,
-        examplesDocsResourceInfo
+        examplesDocsResourceInfo,
+        // Knowledge base resources
+        recipesResourceInfo,
+        learningsResourceInfo,
+        errorPatternsResourceInfo,
+        frontendDocsResourceInfo,
+        workflowsResourceInfo
       ]
     };
   });
@@ -451,6 +600,57 @@ export function createServer(): Server {
             uri,
             mimeType: 'text/markdown',
             text: getExamplesDocsContent()
+          }]
+        };
+      }
+
+      // Knowledge base resources
+      case 'bitbadges://recipes/all': {
+        return {
+          contents: [{
+            uri,
+            mimeType: 'text/markdown',
+            text: getRecipesContent()
+          }]
+        };
+      }
+
+      case 'bitbadges://learnings/all': {
+        return {
+          contents: [{
+            uri,
+            mimeType: 'text/markdown',
+            text: getLearningsContent()
+          }]
+        };
+      }
+
+      case 'bitbadges://errors/patterns': {
+        return {
+          contents: [{
+            uri,
+            mimeType: 'text/markdown',
+            text: getErrorPatternsContent()
+          }]
+        };
+      }
+
+      case 'bitbadges://docs/frontend': {
+        return {
+          contents: [{
+            uri,
+            mimeType: 'text/markdown',
+            text: getFrontendDocsContent()
+          }]
+        };
+      }
+
+      case 'bitbadges://workflows/all': {
+        return {
+          contents: [{
+            uri,
+            mimeType: 'text/markdown',
+            text: getWorkflowsContent()
           }]
         };
       }

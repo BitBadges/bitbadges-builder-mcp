@@ -559,6 +559,30 @@ export function handleValidateTransaction(input: ValidateTransactionInput): Vali
       if (value.collectionPermissions) {
         validatePermissions(value.collectionPermissions, `${msgPath}.value.collectionPermissions`, issues);
       }
+
+      // Validate defaultBalances for mint collections
+      if (value.collectionId === '0' || value.collectionId === 0) {
+        const hasMintApproval = Array.isArray(value.collectionApprovals) &&
+          (value.collectionApprovals as Array<Record<string, unknown>>).some(
+            a => a.fromListId === 'Mint'
+          );
+        if (hasMintApproval) {
+          const defaultBal = value.defaultBalances as Record<string, unknown> | undefined;
+          if (!defaultBal) {
+            issues.push({
+              severity: 'warning',
+              message: 'Collection has mint approvals but no defaultBalances. Recipients will not be able to receive tokens. Add defaultBalances with autoApproveAllIncomingTransfers: true.',
+              path: `${msgPath}.value.defaultBalances`
+            });
+          } else if (!defaultBal.autoApproveAllIncomingTransfers) {
+            issues.push({
+              severity: 'warning',
+              message: 'defaultBalances.autoApproveAllIncomingTransfers is not true. Recipients will not be able to receive minted tokens.',
+              path: `${msgPath}.value.defaultBalances.autoApproveAllIncomingTransfers`
+            });
+          }
+        }
+      }
     }
 
     // Validate MsgTransferTokens

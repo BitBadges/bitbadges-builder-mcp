@@ -39,10 +39,48 @@ BitBadges is a Cosmos SDK blockchain for tokenization-as-a-service. It provides:
 - Explorer: https://explorer.bitbadges.io/BitBadges%20Mainnet
 - Docs: https://docs.bitbadges.io
 
-### Token Decimals
-- ubadge: 9 decimals (1 BADGE = 1,000,000,000 ubadge)
-- USDC (IBC): 6 decimals (1 USDC = 1,000,000 ibc/F082B65C88E4B6D5EF1DB243CDA1D331D002759E938A0F5CD3FFDC5D53B3E349)
-- ATOM (IBC): 6 decimals (1 ATOM = 1,000,000 ibc/A4DB47A9D3CF9A068D454513891B526702455D3EF08FB9EB558C561F9DC2B701)`,
+### Token Decimals & x/precisebank
+
+**CRITICAL: BADGE has DIFFERENT decimals in Cosmos vs EVM contexts.**
+
+BitBadges uses the \`x/precisebank\` module to bridge the decimal gap between Cosmos (9 decimals) and EVM (18 decimals).
+
+#### Three denomination levels:
+| Denom | Decimals | Context | Relationship |
+|-------|----------|---------|-------------|
+| **BADGE** | Display unit | Both | 1 BADGE = 10^9 ubadge = 10^18 abadge |
+| **ubadge** | 9 (Cosmos base) | Cosmos SDK, bank module, IBC | 1 ubadge = 10^9 abadge |
+| **abadge** | 0 (EVM base) | EVM, Solidity, MetaMask | Smallest unit (like wei) |
+
+#### In Cosmos context:
+- Gas fees, bank sends, IBC transfers use \`ubadge\`
+- 1 BADGE = 1,000,000,000 ubadge (9 decimals)
+- ubadge is the base denom for Cosmos transactions
+
+#### In EVM context:
+- Solidity \`msg.value\`, MetaMask amounts, ERC-20 patterns use 18 decimal representation
+- 1 BADGE = 10^18 abadge (18 decimals, like ETH/wei)
+- ubadge in EVM = 10^9 abadge (ubadge has 9 decimals in EVM context)
+- \`x/precisebank\` handles the fractional conversion between ubadge and abadge automatically
+
+#### Conversion examples:
+\`\`\`
+1 BADGE    = 1,000,000,000 ubadge         (Cosmos)
+1 BADGE    = 1,000,000,000,000,000,000 abadge  (EVM, 18 decimals)
+1 ubadge   = 1,000,000,000 abadge         (EVM)
+0.5 ubadge = 500,000,000 abadge           (only possible via x/precisebank)
+\`\`\`
+
+#### Why this matters:
+- When writing Solidity that sends BADGE via SendManager precompile, amounts are in \`ubadge\` (Cosmos format)
+- When MetaMask displays native balance, it shows 18-decimal format (abadge as base)
+- When checking \`address(this).balance\` in Solidity, result is in abadge (18 decimals)
+- x/precisebank ensures sub-ubadge amounts (fractional) are tracked correctly in EVM
+
+#### Other tokens:
+- USDC (IBC): 6 decimals (1 USDC = 1,000,000 ibc/F082B65...)
+- ATOM (IBC): 6 decimals (1 ATOM = 1,000,000 ibc/A4DB47...)
+- IBC tokens do NOT have precisebank conversion — they use standard Cosmos decimals`,
 
   workflow: `## Decision Tree
 
@@ -52,7 +90,20 @@ When the user wants to:
 - Mint tokens → Use MsgTransferTokens with from: "Mint"
 - Transfer tokens → Use MsgTransferTokens with from: "bb1..." address
 - Create + Mint in one transaction → Use both messages, both with collectionId: "0"
-- Create subscription → Use MsgUniversalUpdateCollection with "Subscriptions" standard`,
+- Create subscription → Use MsgUniversalUpdateCollection with "Subscriptions" standard
+
+## Build → Audit → Deploy Flow (MANDATORY)
+
+After EVERY collection build, follow this pipeline:
+1. **Build** → build_nft_collection / build_fungible_token / build_smart_token
+2. **Audit** → audit_collection(collection: result.transaction, context: "use case description")
+3. **Fix** → Address critical/warning findings, re-audit if needed
+4. **Present** → Show audit results to user with plain-language explanations
+5. **Validate** → validate_transaction
+6. **Simulate** → simulate_transaction
+7. **Deploy** → sign_and_broadcast
+
+NEVER skip the audit step. Always present audit findings to the user before deploying.`,
 
   criticalRules: `## Critical Rules (MUST FOLLOW - NO EXCEPTIONS)
 
@@ -77,7 +128,8 @@ When the user wants to:
 15. **prioritizedApprovals MUST be specified**: In MsgTransferTokens, the prioritizedApprovals field MUST always be explicitly specified (use [] if no specific approvals needed).
 16. **orderCalculationMethod - EXACTLY ONE true**: When using incrementedBalances with startBalances, exactly ONE orderCalculationMethod field must be true. Default: useOverallNumTransfers: true.
 17. **canUpdateValidTokenIds default**: Should be **forbidden (frozen)** unless user explicitly specifies otherwise - most collections have fixed token ID ranges.
-18. **canUpdateCollectionApprovals SECURITY**: Should be **forbidden (frozen)** by default, especially with Mint approvals. If manager can update approvals, they can create new mint approvals = unlimited minting.`,
+18. **canUpdateCollectionApprovals SECURITY**: Should be **forbidden (frozen)** by default, especially with Mint approvals. If manager can update approvals, they can create new mint approvals = unlimited minting.
+19. **defaultBalances MUST include autoApproveAllIncomingTransfers: true**: For ANY collection with mint approvals, set defaultBalances with autoApproveAllIncomingTransfers: true. Without this, recipients CANNOT receive minted tokens. This is the #1 deployment bug. Always include: \`defaultBalances: { balances: [], outgoingApprovals: [], incomingApprovals: [], autoApproveAllIncomingTransfers: true, autoApproveSelfInitiatedOutgoingTransfers: true, autoApproveSelfInitiatedIncomingTransfers: true, userPermissions: {} }\``,
 
   transactionStructure: `## Transaction Structure
 

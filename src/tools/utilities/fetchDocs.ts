@@ -85,7 +85,41 @@ const TOPIC_URL_MAP: Record<string, string> = {
   // Overview
   'overview': 'https://docs.bitbadges.io/overview/what-is-bitbadges',
   'what is bitbadges': 'https://docs.bitbadges.io/overview/what-is-bitbadges',
-  'getting started': 'https://docs.bitbadges.io/for-developers/getting-started'
+  'getting started': 'https://docs.bitbadges.io/for-developers/getting-started',
+
+  // AI Agents & Bots
+  'ai agents': 'https://docs.bitbadges.io/for-developers/ai-agents',
+  'ai': 'https://docs.bitbadges.io/for-developers/ai-agents',
+  'bots': 'https://docs.bitbadges.io/for-developers/ai-agents',
+  'mcp': 'https://docs.bitbadges.io/for-developers/ai-agents/mcp-builder-tools',
+  'mcp tools': 'https://docs.bitbadges.io/for-developers/ai-agents/mcp-builder-tools',
+  'bot examples': 'https://docs.bitbadges.io/for-developers/ai-agents/bot-examples',
+  'websocket': 'https://docs.bitbadges.io/for-developers/ai-agents/websocket-events',
+  'websocket events': 'https://docs.bitbadges.io/for-developers/ai-agents/websocket-events',
+  'machine discovery': 'https://docs.bitbadges.io/for-developers/ai-agents/capabilities-json',
+  'capabilities': 'https://docs.bitbadges.io/for-developers/ai-agents/capabilities-json',
+  'vault tutorial': 'https://docs.bitbadges.io/for-developers/ai-agents/openclaw-vault-tutorial',
+  'faucet': 'https://docs.bitbadges.io/for-developers/ai-agents/testnet-faucet',
+  'testnet faucet': 'https://docs.bitbadges.io/for-developers/ai-agents/testnet-faucet',
+
+  // Claims extended
+  'claims ai': 'https://docs.bitbadges.io/for-developers/claim-builder/leveraging-ai',
+  'leveraging ai': 'https://docs.bitbadges.io/for-developers/claim-builder/leveraging-ai',
+  'dynamic stores': 'https://docs.bitbadges.io/for-developers/claim-builder/dynamic-stores',
+  'plugins': 'https://docs.bitbadges.io/for-developers/claim-builder/custom-plugins-webhooks',
+  'webhooks': 'https://docs.bitbadges.io/for-developers/claim-builder/custom-plugins-webhooks',
+  'zapier': 'https://docs.bitbadges.io/for-developers/claim-builder/integrate-with-zapier',
+
+  // BB-402
+  'bb-402': 'https://docs.bitbadges.io/x-tokenization/bb-402-token-gated-api-access',
+  'token gated': 'https://docs.bitbadges.io/x-tokenization/bb-402-token-gated-api-access',
+  'gated api': 'https://docs.bitbadges.io/x-tokenization/bb-402-token-gated-api-access',
+
+  // EVM
+  'evm': 'https://docs.bitbadges.io/x-tokenization/evm-compatibility',
+  'evm compatibility': 'https://docs.bitbadges.io/x-tokenization/evm-compatibility',
+  'precompiles': 'https://docs.bitbadges.io/x-tokenization/evm-compatibility',
+  'solidity': 'https://docs.bitbadges.io/x-tokenization/evm-compatibility'
 };
 
 /**
@@ -156,6 +190,67 @@ async function fetchDocContent(url: string): Promise<string> {
   }
 }
 
+/**
+ * Cache for llms-full.txt content (fetched once, reused)
+ */
+let llmsFullTextCache: string | null = null;
+
+/**
+ * Fetch llms-full.txt and search for relevant sections by keyword
+ */
+async function fetchLlmsFullText(topic: string): Promise<string | null> {
+  // Fetch and cache
+  if (!llmsFullTextCache) {
+    const response = await fetch('https://docs.bitbadges.io/llms-full.txt', {
+      headers: { 'User-Agent': 'BitBadges-Builder-MCP/1.0' }
+    });
+    if (!response.ok) return null;
+    llmsFullTextCache = await response.text();
+  }
+
+  const text = llmsFullTextCache;
+  const topicLower = topic.toLowerCase();
+  const terms = topicLower.split(/\s+/).filter(t => t.length > 2);
+
+  // Split into sections by markdown headers
+  const sections = text.split(/(?=^#{1,3}\s)/m);
+
+  // Score each section by keyword relevance
+  const scored = sections
+    .map(section => {
+      let score = 0;
+      const sectionLower = section.toLowerCase();
+      for (const term of terms) {
+        const regex = new RegExp(term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
+        const matches = sectionLower.match(regex);
+        if (matches) score += matches.length;
+      }
+      // Bonus for header match
+      const headerMatch = section.match(/^#{1,3}\s+(.+)/);
+      if (headerMatch) {
+        const header = headerMatch[1].toLowerCase();
+        for (const term of terms) {
+          if (header.includes(term)) score += 5;
+        }
+      }
+      return { section, score };
+    })
+    .filter(s => s.score > 0)
+    .sort((a, b) => b.score - a.score);
+
+  if (scored.length === 0) return null;
+
+  // Return top 3 most relevant sections, truncated
+  let result = `# Search results for "${topic}" from docs.bitbadges.io\n\n`;
+  for (const s of scored.slice(0, 3)) {
+    const trimmed = s.section.trim();
+    result += trimmed.length > 3000 ? trimmed.substring(0, 3000) + '\n...[truncated]' : trimmed;
+    result += '\n\n---\n\n';
+  }
+
+  return result.length > 100 ? result : null;
+}
+
 export async function handleFetchDocs(input: FetchDocsInput): Promise<FetchDocsResult> {
   try {
     const { topic } = input;
@@ -164,7 +259,21 @@ export async function handleFetchDocs(input: FetchDocsInput): Promise<FetchDocsR
     const url = findTopicUrl(topic);
 
     if (!url) {
-      // Return suggestion for unknown topics
+      // Fallback: search llms-full.txt for the topic
+      try {
+        const fallbackContent = await fetchLlmsFullText(topic);
+        if (fallbackContent) {
+          return {
+            success: true,
+            topic,
+            content: fallbackContent,
+            url: 'https://docs.bitbadges.io/llms-full.txt'
+          };
+        }
+      } catch {
+        // Fallback failed, continue to error
+      }
+
       const availableTopics = Object.keys(TOPIC_URL_MAP).slice(0, 20).join(', ');
       return {
         success: false,

@@ -34,6 +34,7 @@ export interface BuildFungibleTokenResult {
     decimals: string;
     features: string[];
   };
+  nextSteps?: string;
   error?: string;
 }
 
@@ -338,6 +339,16 @@ export function handleBuildFungibleToken(input: BuildFungibleTokenInput): BuildF
         updateCollectionApprovals: true,
         collectionApprovals: approvals,
 
+        defaultBalances: {
+          balances: [],
+          outgoingApprovals: [],
+          incomingApprovals: [],
+          autoApproveAllIncomingTransfers: true,
+          autoApproveSelfInitiatedOutgoingTransfers: true,
+          autoApproveSelfInitiatedIncomingTransfers: true,
+          userPermissions: {}
+        },
+
         updateStandards: true,
         standards,
 
@@ -369,7 +380,8 @@ export function handleBuildFungibleToken(input: BuildFungibleTokenInput): BuildF
         symbol: input.symbol,
         decimals,
         features
-      }
+      },
+      nextSteps: 'IMPORTANT: Run audit_collection on this transaction before deploying. Then validate_transaction → simulate_transaction → sign_and_broadcast.'
     };
   } catch (error) {
     return {
