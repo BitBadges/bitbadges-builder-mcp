@@ -4,6 +4,7 @@
  */
 
 import { z } from 'zod';
+import { AddressList } from 'bitbadgesjs-sdk';
 
 export const validateTransactionSchema = z.object({
   transactionJson: z.string().describe('The transaction JSON to validate')
@@ -37,56 +38,25 @@ export const validateTransactionTool = {
   }
 };
 
-const RESERVED_LIST_IDS = ['All', 'Mint', 'Total', '!Mint'];
 const MAX_UINT64 = '18446744073709551615';
 
 /**
- * Check if a value is a valid list ID
+ * Check if a value is a valid list ID using the SDK's reserved list parser.
+ * This handles all composite formats: bb1..., !bb1..., Mint:bb1..., !Mint:bb1...,
+ * All, !Mint, AllWithout..., !(addr:addr), etc.
  */
 function isValidListId(id: string): boolean {
-  // Reserved IDs
-  if (RESERVED_LIST_IDS.includes(id)) {
+  try {
+    AddressList.getReservedAddressList(id);
     return true;
+  } catch {
+    return false;
   }
-
-  // Negated reserved IDs (except !Mint which is already in the list)
-  if (id.startsWith('!') && RESERVED_LIST_IDS.includes(id.slice(1))) {
-    return true;
-  }
-
-  // Direct bb1... address
-  if (id.startsWith('bb1')) {
-    return true;
-  }
-
-  // Negated bb1... address
-  if (id.startsWith('!bb1')) {
-    return true;
-  }
-
-  // Colon-separated list of addresses (bb1abc:bb1xyz)
-  if (id.includes(':') && !id.startsWith('!')) {
-    const parts = id.split(':');
-    return parts.every(part => part.startsWith('bb1'));
-  }
-
-  // Negated colon-separated list (!bb1abc:bb1xyz)
-  if (id.startsWith('!') && id.includes(':')) {
-    const rest = id.slice(1);
-    const parts = rest.split(':');
-    return parts.every(part => part.startsWith('bb1'));
-  }
-
-  // Special format for Smart Token: !Mint:bb1...
-  if (id.startsWith('!Mint:bb1')) {
-    return true;
-  }
-
-  return false;
 }
 
 /**
- * Recursively check for non-string numbers in an object
+ * Recursively check for non-string numbers in an object.
+ * Skips claimConfig subtrees — claim plugin params legitimately use JS numbers.
  */
 function checkNumbersAreStrings(obj: unknown, path: string, issues: ValidationIssue[]): void {
   if (obj === null || obj === undefined) {
@@ -111,6 +81,8 @@ function checkNumbersAreStrings(obj: unknown, path: string, issues: ValidationIs
 
   if (typeof obj === 'object') {
     Object.entries(obj).forEach(([key, value]) => {
+      // Skip claimConfig subtrees — plugin params (maxUses, numCodes, maxUsesPerAddress) are legitimately JS numbers
+      if (key === 'claimConfig') return;
       checkNumbersAreStrings(value, `${path}.${key}`, issues);
     });
   }
@@ -178,8 +150,9 @@ function findAndValidateUintRanges(obj: unknown, path: string, issues: Validatio
   // Check if this looks like a UintRange
   checkUintRangeFormat(obj, path, issues);
 
-  // Recurse into nested objects
+  // Recurse into nested objects (skip claimConfig — not protobuf, different schema)
   Object.entries(record).forEach(([key, value]) => {
+    if (key === 'claimConfig') return;
     findAndValidateUintRanges(value, `${path}.${key}`, issues);
   });
 }
@@ -405,6 +378,37 @@ function validatePermissions(permissions: unknown, path: string, issues: Validat
     }
   });
 
+  // Check canUpdateCollectionApprovals entries have valid address list IDs
+  if ('canUpdateCollectionApprovals' in p && Array.isArray(p.canUpdateCollectionApprovals)) {
+    (p.canUpdateCollectionApprovals as unknown[]).forEach((perm, index) => {
+      if (!perm || typeof perm !== 'object') return;
+      const permObj = perm as Record<string, unknown>;
+
+      // Only check if the permission has time arrays set (not an empty placeholder)
+      const hasTimes = (Array.isArray(permObj.permanentlyPermittedTimes) && permObj.permanentlyPermittedTimes.length > 0) ||
+                       (Array.isArray(permObj.permanentlyForbiddenTimes) && permObj.permanentlyForbiddenTimes.length > 0);
+
+      if (hasTimes) {
+        ['fromListId', 'toListId', 'initiatedByListId'].forEach(field => {
+          const val = permObj[field];
+          if (!val || typeof val !== 'string') {
+            issues.push({
+              severity: 'error',
+              message: `canUpdateCollectionApprovals[${index}] MUST include ${field} (e.g. "All", "Mint", "AllWithMint")`,
+              path: `${path}.canUpdateCollectionApprovals[${index}].${field}`
+            });
+          } else if (!isValidListId(val)) {
+            issues.push({
+              severity: 'error',
+              message: `canUpdateCollectionApprovals[${index}].${field} has invalid list ID: "${val}". Use reserved IDs (All, Mint, AllWithMint, AllWithout:addr, None) or bb1... addresses`,
+              path: `${path}.canUpdateCollectionApprovals[${index}].${field}`
+            });
+          }
+        });
+      }
+    });
+  }
+
   // Check for empty permission arrays that should be [] instead of [{...}]
   Object.entries(p).forEach(([field, value]) => {
     if (Array.isArray(value) && value.length === 1) {
@@ -558,6 +562,60 @@ export function handleValidateTransaction(input: ValidateTransactionInput): Vali
       // Validate collectionPermissions
       if (value.collectionPermissions) {
         validatePermissions(value.collectionPermissions, `${msgPath}.value.collectionPermissions`, issues);
+      }
+
+      // Validate defaultBalances.userPermissions has all required arrays
+      if (value.defaultBalances && typeof value.defaultBalances === 'object') {
+        const defaultBal = value.defaultBalances as Record<string, unknown>;
+        if (defaultBal.userPermissions && typeof defaultBal.userPermissions === 'object') {
+          const up = defaultBal.userPermissions as Record<string, unknown>;
+          const requiredFields = [
+            'canUpdateOutgoingApprovals',
+            'canUpdateIncomingApprovals',
+            'canUpdateAutoApproveSelfInitiatedOutgoingTransfers',
+            'canUpdateAutoApproveSelfInitiatedIncomingTransfers',
+            'canUpdateAutoApproveAllIncomingTransfers'
+          ];
+          for (const field of requiredFields) {
+            if (!(field in up) || !Array.isArray(up[field])) {
+              issues.push({
+                severity: 'error',
+                message: `userPermissions.${field} must be an array (use [] for default). The SDK constructor will crash without it.`,
+                path: `${msgPath}.value.defaultBalances.userPermissions.${field}`
+              });
+            }
+          }
+        } else if (defaultBal.userPermissions !== undefined && (typeof defaultBal.userPermissions !== 'object' || defaultBal.userPermissions === null)) {
+          issues.push({
+            severity: 'error',
+            message: 'userPermissions must be an object with all required array fields, not a primitive',
+            path: `${msgPath}.value.defaultBalances.userPermissions`
+          });
+        }
+      }
+
+      // Validate defaultBalances approval address list IDs
+      if (value.defaultBalances && typeof value.defaultBalances === 'object') {
+        const db = value.defaultBalances as Record<string, unknown>;
+        ['incomingApprovals', 'outgoingApprovals'].forEach(field => {
+          if (Array.isArray(db[field])) {
+            (db[field] as unknown[]).forEach((approval, index) => {
+              if (!approval || typeof approval !== 'object') return;
+              const a = approval as Record<string, unknown>;
+              ['fromListId', 'toListId', 'initiatedByListId'].forEach(listField => {
+                if (listField in a && typeof a[listField] === 'string') {
+                  if (!isValidListId(a[listField] as string)) {
+                    issues.push({
+                      severity: 'error',
+                      message: `Invalid list ID in defaultBalances.${field}[${index}].${listField}: "${a[listField]}"`,
+                      path: `${msgPath}.value.defaultBalances.${field}[${index}].${listField}`
+                    });
+                  }
+                }
+              });
+            });
+          }
+        });
       }
 
       // Validate defaultBalances for mint collections

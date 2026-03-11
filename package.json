@@ -1,11 +1,47 @@
 {
   "name": "bitbadges-builder-mcp",
-  "version": "3.0.0",
+  "version": "4.0.0",
   "description": "MCP server for building BitBadges collections with embedded documentation and API tools",
   "type": "module",
-  "main": "dist/index.js",
+  "main": "./dist/tools/index.js",
+  "types": "./dist/tools/index.d.ts",
   "bin": {
     "bitbadges-builder-mcp": "./dist/index.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/tools/index.d.ts",
+      "default": "./dist/tools/index.js"
+    },
+    "./tools": {
+      "types": "./dist/tools/index.d.ts",
+      "default": "./dist/tools/index.js"
+    },
+    "./skills": {
+      "types": "./dist/resources/skillInstructions.d.ts",
+      "default": "./dist/resources/skillInstructions.js"
+    },
+    "./resources": {
+      "types": "./dist/resources/index.d.ts",
+      "default": "./dist/resources/index.js"
+    },
+    "./sdk": {
+      "types": "./dist/sdk/index.d.ts",
+      "default": "./dist/sdk/index.js"
+    },
+    "./server": {
+      "types": "./dist/server.d.ts",
+      "default": "./dist/server.js"
+    }
+  },
+  "typesVersions": {
+    "*": {
+      "tools": ["dist/tools/index.d.ts"],
+      "skills": ["dist/resources/skillInstructions.d.ts"],
+      "resources": ["dist/resources/index.d.ts"],
+      "sdk": ["dist/sdk/index.d.ts"],
+      "server": ["dist/server.d.ts"]
+    }
   },
   "repository": {
     "type": "git",
@@ -46,7 +82,7 @@
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.0",
     "bech32": "^2.0.0",
-    "bitbadgesjs-sdk": "latest",
+    "bitbadgesjs-sdk": "^0.30.4",
     "zod": "^3.22.0"
   },
   "devDependencies": {

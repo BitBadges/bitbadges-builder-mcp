@@ -499,7 +499,7 @@ export function handleAuditCollection(input: { collection: Record<string, unknow
         category: 'metadata',
         title: 'Collection metadata URI is a placeholder',
         detail: `URI is "${collectionUri}". This needs to be replaced with actual IPFS metadata before deployment.`,
-        recommendation: 'Upload metadata to IPFS and replace placeholder URIs. If using publish_to_bitbadges, metadataPlaceholders handles this automatically.'
+        recommendation: 'Upload metadata to IPFS and replace placeholder URIs. If using return transaction for user review, metadataPlaceholders handles this automatically.'
       });
     }
 

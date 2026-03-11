@@ -11,3 +11,4 @@ export * from './analyzeCollection.js';
 export * from './buildTransfer.js';
 export * from './buildDynamicStore.js';
 export * from './queryDynamicStore.js';
+export * from './searchPlugins.js';

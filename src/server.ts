@@ -13,8 +13,6 @@ import {
   handleValidateTransaction,
   getCurrentTimestampTool,
   handleGetCurrentTimestamp,
-  publishToBitbadgesTool,
-  handlePublishToBitbadges,
   generateBackingAddressTool,
   handleGenerateBackingAddress,
   generateApprovalTool,
@@ -23,12 +21,16 @@ import {
   handleGeneratePermissions,
   generateAliasPathTool,
   handleGenerateAliasPath,
+  buildTokenTool,
+  handleBuildToken,
   buildSmartTokenTool,
   handleBuildSmartToken,
   buildFungibleTokenTool,
   handleBuildFungibleToken,
   buildNFTCollectionTool,
   handleBuildNFTCollection,
+  buildAddressListTool,
+  handleBuildAddressList,
   // Address utilities
   convertAddressTool,
   handleConvertAddress,
@@ -48,16 +50,11 @@ import {
   handleVerifyOwnership,
   searchTool,
   handleSearch,
-  // Signing tools
-  signAndBroadcastTool,
-  handleSignAndBroadcast,
-  broadcastTool,
-  handleBroadcast,
+  searchPluginsTool,
+  handleSearchPlugins,
   // Knowledge base tools
   searchKnowledgeBaseTool,
   handleSearchKnowledgeBase,
-  addLearningTool,
-  handleAddLearning,
   diagnoseErrorTool,
   handleDiagnoseError,
   // Collection analysis tools
@@ -85,19 +82,12 @@ import {
   formatTokenRegistryForDisplay,
   masterPromptResourceInfo,
   getMasterPromptContent,
-  getSmartTokenRules,
   getSkillInstructions,
   getAllSkillInstructions,
   formatSkillInstructionsForDisplay,
   // Documentation resources
   conceptsDocsResourceInfo,
   getConceptsDocsContent,
-  sdkDocsResourceInfo,
-  getSdkDocsContent,
-  messagesDocsResourceInfo,
-  getMessagesDocsContent,
-  apiDocsResourceInfo,
-  getApiDocsContent,
   examplesDocsResourceInfo,
   getExamplesDocsContent,
   // Knowledge base resources
@@ -110,7 +100,9 @@ import {
   frontendDocsResourceInfo,
   getFrontendDocsContent,
   workflowsResourceInfo,
-  getWorkflowsContent
+  getWorkflowsContent,
+  tokenSchemaResourceInfo,
+  getTokenSchemaContent
 } from './resources/index.js';
 
 /**
@@ -138,7 +130,6 @@ export function createServer(): Server {
         lookupTokenInfoTool,
         validateTransactionTool,
         getCurrentTimestampTool,
-        publishToBitbadgesTool,
 
         // Components
         generateBackingAddressTool,
@@ -147,14 +138,16 @@ export function createServer(): Server {
         generateAliasPathTool,
 
         // High-level builders
+        buildTokenTool,
         buildSmartTokenTool,
         buildFungibleTokenTool,
         buildNFTCollectionTool,
+        buildAddressListTool,
 
         // Skill instructions tool
         {
           name: 'get_skill_instructions',
-          description: 'Get instructions for a specific skill (smart-token, fungible-token, nft-collection, subscription, bb-402)',
+          description: 'Get detailed instructions for a specific skill. Skills: smart-token, fungible-token, nft-collection, subscription, bb-402, ai-criteria-gate, minting, custom-2fa, immutability, liquidity-pools, payment-protocol, verified, tradable, address-list. Decision matrices are in bitbadges://recipes/all.',
           inputSchema: {
             type: 'object',
             properties: {
@@ -167,17 +160,6 @@ export function createServer(): Server {
           }
         },
 
-        // Master prompt tool
-        {
-          name: 'get_master_prompt',
-          description: 'Get the complete builder master prompt with critical rules',
-          inputSchema: {
-            type: 'object',
-            properties: {},
-            required: []
-          }
-        },
-
         // Address utilities
         convertAddressTool,
         validateAddressTool,
@@ -185,13 +167,8 @@ export function createServer(): Server {
         // Documentation
         fetchDocsTool,
 
-        // Signing tools
-        signAndBroadcastTool,
-        broadcastTool,
-
         // Knowledge base tools
         searchKnowledgeBaseTool,
-        addLearningTool,
         diagnoseErrorTool,
 
         // Query tools (require API key)
@@ -200,6 +177,7 @@ export function createServer(): Server {
         simulateTransactionTool,
         verifyOwnershipTool,
         searchTool,
+        searchPluginsTool,
 
         // Collection analysis (require API key)
         analyzeCollectionTool,
@@ -246,13 +224,6 @@ export function createServer(): Server {
           };
         }
 
-        case 'publish_to_bitbadges': {
-          const result = await handlePublishToBitbadges(args as Parameters<typeof handlePublishToBitbadges>[0]);
-          return {
-            content: [{ type: 'text', text: JSON.stringify(result, null, 2) }]
-          };
-        }
-
         // Components
         case 'generate_backing_address': {
           const result = handleGenerateBackingAddress(args as { ibcDenom: string });
@@ -283,6 +254,13 @@ export function createServer(): Server {
         }
 
         // High-level builders
+        case 'build_token': {
+          const result = handleBuildToken(args as Parameters<typeof handleBuildToken>[0]);
+          return {
+            content: [{ type: 'text', text: JSON.stringify(result, null, 2) }]
+          };
+        }
+
         case 'build_smart_token': {
           const result = handleBuildSmartToken(args as Parameters<typeof handleBuildSmartToken>[0]);
           return {
@@ -299,6 +277,13 @@ export function createServer(): Server {
 
         case 'build_nft_collection': {
           const result = handleBuildNFTCollection(args as Parameters<typeof handleBuildNFTCollection>[0]);
+          return {
+            content: [{ type: 'text', text: JSON.stringify(result, null, 2) }]
+          };
+        }
+
+        case 'build_address_list': {
+          const result = handleBuildAddressList(args as Parameters<typeof handleBuildAddressList>[0]);
           return {
             content: [{ type: 'text', text: JSON.stringify(result, null, 2) }]
           };
@@ -337,18 +322,6 @@ export function createServer(): Server {
           }
         }
 
-        // Master prompt
-        case 'get_master_prompt': {
-          const content = getMasterPromptContent();
-          const smartTokenRules = getSmartTokenRules();
-          return {
-            content: [{
-              type: 'text',
-              text: content + '\n\n' + smartTokenRules
-            }]
-          };
-        }
-
         // Address utilities
         case 'convert_address': {
           const result = handleConvertAddress(args as Parameters<typeof handleConvertAddress>[0]);
@@ -380,30 +353,8 @@ export function createServer(): Server {
           };
         }
 
-        case 'add_learning': {
-          const result = handleAddLearning(args as Parameters<typeof handleAddLearning>[0]);
-          return {
-            content: [{ type: 'text', text: JSON.stringify(result, null, 2) }]
-          };
-        }
-
         case 'diagnose_error': {
           const result = handleDiagnoseError(args as Parameters<typeof handleDiagnoseError>[0]);
-          return {
-            content: [{ type: 'text', text: JSON.stringify(result, null, 2) }]
-          };
-        }
-
-        // Signing tools
-        case 'sign_and_broadcast': {
-          const result = await handleSignAndBroadcast(args as Parameters<typeof handleSignAndBroadcast>[0]);
-          return {
-            content: [{ type: 'text', text: JSON.stringify(result, null, 2) }]
-          };
-        }
-
-        case 'broadcast': {
-          const result = await handleBroadcast(args as Parameters<typeof handleBroadcast>[0]);
           return {
             content: [{ type: 'text', text: JSON.stringify(result, null, 2) }]
           };
@@ -440,6 +391,13 @@ export function createServer(): Server {
 
         case 'search': {
           const result = await handleSearch(args as Parameters<typeof handleSearch>[0]);
+          return {
+            content: [{ type: 'text', text: JSON.stringify(result, null, 2) }]
+          };
+        }
+
+        case 'search_plugins': {
+          const result = await handleSearchPlugins(args as Parameters<typeof handleSearchPlugins>[0]);
           return {
             content: [{ type: 'text', text: JSON.stringify(result, null, 2) }]
           };
@@ -503,16 +461,14 @@ export function createServer(): Server {
         },
         // Documentation resources
         conceptsDocsResourceInfo,
-        sdkDocsResourceInfo,
-        messagesDocsResourceInfo,
-        apiDocsResourceInfo,
         examplesDocsResourceInfo,
         // Knowledge base resources
         recipesResourceInfo,
         learningsResourceInfo,
         errorPatternsResourceInfo,
         frontendDocsResourceInfo,
-        workflowsResourceInfo
+        workflowsResourceInfo,
+        tokenSchemaResourceInfo
       ]
     };
   });
@@ -560,36 +516,6 @@ export function createServer(): Server {
             uri,
             mimeType: 'text/markdown',
             text: getConceptsDocsContent()
-          }]
-        };
-      }
-
-      case 'bitbadges://docs/sdk': {
-        return {
-          contents: [{
-            uri,
-            mimeType: 'text/markdown',
-            text: getSdkDocsContent()
-          }]
-        };
-      }
-
-      case 'bitbadges://docs/messages': {
-        return {
-          contents: [{
-            uri,
-            mimeType: 'text/markdown',
-            text: getMessagesDocsContent()
-          }]
-        };
-      }
-
-      case 'bitbadges://docs/api': {
-        return {
-          contents: [{
-            uri,
-            mimeType: 'text/markdown',
-            text: getApiDocsContent()
           }]
         };
       }
@@ -651,6 +577,16 @@ export function createServer(): Server {
             uri,
             mimeType: 'text/markdown',
             text: getWorkflowsContent()
+          }]
+        };
+      }
+
+      case 'bitbadges://schema/token-builder': {
+        return {
+          contents: [{
+            uri,
+            mimeType: 'text/markdown',
+            text: getTokenSchemaContent()
           }]
         };
       }

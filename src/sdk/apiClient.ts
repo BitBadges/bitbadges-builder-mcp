@@ -248,3 +248,60 @@ export async function search(
 ): Promise<ApiResponse<SearchResponse>> {
   return apiRequest<SearchResponse>('/api/v0/search', 'POST', request, config);
 }
+
+// ============================================
+// Plugin Search APIs
+// ============================================
+
+export interface SearchPluginsRequest {
+  searchValue?: string;
+  pluginIds?: string[];
+  bookmark?: string;
+  creatorAddress?: string;
+}
+
+export interface PluginDoc {
+  pluginId: string;
+  metadata: {
+    name: string;
+    description: string;
+    image: string;
+  };
+  stateFunctionPreset?: string;
+  duplicatesAllowed?: boolean;
+  requiresUserInputs?: boolean;
+  reuseForNonIndexed?: boolean;
+  receiveStatusWebhook?: boolean;
+  skipProcessingWebhook?: boolean;
+  ignoreSimulations?: boolean;
+  requireSignIn?: boolean;
+  verificationCall?: {
+    uri: string;
+  };
+  userInputsSchema?: Array<Record<string, any>>;
+  publicParamsSchema?: Array<Record<string, any>>;
+  privateParamsSchema?: Array<Record<string, any>>;
+  customDetailsDisplay?: string;
+  [key: string]: unknown;
+}
+
+export interface SearchPluginsResponse {
+  plugins: PluginDoc[];
+  bookmark?: string;
+}
+
+export async function searchPlugins(
+  request: SearchPluginsRequest,
+  config?: ApiClientConfig
+): Promise<ApiResponse<SearchPluginsResponse>> {
+  if (request.pluginIds && request.pluginIds.length > 0) {
+    return apiRequest<SearchPluginsResponse>('/api/v0/plugins', 'POST', { pluginIds: request.pluginIds }, config);
+  }
+  const params = new URLSearchParams();
+  if (request.searchValue) params.set('searchValue', request.searchValue);
+  if (request.bookmark) params.set('bookmark', request.bookmark);
+  if (request.creatorAddress) params.set('creatorAddress', request.creatorAddress);
+  const queryString = params.toString();
+  const endpoint = `/api/v0/plugins/search${queryString ? `?${queryString}` : ''}`;
+  return apiRequest<SearchPluginsResponse>(endpoint, 'GET', undefined, config);
+}

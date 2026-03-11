@@ -128,7 +128,7 @@ function buildCreateMsg(input: BuildDynamicStoreInput): BuildDynamicStoreResult 
       action: 'create',
       description: `Create a new dynamic store with defaultValue=${input.defaultValue}. ${input.defaultValue ? 'All addresses start as TRUE (blocklist pattern — set specific addresses to false).' : 'All addresses start as FALSE (allowlist pattern — set specific addresses to true).'}`,
       nextSteps: [
-        'Sign and broadcast this transaction with sign_and_broadcast',
+        'Return transaction for user to review and submit',
         'Note the storeId from the transaction response (check events)',
         'Use set_value or batch_set_values to populate the store',
         'Reference the storeId in approval dynamicStoreChallenges to gate transfers'
@@ -168,7 +168,7 @@ function buildUpdateMsg(input: BuildDynamicStoreInput): BuildDynamicStoreResult 
     explanation: {
       action: 'update',
       description: `Update dynamic store ${input.storeId}: ${changes.join(', ')}`,
-      nextSteps: ['Sign and broadcast with sign_and_broadcast']
+      nextSteps: ['Return transaction for user to review and submit']
     }
   };
 }
@@ -192,7 +192,7 @@ function buildDeleteMsg(input: BuildDynamicStoreInput): BuildDynamicStoreResult 
     explanation: {
       action: 'delete',
       description: `Delete dynamic store ${input.storeId}. WARNING: This is irreversible. Any approvals referencing this store will fail.`,
-      nextSteps: ['Sign and broadcast with sign_and_broadcast']
+      nextSteps: ['Return transaction for user to review and submit']
     }
   };
 }
@@ -224,7 +224,7 @@ function buildSetValueMsg(input: BuildDynamicStoreInput): BuildDynamicStoreResul
     explanation: {
       action: 'set_value',
       description: `Set ${input.address} → ${input.value} in store ${input.storeId}`,
-      nextSteps: ['Sign and broadcast with sign_and_broadcast']
+      nextSteps: ['Return transaction for user to review and submit']
     }
   };
 }
@@ -256,7 +256,7 @@ function buildBatchSetValuesMsg(input: BuildDynamicStoreInput): BuildDynamicStor
       action: 'batch_set_values',
       description: `Set ${input.entries.length} address values in store ${input.storeId}. ${input.entries.filter(e => e.value).length} set to true, ${input.entries.filter(e => !e.value).length} set to false.`,
       nextSteps: [
-        'Sign and broadcast with sign_and_broadcast',
+        'Return transaction for user to review and submit',
         `Gas estimated for ${input.entries.length} entries — adjust if needed`
       ]
     }

@@ -100,9 +100,7 @@ After EVERY collection build, follow this pipeline:
 3. **Fix** → Address critical/warning findings, re-audit if needed
 4. **Present** → Show audit results to user with plain-language explanations
 5. **Validate** → validate_transaction
-6. **Simulate** → simulate_transaction
-7. **Deploy** → sign_and_broadcast
-
+6. **Deploy** → Return the completed transaction for user review and submission
 NEVER skip the audit step. Always present audit findings to the user before deploying.`,
 
   criticalRules: `## Critical Rules (MUST FOLLOW - NO EXCEPTIONS)
@@ -662,6 +660,12 @@ Use the same metadata URI for all denomUnits.
 - "test"`,
 
   ibcBackingGeneral: `## IBC Backing & Special Addresses
+
+### System Addresses
+
+- **Burn Address**: \`bb1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqs7gvmv\` — ETH null address in bb1 format. Tokens sent here are permanently destroyed (no one controls the private key).
+- **Governance Address**: \`bb10d07y265gmmuvt4z0w9aw880jnsr700jelmk2z\` — The on-chain governance module address.
+- **Community Pool Address**: \`bb1jv65s3grqf6v6jl3dp4t6c9t9rk99cd8yzv04w\` — The community pool module address.
 
 ### IBC Backed Minting Rules (General)
 

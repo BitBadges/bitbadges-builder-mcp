@@ -1,10 +1,12 @@
 # BitBadges Builder MCP Server
 
-MCP (Model Context Protocol) server for building, auditing, and explaining BitBadges collections via AI. Works with Claude Desktop, Claude Code, Cursor, and any MCP-compatible client.
+MCP (Model Context Protocol) server for building, auditing, and querying BitBadges collections via AI. Works with Claude Desktop, Claude Code, Cursor, and any MCP-compatible client.
+
+**This MCP server does not sign or broadcast transactions.** It builds transaction JSON that your application signs and broadcasts using your own wallet/signer.
 
 ## Quick Start
 
-### 1. Install via npm
+### 1. Install
 
 ```bash
 npm install -g bitbadges-builder-mcp
@@ -25,8 +27,7 @@ npx bitbadges-builder-mcp
       "command": "npx",
       "args": ["bitbadges-builder-mcp"],
       "env": {
-        "BITBADGES_API_KEY": "your-api-key-here",
-        "BITBADGES_MNEMONIC": "your mnemonic for signing (optional)"
+        "BITBADGES_API_KEY": "your-api-key-here"
       }
     }
   }
@@ -63,7 +64,7 @@ npx bitbadges-builder-mcp
 
 Get your free API key at: **https://bitbadges.io/developer**
 
-The API key enables query tools (`query_collection`, `query_balance`, `simulate_transaction`, `verify_ownership`, `search`). Builder tools work without an API key.
+The API key enables query tools (see below). Builder, validation, and knowledge tools work without an API key.
 
 ### 4. Start Building
 
@@ -75,187 +76,128 @@ The API key enables query tools (`query_collection`, `query_balance`, `simulate_
 
 > "Audit this collection for security risks"
 
-## Related Tools
-
-| Tool | Install | Description |
-|------|---------|-------------|
-| **BitBadges MCP** (this) | `npm i -g bitbadges-builder-mcp` | AI-powered collection builder, auditor, and explainer |
-| **BitBadges SDK** | `npm i bitbadgesjs-sdk` | TypeScript SDK for API, signing, address conversion |
-| **BitBadges API** | https://bitbadges.io/developer | REST API for querying collections, balances, ownership |
-| **BitBadges Docs** | https://docs.bitbadges.io | Full documentation |
-| **BitBadges Explorer** | https://explorer.bitbadges.io | On-chain explorer |
-
 ## Environment Variables
 
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `BITBADGES_API_KEY` | For query tools | API key from https://bitbadges.io/developer |
-| `BITBADGES_MNEMONIC` | For signing | BIP-39 mnemonic for `sign_and_broadcast` tool |
-| `BITBADGES_PRIVATE_KEY` | For signing | Alternative to mnemonic (hex private key) |
 
-**Security**: Mnemonics and private keys are used locally only. They are never sent to BitBadges servers. The MCP server runs on your machine.
+No wallet, mnemonic, or private key is needed. This server builds transaction JSON only — your app handles signing and broadcasting.
 
-## Available Tools (32)
+## How It Works
 
-### Collection Builders
+```
+You describe what you want
+    ↓
+MCP builds transaction JSON (MsgUniversalUpdateCollection, MsgTransferTokens, etc.)
+    ↓
+audit_collection catches security issues
+    ↓
+validate_transaction checks JSON format
+    ↓
+You sign with your wallet (MetaMask, Keplr, SDK, etc.) and broadcast
+```
+
+## Available Tools
+
+### Validation & Analysis (no API key needed)
 
 | Tool | Description |
 |------|-------------|
-| `build_smart_token` | Build IBC-backed smart token (stablecoin, wrapped asset) |
-| `build_fungible_token` | Build ERC-20 style fungible token |
-| `build_nft_collection` | Build NFT collection with minting config |
-
-### Collection Analysis
-
-| Tool | Description |
-|------|-------------|
+| `validate_transaction` | Validate transaction JSON against critical rules |
 | `audit_collection` | Audit for security risks, design flaws, supply inflation vectors |
-| `explain_collection` | Human-readable markdown report with Q&A support |
-| `analyze_collection` | Structured analysis of on-chain collection (requires API key) |
+| `explain_collection` | Generate human-readable markdown explanation of a collection |
 
-### Component Builders
+### Builders (no API key needed)
 
 | Tool | Description |
 |------|-------------|
-| `generate_backing_address` | Compute IBC backing address from denom |
+| `build_token` | Universal token builder — any collection type from design axes |
+| `build_smart_token` | IBC-backed smart token (stablecoin, wrapped asset) |
+| `build_fungible_token` | ERC-20 style fungible token |
+| `build_nft_collection` | NFT collection with minting config |
+| `build_address_list` | On-chain address list (manager add/remove) |
+
+### Components (no API key needed)
+
+| Tool | Description |
+|------|-------------|
+| `generate_backing_address` | Compute deterministic IBC backing address from denom |
 | `generate_approval` | Build approval structures by type |
 | `generate_permissions` | Build permission presets |
 | `generate_alias_path` | Build alias path for liquidity pools |
 
-### Dynamic Stores
+### Utilities (no API key needed)
 
 | Tool | Description |
 |------|-------------|
-| `build_dynamic_store` | Create/update/delete on-chain allowlists and blocklists |
-| `query_dynamic_store` | Query dynamic store values and metadata |
-
-### Transfer Tools
-
-| Tool | Description |
-|------|-------------|
-| `build_transfer` | Build MsgTransferTokens with auto-queried approval matching |
-
-### Query Tools (Require API Key)
-
-| Tool | Description |
-|------|-------------|
-| `query_collection` | Fetch collection details |
-| `query_balance` | Check token balance for an address |
-| `simulate_transaction` | Dry-run transaction for validity and gas estimation |
-| `verify_ownership` | Verify if address meets AND/OR/NOT ownership requirements |
-| `search` | Search collections, accounts, and tokens |
-
-### Signing & Broadcasting
-
-| Tool | Description |
-|------|-------------|
-| `sign_and_broadcast` | Sign with mnemonic/private key and broadcast |
-| `broadcast` | Broadcast a pre-signed transaction |
-| `publish_to_bitbadges` | Publish transaction and get import link |
-
-### Utilities
-
-| Tool | Description |
-|------|-------------|
-| `validate_transaction` | Validate JSON against critical rules |
 | `convert_address` | Convert between ETH (0x) and BitBadges (bb1) formats |
 | `validate_address` | Check if address is valid and detect chain type |
 | `lookup_token_info` | Get token symbol, denom, decimals, backing address |
-| `get_current_timestamp` | Get current time for time-dependent configs |
-| `fetch_docs` | Fetch live documentation from docs.bitbadges.io |
+| `get_current_timestamp` | Get current time with optional offsets |
 
-### Knowledge Base
+### Knowledge (no API key needed)
 
 | Tool | Description |
 |------|-------------|
 | `get_skill_instructions` | Get detailed instructions for a specific skill |
-| `get_master_prompt` | Get complete builder rules and critical rules |
-| `search_knowledge_base` | Search embedded docs, learnings, recipes, error patterns |
+| `search_knowledge_base` | Search docs, learnings, recipes, error patterns |
 | `diagnose_error` | Diagnose transaction errors and suggest fixes |
-| `add_learning` | Add new gotchas/tips to persistent knowledge base |
+| `fetch_docs` | Fetch live documentation from docs.bitbadges.io |
 
-## Skills (31)
+### Query Tools (require API key)
 
-Skills are detailed instruction sets the AI loads on-demand via `get_skill_instructions(skillId)`:
+| Tool | Description |
+|------|-------------|
+| `query_collection` | Fetch collection details with field filtering |
+| `query_balance` | Check token balance for an address |
+| `simulate_transaction` | Dry-run transaction for validity and gas estimation |
+| `verify_ownership` | Verify if address meets AND/OR/NOT ownership requirements |
+| `search` | Search collections, accounts, and tokens |
+| `search_plugins` | Search claim plugins or fetch by ID |
+| `analyze_collection` | Query and produce structured collection analysis |
+| `build_transfer` | Auto-query collection and build MsgTransferTokens |
+| `build_dynamic_store` | Build dynamic store operations (create, update, set values) |
+| `query_dynamic_store` | Query dynamic store values and metadata |
 
-### Token Types
-`nft-collection`, `fungible-token`, `smart-token`, `subscription`
+## Resources
 
-### Approval Configuration
-`public-mint`, `minting`, `ibc-backed-minting`, `post-mint-transferability`, `forceful-overrides`, `custom-2fa`, `avoid-manual-balances`, `time-dependent-balances`, `mint-escrow`
+The MCP server exposes these resources that clients can read for context:
 
-### Features
-`bb-402`, `ai-criteria-gate`, `dynamic-stores`, `collection-recipes`, `tradable`, `liquidity-pools`, `alias-path`, `cosmos-coin-wrapper`, `immutability`, `evm-query-challenges`
+| Resource URI | Description |
+|-------------|-------------|
+| `bitbadges://rules/critical` | Critical rules for building transactions |
+| `bitbadges://tokens/registry` | Token registry (symbol, denom, decimals) |
+| `bitbadges://skills/all` | All skill instructions |
+| `bitbadges://docs/concepts` | Conceptual documentation |
+| `bitbadges://docs/examples` | Example transactions and patterns |
+| `bitbadges://recipes/all` | Code recipes and decision matrices |
+| `bitbadges://learnings/all` | Known gotchas, tips, and discoveries |
+| `bitbadges://errors/patterns` | Error patterns and diagnostics |
+| `bitbadges://workflows/all` | Step-by-step workflow chains |
+| `bitbadges://schema/token-builder` | Token builder schema reference |
+| `bitbadges://docs/frontend` | Reference frontend patterns |
 
-### Advanced
-`permissions`, `collection-audit`, `explain-collection`, `update-collection`, `evm-precompiles`, `address-and-signing`, `ibc-and-hooks`, `bitbadges-api`
+## Skills
 
-## Build -> Audit -> Deploy Pipeline
+Skills are detailed instruction sets loaded on-demand via `get_skill_instructions(skillId)`:
 
-The MCP enforces a mandatory pipeline for new collections:
-
-```
-1. Build    -> build_nft_collection / build_fungible_token / build_smart_token
-2. Audit    -> audit_collection (catch security issues)
-3. Explain  -> explain_collection (show user what they built)
-4. Validate -> validate_transaction (check JSON format)
-5. Simulate -> simulate_transaction (dry-run on chain)
-6. Deploy   -> sign_and_broadcast
-```
-
-## Examples
-
-### Create Smart Token (USDC Stablecoin)
-
-```typescript
-const result = await build_smart_token({
-  ibcDenom: "USDC",
-  creatorAddress: "bb1...",
-  name: "Wrapped USDC",
-  symbol: "wUSDC",
-  dailyWithdrawLimit: "100000000", // 100 USDC
-  swappable: true
-});
-```
-
-### Create NFT Collection
-
-```typescript
-const result = await build_nft_collection({
-  creatorAddress: "bb1...",
-  name: "My NFT Collection",
-  totalSupply: "1000",
-  mintPrice: "5000000000", // 5 BADGE
-  mintPriceDenom: "ubadge",
-  tradable: true
-});
-```
-
-### Audit a Collection
-
-```typescript
-const audit = await audit_collection({
-  collection: result.transaction,
-  context: "NFT art collection"
-});
-// Returns: { findings: [...], summary: { critical: 0, warning: 2, ... } }
-```
-
-### Explain a Collection
-
-```typescript
-const explanation = await explain_collection({
-  collection: result.transaction,
-  audience: "user"
-});
-// Returns: human-readable markdown report
-
-// Or ask a specific question:
-const answer = await explain_collection({
-  collection: result.transaction,
-  question: "can the manager freeze my tokens?"
-});
-```
+| Skill ID | Description |
+|----------|-------------|
+| `smart-token` | IBC-backed smart token with 1:1 backing |
+| `fungible-token` | ERC-20 style fungible token |
+| `nft-collection` | NFT collection design and minting |
+| `subscription` | Time-dependent subscription token |
+| `bb-402` | Token-gated API access (HTTP 402 pattern) |
+| `ai-criteria-gate` | AI agent as criteria verifier |
+| `minting` | Minting strategies (public, manager, pricing) |
+| `custom-2fa` | Custom 2FA requirements |
+| `immutability` | Lock permissions and immutability patterns |
+| `liquidity-pools` | Swappable tokens and trading |
+| `payment-protocol` | Payment and pricing mechanisms |
+| `verified` | Verified credential gates |
+| `tradable` | Marketplace trading configuration |
+| `address-list` | On-chain address list collections |
 
 ## Supported Tokens
 
@@ -265,6 +207,42 @@ const answer = await explain_collection({
 | USDC | ibc/F082B65... | 6 |
 | ATOM | ibc/A4DB47... | 6 |
 | OSMO | ibc/ED07A3... | 6 |
+
+## Signing & Broadcasting (Your Responsibility)
+
+This MCP server returns unsigned transaction JSON. To submit on-chain:
+
+**Browser (EVM wallet like MetaMask):**
+- Call EVM precompiles using ethers.js / viem with the transaction data
+
+**Browser (Cosmos wallet like Keplr):**
+- Use Keplr's `signDirect` with the transaction's SignDoc
+
+**Server-side (SDK):**
+```typescript
+import { GenericEvmAdapter, GenericCosmosAdapter } from 'bitbadgesjs-sdk';
+
+// EVM path (recommended for server-side)
+const adapter = GenericEvmAdapter.fromPrivateKey(key, 'https://evm-rpc.bitbadges.io');
+
+// Cosmos path
+const adapter = GenericCosmosAdapter.fromPrivateKey(key, 'bitbadges_50024-1');
+
+// Sign and broadcast
+const result = await adapter.signAndBroadcast(messages, fee, memo);
+```
+
+See [BitBadges SDK docs](https://docs.bitbadges.io) for full signing documentation.
+
+## Related Tools
+
+| Tool | Install | Description |
+|------|---------|-------------|
+| **BitBadges MCP** (this) | `npm i -g bitbadges-builder-mcp` | AI-powered collection builder, auditor, and explainer |
+| **BitBadges SDK** | `npm i bitbadgesjs-sdk` | TypeScript SDK for API, signing, address conversion |
+| **BitBadges API** | https://bitbadges.io/developer | REST API for querying collections, balances, ownership |
+| **BitBadges Docs** | https://docs.bitbadges.io | Full documentation |
+| **BitBadges Explorer** | https://explorer.bitbadges.io | On-chain explorer |
 
 ## Local Development
 

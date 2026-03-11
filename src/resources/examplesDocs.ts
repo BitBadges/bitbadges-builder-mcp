@@ -146,8 +146,8 @@ Create a collection of 100 unique NFTs with a public mint approval.
       "image": "ipfs://QmCollectionImage..."
     },
     "ipfs://METADATA_TOKEN_{id}": {
-      "name": "NFT #{id}",
-      "description": "Unique NFT from the collection.",
+      "name": "My NFT Collection Token",
+      "description": "A unique NFT from the My NFT Collection.",
       "image": "ipfs://QmTokenImage..."
     },
     "ipfs://METADATA_APPROVAL_mint": {

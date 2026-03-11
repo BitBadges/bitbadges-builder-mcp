@@ -1,6 +1,7 @@
 /**
  * Recipes Resource
- * Copy-paste code snippets for common BitBadges operations
+ * Code snippets and decision matrices for common BitBadges operations.
+ * Includes the collection-recipes decision matrix (formerly a separate skill).
  */
 
 export interface Recipe {
@@ -12,25 +13,55 @@ export interface Recipe {
 }
 
 export const RECIPES: Recipe[] = [
+  // --- Decision Matrices (from collection-recipes skill) ---
   {
-    id: 'mint-fungible',
-    name: 'Mint a Fungible Token',
-    description: 'Create a new fungible token collection with unlimited supply and broadcast it',
-    tags: ['mint', 'fungible', 'create', 'collection'],
-    code: `import { BitBadgesAPI } from 'bitbadgesjs-sdk';
-
-// 1. Build the transaction using MCP: build_fungible_token
-// 2. Validate: validate_transaction
-// 3. Sign and broadcast:
-const result = await BitBadgesAPI.signAndBroadcast({
-  messages: [/* from build_fungible_token */],
-  memo: '',
-  fee: { amount: [{ denom: 'ubadge', amount: '5000' }], gas: '500000' }
-});
-
-// Or use MCP tools directly:
-// build_fungible_token → validate_transaction → simulate_transaction → sign_and_broadcast`
+    id: 'token-type-decision',
+    name: 'Token Type Decision Matrix',
+    description: 'Choose the right token type for your use case',
+    tags: ['decision', 'type', 'choose', 'collection', 'recipes'],
+    code: `// Token Type Decision Tree
+//
+// | Use Case                  | Token Type       | Key Standards                               | Key Features                                    |
+// |---------------------------|-----------------|---------------------------------------------|------------------------------------------------|
+// | Cryptocurrency / points   | Fungible Token   | "Fungible Tokens"                           | Single token ID 1                               |
+// | Digital collectibles      | NFT Collection   | "NFTs"                                      | Unique token IDs                                |
+// | Trading / marketplace     | NFT + Tradable   | "NFTs", "Tradable", "DefaultDisplayCurrency" | Orderbook integration                           |
+// | Recurring payment         | Subscription     | "Subscriptions"                             | durationFromTimestamp, allowOverrideTimestamp    |
+// | Wrapped IBC asset         | Smart Token      | "Smart Token"                               | cosmosCoinBackedPath, alias paths               |
+// | Vault / escrow            | Smart Token      | "Smart Token"                               | Non-transferable variant                        |
+// | Time-expiring auth        | Custom 2FA       | "Custom-2FA"                                | allowPurgeIfExpired                             |
+// | Managed address list      | Address List     | "Address List"                              | Manager add/remove addresses                    |
+// | Invoices / bounties       | Payment Protocol | "ListView:..."                              | coinTransfer-based approvals                    |
+// | DEX trading               | + Liquidity Pools| "Liquidity Pools"                           | disablePoolCreation: false, alias paths         |`
   },
+  {
+    id: 'approval-pattern-decision',
+    name: 'Approval Pattern Decision Matrix',
+    description: 'Choose the right approval pattern for your needs',
+    tags: ['decision', 'approval', 'pattern', 'recipes'],
+    code: `// Approval Pattern Decision Tree
+//
+// | Need                     | Pattern                                                    |
+// |--------------------------|------------------------------------------------------------|
+// | Anyone can mint          | initiatedByListId: "All"                                   |
+// | Only creator mints       | initiatedByListId: "bb1creator..."                         |
+// | Pay to mint              | coinTransfers in approvalCriteria                          |
+// | Free mint (escrow payout)| mintEscrowCoinsToTransfer + overrideFromWithApproverAddress |
+// | Sequential NFT IDs       | incrementedBalances with incrementTokenIdsBy: "1"          |
+// | Limit per address        | maxNumTransfers.perInitiatedByAddressMaxNumTransfers       |
+// | Non-transferable         | No transfer approval + lock canUpdateCollectionApprovals   |
+// | Token-gated access       | BB-402 with must-own-badges                                |
+// | AI-evaluated gate        | AI Criteria Gate (attestation NFT or dynamic store)        |
+//
+// Permission Defaults:
+// | Scenario                | canUpdateCollectionApprovals | canUpdateManager |
+// |-------------------------|----------------------------|------------------|
+// | Immutable (most secure) | Frozen (all)               | Frozen           |
+// | Flexible (updatable)    | Open                       | Open             |
+// | Mint-locked only        | Frozen (Mint only)         | Open             |`
+  },
+
+  // --- Code Snippets ---
   {
     id: 'check-balance',
     name: 'Check Token Balance',
@@ -48,7 +79,7 @@ console.log(balance.balances); // Balance[]
   {
     id: 'transfer-tokens',
     name: 'Transfer Tokens Between Addresses',
-    description: 'Build and broadcast a token transfer',
+    description: 'Build a token transfer transaction',
     tags: ['transfer', 'send', 'move'],
     code: `// MsgTransferTokens — ALWAYS include prioritizedApprovals (even if [])
 const transferMsg = {
@@ -70,7 +101,7 @@ const transferMsg = {
   }
 };
 
-// sign_and_broadcast({ messages: [transferMsg], ... })`
+// Return this transaction JSON for user to sign with their wallet`
   },
   {
     id: 'verify-ownership',
@@ -79,9 +110,11 @@ const transferMsg = {
     tags: ['verify', 'gate', 'access', 'ownership', 'check'],
     code: `// Via MCP tool: verify_ownership
 // Supports AND/OR/NOT logic for complex ownership checks
-
-// Simple check:
-// verify_ownership({ address: "bb1...", requirements: { collectionId: "123", tokenIds: [{ start: "1", end: "1" }] } })
+//
+// verify_ownership({
+//   address: "bb1...",
+//   requirements: { collectionId: "123", tokenIds: [{ start: "1", end: "1" }] }
+// })
 
 // Via SDK:
 import { BitBadgesAPI } from 'bitbadgesjs-sdk';
@@ -94,23 +127,27 @@ const hasToken = balance.balances.some(b =>
 );`
   },
   {
-    id: 'create-smart-token',
-    name: 'Create IBC-Backed Smart Token (e.g., Wrapped USDC)',
-    description: 'Create a smart token backed 1:1 by an IBC asset',
+    id: 'smart-token-key-points',
+    name: 'Smart Token (IBC-Backed) Key Points',
+    description: 'Key gotchas and patterns for IBC-backed smart tokens',
     tags: ['smart-token', 'ibc', 'usdc', 'wrapped', 'stablecoin', 'backing'],
-    code: `// Use MCP: build_smart_token({ backingDenom: "USDC", ... })
-// This handles:
-//   - Deterministic backing address generation
-//   - Backing/unbacking approval setup (mustPrioritize: true, allowBackedMinting: true)
-//   - cosmosCoinBackedPath in invariants
-//   - Alias path for liquidity pools
-
-// Key gotchas:
-// - NO overridesFromOutgoingApprovals on backing address approvals
-// - Smart tokens mint from backing address, NOT from "Mint"
-// - fromListId for backing: "bb1backingaddress..."
-// - fromListId for unbacking: "!Mint:bb1backingaddress..."
-// - toListId for unbacking: "bb1backingaddress..."`
+    code: `// Smart Token Key Points:
+//
+// 1. Use generate_backing_address MCP tool to get the deterministic backing address
+//    for an IBC denom (e.g., USDC → bb1backingaddr...)
+//
+// 2. Two approvals required:
+//    - Backing (deposit): fromListId: "bb1backingaddr...", toListId: "!bb1backingaddr..."
+//      → mustPrioritize: true, allowBackedMinting: true
+//    - Unbacking (withdraw): fromListId: "!Mint:bb1backingaddr...", toListId: "bb1backingaddr..."
+//      → mustPrioritize: true, allowBackedMinting: true
+//
+// 3. CRITICAL: NO overridesFromOutgoingApprovals on backing address approvals
+// 4. Smart tokens mint from backing address, NOT from "Mint"
+// 5. invariants.cosmosCoinBackedPath must be set with the IBC denom conversion
+// 6. Need an alias path for liquidity pool / display integration
+//
+// Use get_skill_instructions("smart-token") for full details`
   },
   {
     id: 'websocket-events',
@@ -146,7 +183,7 @@ ws.on('message', (data) => {
   {
     id: 'create-claim',
     name: 'Create a Gated Claim',
-    description: 'Set up a claim with criteria plugins (meet criteria → get reward)',
+    description: 'Set up a claim with criteria plugins (meet criteria -> get reward)',
     tags: ['claim', 'gate', 'criteria', 'plugin', 'reward'],
     code: `// Claims are best created via the BitBadges developer portal (in-site)
 // But can be managed via API:
@@ -162,29 +199,29 @@ const api = new BitBadgesAPI({ apiUrl: 'https://api.bitbadges.io', apiKey: proce
 // Connect to Zapier AI Actions for automated workflows
 
 // Key pattern: claims = plugins executed in order
-// All must pass (customizable) → reward distributed`
+// All must pass (customizable) -> reward distributed`
   },
   {
     id: 'address-conversion',
     name: 'Convert Between Address Formats',
-    description: 'Convert ETH (0x) ↔ BitBadges (bb1) addresses',
+    description: 'Convert ETH (0x) <-> BitBadges (bb1) addresses',
     tags: ['address', 'convert', 'eth', 'cosmos', 'bb1', '0x'],
     code: `import { ethToCosmos, cosmosToEth } from 'bitbadgesjs-sdk';
 
-// ETH → BitBadges
+// ETH -> BitBadges
 const bb1Address = ethToCosmos('0x1234...');
 
-// BitBadges → ETH
+// BitBadges -> ETH
 const ethAddress = cosmosToEth('bb1...');
 
 // Or via MCP: convert_address({ address: "0x1234..." })
 
-// IMPORTANT: This is byte-level conversion (same private key, different encoding)
+// IMPORTANT: This is byte-level conversion (same key, different encoding)
 // This is NOT public key derivation — both addresses share the same key pair`
   },
   {
     id: 'vault-withdraw',
-    name: 'Withdraw from AI Agent Vault (Smart Token)',
+    name: 'Withdraw from Smart Token Vault',
     description: 'Convert smart token back to underlying IBC asset',
     tags: ['vault', 'withdraw', 'redeem', 'unbacking', 'smart-token'],
     code: `// To withdraw (unback) from a smart token vault:
@@ -193,10 +230,10 @@ const ethAddress = cosmosToEth('bb1...');
 const withdrawMsg = {
   typeUrl: '/tokenization.MsgTransferTokens',
   value: {
-    creator: 'bb1agentaddress...',
+    creator: 'bb1youraddress...',
     collectionId: '456',  // vault collection ID
     transfers: [{
-      from: 'bb1agentaddress...',
+      from: 'bb1youraddress...',
       toAddresses: ['bb1backingaddress...'],  // send TO backing address to unback
       balances: [{
         amount: '1000000',  // amount in base units
@@ -213,7 +250,7 @@ const withdrawMsg = {
   }
 };
 
-// sign_and_broadcast({ messages: [withdrawMsg], ... })`
+// Return this transaction JSON for user to sign with their wallet`
   },
   {
     id: 'bb402-gated-api',
@@ -221,7 +258,6 @@ const withdrawMsg = {
     description: 'Gate an API endpoint behind token ownership verification',
     tags: ['bb-402', 'gate', 'api', 'token-gated', 'access-control'],
     code: `// BB-402: Verify token ownership before granting API access
-// Instead of per-request payments, check ownership once
 
 // Server-side verification:
 // 1. Client presents their address
@@ -246,7 +282,7 @@ async function verifyAccess(userAddress: string): Promise<boolean> {
   return balance.balances.some(b => BigInt(b.amount) > 0n);
 }
 
-// Middleware pattern:
+// Express middleware pattern:
 // app.use('/protected', async (req, res, next) => {
 //   const hasAccess = await verifyAccess(req.headers['x-bitbadges-address']);
 //   if (!hasAccess) return res.status(402).json({ error: 'Token required' });
@@ -257,8 +293,8 @@ async function verifyAccess(userAddress: string): Promise<boolean> {
 
 export const recipesResourceInfo = {
   uri: 'bitbadges://recipes/all',
-  name: 'Code Recipes',
-  description: 'Copy-paste code snippets for common BitBadges operations',
+  name: 'Code Recipes & Decision Matrices',
+  description: 'Code snippets and decision matrices for common BitBadges operations',
   mimeType: 'text/markdown'
 };
 
@@ -266,8 +302,8 @@ export const recipesResourceInfo = {
  * Get all recipes as markdown
  */
 export function getRecipesContent(): string {
-  let content = '# BitBadges Code Recipes\n\n';
-  content += 'Copy-paste snippets for common operations.\n\n';
+  let content = '# BitBadges Code Recipes & Decision Matrices\n\n';
+  content += 'Snippets and decision guides for common operations.\n\n';
 
   for (const recipe of RECIPES) {
     content += `## ${recipe.name}\n\n`;

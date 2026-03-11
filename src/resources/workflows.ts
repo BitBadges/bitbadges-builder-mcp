@@ -36,8 +36,7 @@ Step 4: Build the transfer to obtain tokens
   → Or for smart tokens: build_transfer(collectionId, backingAddr, yourAddress, intent: "deposit")
 
 Step 5: Sign and broadcast
-  → simulate_transaction(transaction) — verify it will succeed
-  → sign_and_broadcast(transaction)
+  → Return transaction JSON for user to sign with their wallet and broadcast
 
 Step 6: Retry the original request with proof
   → Sign the server's challenge message
@@ -63,8 +62,7 @@ Step 3: Validate
   → Fix any issues
 
 Step 4: Deploy
-  → simulate_transaction(transaction) — estimate gas, verify
-  → sign_and_broadcast(transaction)
+  → Return transaction JSON for user to sign with their wallet and broadcast
   → Note the collectionId from the response
 
 Step 5: Set up BB-402 on your server
@@ -97,8 +95,7 @@ Step 4: If payment-related error
 
 Step 5: Validate and retry
   → validate_transaction(newTransactionJson)
-  → simulate_transaction(transaction) — catches remaining issues
-  → sign_and_broadcast(transaction)
+  → Return transaction JSON for user to sign with their wallet and broadcast
 \`\`\``,
 
   smartTokenVault: `## Smart Token Vault: Deposit and Withdraw
@@ -111,15 +108,13 @@ DEPOSIT (IBC asset → collection token):
     → Get backing address and IBC denom from invariants.ibcBacking
   Step 2: build_transfer(collectionId, backingAddress, yourAddress, intent: "deposit")
     → Or send IBC asset directly to backing address via bank transfer
-  Step 3: sign_and_broadcast(transaction)
-
+  Step 3: Return transaction for user review
 WITHDRAW (collection token → IBC asset):
   Step 1: analyze_collection(collectionId)
     → Get backing address from invariants.ibcBacking
   Step 2: build_transfer(collectionId, yourAddress, backingAddress, intent: "withdraw")
     → Sets prioritizedApprovals to the unbacking approval automatically
-  Step 3: sign_and_broadcast(transaction)
-    → Underlying IBC asset is released to your address
+  Step 3: Return transaction for user review    → Underlying IBC asset is released to your address
 
 CHECK VAULT BALANCE:
   → query_balance(collectionId, yourAddress) — your vault token balance
@@ -138,8 +133,7 @@ Step 1: Define your off-chain criteria
 Step 2: For each verified user, create an on-chain attestation
   Option A — Mint an NFT to them:
     → build_transfer(collectionId, "Mint", userAddress, intent: "mint")
-    → sign_and_broadcast(transaction)
-    → User now holds an on-chain proof of verification
+    → Return transaction JSON for user to sign and broadcast    → User now holds an on-chain proof of verification
 
   Option B — Add to a dynamic store (via claims API):
     → POST to claims API to add address to a dynamic store
@@ -178,8 +172,7 @@ Step 4: Determine what you can do
 
 Step 5: Act
   → build_transfer with the appropriate intent
-  → simulate_transaction to verify
-  → sign_and_broadcast to execute
+  → Return transaction JSON for user to sign with their wallet and broadcast
 \`\`\``,
 
   dynamicStoreAllowlist: `## Dynamic Store: Create and Manage an Allowlist
@@ -189,12 +182,11 @@ Set up an on-chain allowlist that gates token transfers:
 \`\`\`
 Step 1: Create the store
   → build_dynamic_store(action: "create", creator: yourAddress, defaultValue: false)
-  → sign_and_broadcast → note the storeId from events
+  → Return transaction JSON for user to sign and broadcast → note the storeId from events
 
 Step 2: Add approved addresses
   → build_dynamic_store(action: "batch_set_values", storeId, entries: [{address, value: true}, ...])
-  → sign_and_broadcast
-
+  → return transaction for user review
 Step 3: Verify entries
   → query_dynamic_store(action: "get_value", storeId, address: someAddress)
   → Confirm value is true for approved addresses
@@ -236,8 +228,7 @@ Step 4: Re-audit
 
 Step 5: Deploy
   → validate_transaction(transaction)
-  → simulate_transaction(transaction)
-  → sign_and_broadcast(transaction)
+  → Return transaction JSON for user to sign with their wallet and broadcast
 \`\`\`
 
 Can also audit existing on-chain collections:

@@ -5,9 +5,6 @@
 
 import { z } from 'zod';
 import { getConceptsDocsContent } from '../../resources/conceptsDocs.js';
-import { getSdkDocsContent } from '../../resources/sdkDocs.js';
-import { getMessagesDocsContent } from '../../resources/messagesDocs.js';
-import { getApiDocsContent } from '../../resources/apiDocs.js';
 import { getExamplesDocsContent } from '../../resources/examplesDocs.js';
 import { getMasterPromptContent } from '../../resources/masterPrompt.js';
 import { getRecipesContent, RECIPES } from '../../resources/recipes.js';
@@ -142,9 +139,6 @@ function buildKnowledgeIndex(): KnowledgeSection[] {
 
   // Docs
   sections.push(...splitBySections(getConceptsDocsContent(), 'docs/concepts', 'docs'));
-  sections.push(...splitBySections(getSdkDocsContent(), 'docs/sdk', 'docs'));
-  sections.push(...splitBySections(getMessagesDocsContent(), 'docs/messages', 'docs'));
-  sections.push(...splitBySections(getApiDocsContent(), 'docs/api', 'docs'));
   sections.push(...splitBySections(getExamplesDocsContent(), 'docs/examples', 'docs'));
 
   // Rules
