@@ -1,6 +1,6 @@
 {
   "name": "bitbadges-builder-mcp",
-  "version": "4.0.0",
+  "version": "4.0.1",
   "description": "MCP server for building BitBadges collections with embedded documentation and API tools",
   "type": "module",
   "main": "./dist/tools/index.js",
@@ -36,11 +36,21 @@
   },
   "typesVersions": {
     "*": {
-      "tools": ["dist/tools/index.d.ts"],
-      "skills": ["dist/resources/skillInstructions.d.ts"],
-      "resources": ["dist/resources/index.d.ts"],
-      "sdk": ["dist/sdk/index.d.ts"],
-      "server": ["dist/server.d.ts"]
+      "tools": [
+        "dist/tools/index.d.ts"
+      ],
+      "skills": [
+        "dist/resources/skillInstructions.d.ts"
+      ],
+      "resources": [
+        "dist/resources/index.d.ts"
+      ],
+      "sdk": [
+        "dist/sdk/index.d.ts"
+      ],
+      "server": [
+        "dist/server.d.ts"
+      ]
     }
   },
   "repository": {
