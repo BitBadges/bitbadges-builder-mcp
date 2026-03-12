@@ -72,7 +72,10 @@ import {
   handleAuditCollection,
   // Explain tool
   explainCollectionTool,
-  handleExplainCollection
+  handleExplainCollection,
+  // Claim builder
+  buildClaimTool,
+  handleBuildClaim
 } from './tools/index.js';
 
 // Import resources
@@ -191,7 +194,10 @@ export function createServer(): Server {
         auditCollectionTool,
 
         // Explain tool
-        explainCollectionTool
+        explainCollectionTool,
+
+        // Claim builder
+        buildClaimTool
       ]
     };
   });
@@ -428,6 +434,13 @@ export function createServer(): Server {
 
         case 'query_dynamic_store': {
           const result = await handleQueryDynamicStore(args as Parameters<typeof handleQueryDynamicStore>[0]);
+          return {
+            content: [{ type: 'text', text: JSON.stringify(result, null, 2) }]
+          };
+        }
+
+        case 'build_claim': {
+          const result = handleBuildClaim(args as Parameters<typeof handleBuildClaim>[0]);
           return {
             content: [{ type: 'text', text: JSON.stringify(result, null, 2) }]
           };

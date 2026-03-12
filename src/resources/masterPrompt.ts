@@ -101,6 +101,12 @@ After EVERY collection build, follow this pipeline:
 4. **Present** → Show audit results to user with plain-language explanations
 5. **Validate** → validate_transaction
 6. **Deploy** → Return the completed transaction for user review and submission
+
+**IMPORTANT: JSON Output Format** — When returning the final transaction JSON, do NOT just print it inline in the terminal. Terminal output often introduces formatting artifacts (line wrapping, ANSI codes, truncation) that break JSON parsing. Instead:
+- **Preferred**: Save the JSON to a file (e.g., \`transaction.json\`) so the user can copy clean JSON
+- **Alternative**: Copy the JSON to the user's clipboard if your environment supports it
+- **If printing inline**: Wrap in a markdown code fence (\\\`\\\`\\\`json ... \\\`\\\`\\\`) and ensure no truncation
+
 NEVER skip the audit step. Always present audit findings to the user before deploying.`,
 
   criticalRules: `## Critical Rules (MUST FOLLOW - NO EXCEPTIONS)

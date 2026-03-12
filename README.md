@@ -117,6 +117,7 @@ You sign with your wallet (MetaMask, Keplr, SDK, etc.) and broadcast
 | `build_fungible_token` | ERC-20 style fungible token |
 | `build_nft_collection` | NFT collection with minting config |
 | `build_address_list` | On-chain address list (manager add/remove) |
+| `build_claim` | Build claim JSON for the API (code-gated, password-gated, whitelist-gated, open) |
 
 ### Components (no API key needed)
 

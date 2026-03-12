@@ -9,3 +9,4 @@ export * from './buildNFTCollection.js';
 export * from './buildAddressList.js';
 export * from './auditCollection.js';
 export * from './explainCollection.js';
+export * from './buildClaim.js';

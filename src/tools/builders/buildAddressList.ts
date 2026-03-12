@@ -141,13 +141,19 @@ export function handleBuildAddressList(input: BuildAddressListInput): BuildAddre
 
       updateCollectionPermissions: true,
       collectionPermissions: {
-        ...(lockImmutable
-          ? {
-              canDeleteCollection: forbidden,
-              canUpdateStandards: forbidden,
-              canUpdateValidTokenIds: forbidden
-            }
-          : {})
+        canDeleteCollection: lockImmutable ? forbidden : [],
+        canArchiveCollection: [],
+        canUpdateStandards: lockImmutable ? forbidden : [],
+        canUpdateCustomData: [],
+        canUpdateManager: [],
+        canUpdateCollectionMetadata: [],
+        canUpdateValidTokenIds: lockImmutable
+          ? [{ tokenIds: [{ start: '1', end: '1' }], permanentlyPermittedTimes: [], permanentlyForbiddenTimes: [{ start: '1', end: MAX_UINT64 }] }]
+          : [],
+        canUpdateTokenMetadata: [],
+        canUpdateCollectionApprovals: [],
+        canAddMoreAliasPaths: [],
+        canAddMoreCosmosCoinWrapperPaths: []
       },
 
       updateIsArchived: false,

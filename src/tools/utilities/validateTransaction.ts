@@ -4,7 +4,7 @@
  */
 
 import { z } from 'zod';
-import { AddressList } from 'bitbadgesjs-sdk';
+import { AddressList, MsgUniversalUpdateCollection } from 'bitbadgesjs-sdk';
 
 export const validateTransactionSchema = z.object({
   transactionJson: z.string().describe('The transaction JSON to validate')
@@ -347,6 +347,48 @@ function validateTokenMetadata(metadata: unknown[], path: string, issues: Valida
 }
 
 /**
+ * All required collectionPermissions fields.
+ * The frontend SDK constructor calls .map() on every field, so missing fields crash.
+ */
+const REQUIRED_COLLECTION_PERMISSION_FIELDS = [
+  'canDeleteCollection',
+  'canArchiveCollection',
+  'canUpdateStandards',
+  'canUpdateCustomData',
+  'canUpdateManager',
+  'canUpdateCollectionMetadata',
+  'canUpdateValidTokenIds',
+  'canUpdateTokenMetadata',
+  'canUpdateCollectionApprovals',
+  'canAddMoreAliasPaths',
+  'canAddMoreCosmosCoinWrapperPaths'
+];
+
+/**
+ * All required defaultBalances fields.
+ * The frontend SDK constructor calls .map() on array fields, so missing fields crash.
+ */
+const REQUIRED_DEFAULT_BALANCES_FIELDS = [
+  'balances',
+  'outgoingApprovals',
+  'incomingApprovals'
+];
+
+/**
+ * All required collectionApproval fields per entry.
+ */
+const REQUIRED_APPROVAL_FIELDS = [
+  'fromListId',
+  'toListId',
+  'initiatedByListId',
+  'approvalId',
+  'tokenIds',
+  'transferTimes',
+  'ownershipTimes',
+  'version'
+];
+
+/**
  * Validate collection permissions
  */
 function validatePermissions(permissions: unknown, path: string, issues: ValidationIssue[]): void {
@@ -355,6 +397,23 @@ function validatePermissions(permissions: unknown, path: string, issues: Validat
   }
 
   const p = permissions as Record<string, unknown>;
+
+  // Check all required permission fields exist as arrays
+  for (const field of REQUIRED_COLLECTION_PERMISSION_FIELDS) {
+    if (!(field in p)) {
+      issues.push({
+        severity: 'error',
+        message: `collectionPermissions missing required field "${field}". Must be an array (use [] for neutral). The SDK constructor will crash without it.`,
+        path: `${path}.${field}`
+      });
+    } else if (!Array.isArray(p[field])) {
+      issues.push({
+        severity: 'error',
+        message: `collectionPermissions.${field} must be an array, got ${typeof p[field]}`,
+        path: `${path}.${field}`
+      });
+    }
+  }
 
   // Check TokenIdsActionPermission types have tokenIds
   ['canUpdateValidTokenIds', 'canUpdateTokenMetadata'].forEach(field => {
@@ -424,6 +483,176 @@ function validatePermissions(permissions: unknown, path: string, issues: Validat
       }
     }
   });
+}
+
+/**
+ * Constructor sanity check for MsgUniversalUpdateCollection.
+ * Mirrors what the SDK's `new MsgUniversalUpdateCollection()` and the frontend constructors expect.
+ * Every field that the SDK/frontend calls .map() or accesses as a property must exist with the right type.
+ * This prevents "Cannot read properties of undefined (reading 'map')" crashes.
+ */
+function validateMsgConstructorFields(value: Record<string, unknown>, basePath: string, issues: ValidationIssue[]): void {
+  // --- Top-level required arrays ---
+  const requiredArrayFields = [
+    'validTokenIds',
+    'standards',
+    'collectionApprovals',
+    'tokenMetadata',
+    'aliasPathsToAdd',
+    'cosmosCoinWrapperPathsToAdd',
+    'mintEscrowCoinsToTransfer'
+  ];
+
+  for (const field of requiredArrayFields) {
+    if (value[`update${field.charAt(0).toUpperCase()}${field.slice(1)}`] === true || field === 'aliasPathsToAdd' || field === 'cosmosCoinWrapperPathsToAdd' || field === 'mintEscrowCoinsToTransfer') {
+      // Only check fields that are being updated or are always required
+    }
+    if (field in value && !Array.isArray(value[field])) {
+      issues.push({
+        severity: 'error',
+        message: `"${field}" must be an array. The SDK constructor will crash without it.`,
+        path: `${basePath}.${field}`
+      });
+    }
+  }
+
+  // --- collectionPermissions: all 11 fields must be arrays ---
+  if (value.updateCollectionPermissions === true) {
+    if (!value.collectionPermissions || typeof value.collectionPermissions !== 'object') {
+      issues.push({
+        severity: 'error',
+        message: 'collectionPermissions must be an object when updateCollectionPermissions is true. The SDK constructor will crash without it.',
+        path: `${basePath}.collectionPermissions`
+      });
+    }
+    // Detailed field checks are handled by validatePermissions()
+  }
+
+  // --- collectionMetadata: must be an object with uri ---
+  if (value.updateCollectionMetadata === true) {
+    if (!value.collectionMetadata || typeof value.collectionMetadata !== 'object') {
+      issues.push({
+        severity: 'error',
+        message: 'collectionMetadata must be an object when updateCollectionMetadata is true.',
+        path: `${basePath}.collectionMetadata`
+      });
+    }
+  }
+
+  // --- defaultBalances: full structure check ---
+  if (value.defaultBalances && typeof value.defaultBalances === 'object') {
+    const db = value.defaultBalances as Record<string, unknown>;
+
+    // Required array fields on defaultBalances
+    for (const field of REQUIRED_DEFAULT_BALANCES_FIELDS) {
+      if (!(field in db)) {
+        issues.push({
+          severity: 'error',
+          message: `defaultBalances.${field} must be an array (use [] for default). The SDK constructor will crash without it.`,
+          path: `${basePath}.defaultBalances.${field}`
+        });
+      } else if (!Array.isArray(db[field])) {
+        issues.push({
+          severity: 'error',
+          message: `defaultBalances.${field} must be an array, got ${typeof db[field]}.`,
+          path: `${basePath}.defaultBalances.${field}`
+        });
+      }
+    }
+
+    // userPermissions must exist with all sub-fields
+    if (!db.userPermissions || typeof db.userPermissions !== 'object') {
+      issues.push({
+        severity: 'error',
+        message: 'defaultBalances.userPermissions must be an object with all required array fields. The SDK constructor will crash without it.',
+        path: `${basePath}.defaultBalances.userPermissions`
+      });
+    } else {
+      const up = db.userPermissions as Record<string, unknown>;
+      const requiredUserPermFields = [
+        'canUpdateOutgoingApprovals',
+        'canUpdateIncomingApprovals',
+        'canUpdateAutoApproveSelfInitiatedOutgoingTransfers',
+        'canUpdateAutoApproveSelfInitiatedIncomingTransfers',
+        'canUpdateAutoApproveAllIncomingTransfers'
+      ];
+      for (const field of requiredUserPermFields) {
+        if (!(field in up) || !Array.isArray(up[field])) {
+          issues.push({
+            severity: 'error',
+            message: `userPermissions.${field} must be an array (use [] for default). The SDK constructor will crash without it.`,
+            path: `${basePath}.defaultBalances.userPermissions.${field}`
+          });
+        }
+      }
+    }
+
+    // Validate defaultBalances approval address list IDs
+    ['incomingApprovals', 'outgoingApprovals'].forEach(field => {
+      if (Array.isArray(db[field])) {
+        (db[field] as unknown[]).forEach((approval, index) => {
+          if (!approval || typeof approval !== 'object') return;
+          const a = approval as Record<string, unknown>;
+          ['fromListId', 'toListId', 'initiatedByListId'].forEach(listField => {
+            if (listField in a && typeof a[listField] === 'string') {
+              if (!isValidListId(a[listField] as string)) {
+                issues.push({
+                  severity: 'error',
+                  message: `Invalid list ID in defaultBalances.${field}[${index}].${listField}: "${a[listField]}"`,
+                  path: `${basePath}.defaultBalances.${field}[${index}].${listField}`
+                });
+              }
+            }
+          });
+        });
+      }
+    });
+  }
+
+  // --- collectionApprovals: each entry must have required fields ---
+  if (Array.isArray(value.collectionApprovals)) {
+    (value.collectionApprovals as unknown[]).forEach((approval, index) => {
+      if (!approval || typeof approval !== 'object') return;
+      const a = approval as Record<string, unknown>;
+      const approvalPath = `${basePath}.collectionApprovals[${index}]`;
+
+      for (const field of REQUIRED_APPROVAL_FIELDS) {
+        if (!(field in a)) {
+          issues.push({
+            severity: 'error',
+            message: `collectionApprovals[${index}] missing required field "${field}".`,
+            path: `${approvalPath}.${field}`
+          });
+        }
+      }
+
+      // tokenIds, transferTimes, ownershipTimes must be arrays
+      for (const field of ['tokenIds', 'transferTimes', 'ownershipTimes']) {
+        if (field in a && !Array.isArray(a[field])) {
+          issues.push({
+            severity: 'error',
+            message: `collectionApprovals[${index}].${field} must be an array.`,
+            path: `${approvalPath}.${field}`
+          });
+        }
+      }
+    });
+  }
+
+  // --- tokenMetadata entries: each must have tokenIds ---
+  if (Array.isArray(value.tokenMetadata)) {
+    (value.tokenMetadata as unknown[]).forEach((entry, index) => {
+      if (!entry || typeof entry !== 'object') return;
+      const m = entry as Record<string, unknown>;
+      if (!('tokenIds' in m) || !Array.isArray(m.tokenIds) || m.tokenIds.length === 0) {
+        issues.push({
+          severity: 'error',
+          message: `tokenMetadata[${index}] MUST include tokenIds field with UintRange array.`,
+          path: `${basePath}.tokenMetadata[${index}].tokenIds`
+        });
+      }
+    });
+  }
 }
 
 export function handleValidateTransaction(input: ValidateTransactionInput): ValidateTransactionResult {
@@ -501,6 +730,11 @@ export function handleValidateTransaction(input: ValidateTransactionInput): Vali
 
     // Validate MsgUniversalUpdateCollection
     if (message.typeUrl === '/tokenization.MsgUniversalUpdateCollection') {
+      // --- Constructor sanity check: ensure all fields the SDK constructor expects exist ---
+      validateMsgConstructorFields(value, `${msgPath}.value`, issues);
+
+      // --- Specific validation rules ---
+
       // Check creator
       if (!value.creator || typeof value.creator !== 'string') {
         issues.push({
@@ -554,68 +788,9 @@ export function handleValidateTransaction(input: ValidateTransactionInput): Vali
         }
       }
 
-      // Validate tokenMetadata
-      if (Array.isArray(value.tokenMetadata)) {
-        validateTokenMetadata(value.tokenMetadata, `${msgPath}.value.tokenMetadata`, issues);
-      }
-
       // Validate collectionPermissions
       if (value.collectionPermissions) {
         validatePermissions(value.collectionPermissions, `${msgPath}.value.collectionPermissions`, issues);
-      }
-
-      // Validate defaultBalances.userPermissions has all required arrays
-      if (value.defaultBalances && typeof value.defaultBalances === 'object') {
-        const defaultBal = value.defaultBalances as Record<string, unknown>;
-        if (defaultBal.userPermissions && typeof defaultBal.userPermissions === 'object') {
-          const up = defaultBal.userPermissions as Record<string, unknown>;
-          const requiredFields = [
-            'canUpdateOutgoingApprovals',
-            'canUpdateIncomingApprovals',
-            'canUpdateAutoApproveSelfInitiatedOutgoingTransfers',
-            'canUpdateAutoApproveSelfInitiatedIncomingTransfers',
-            'canUpdateAutoApproveAllIncomingTransfers'
-          ];
-          for (const field of requiredFields) {
-            if (!(field in up) || !Array.isArray(up[field])) {
-              issues.push({
-                severity: 'error',
-                message: `userPermissions.${field} must be an array (use [] for default). The SDK constructor will crash without it.`,
-                path: `${msgPath}.value.defaultBalances.userPermissions.${field}`
-              });
-            }
-          }
-        } else if (defaultBal.userPermissions !== undefined && (typeof defaultBal.userPermissions !== 'object' || defaultBal.userPermissions === null)) {
-          issues.push({
-            severity: 'error',
-            message: 'userPermissions must be an object with all required array fields, not a primitive',
-            path: `${msgPath}.value.defaultBalances.userPermissions`
-          });
-        }
-      }
-
-      // Validate defaultBalances approval address list IDs
-      if (value.defaultBalances && typeof value.defaultBalances === 'object') {
-        const db = value.defaultBalances as Record<string, unknown>;
-        ['incomingApprovals', 'outgoingApprovals'].forEach(field => {
-          if (Array.isArray(db[field])) {
-            (db[field] as unknown[]).forEach((approval, index) => {
-              if (!approval || typeof approval !== 'object') return;
-              const a = approval as Record<string, unknown>;
-              ['fromListId', 'toListId', 'initiatedByListId'].forEach(listField => {
-                if (listField in a && typeof a[listField] === 'string') {
-                  if (!isValidListId(a[listField] as string)) {
-                    issues.push({
-                      severity: 'error',
-                      message: `Invalid list ID in defaultBalances.${field}[${index}].${listField}: "${a[listField]}"`,
-                      path: `${msgPath}.value.defaultBalances.${field}[${index}].${listField}`
-                    });
-                  }
-                }
-              });
-            });
-          }
-        });
       }
 
       // Validate defaultBalances for mint collections
@@ -640,6 +815,18 @@ export function handleValidateTransaction(input: ValidateTransactionInput): Vali
             });
           }
         }
+      }
+
+      // --- Final check: actually call the SDK constructor ---
+      // This catches any field issues our manual checks might miss.
+      try {
+        new MsgUniversalUpdateCollection(value as any);
+      } catch (e) {
+        issues.push({
+          severity: 'error',
+          message: `SDK constructor crash: ${e instanceof Error ? e.message : String(e)}. This means the frontend will also crash when parsing this transaction.`,
+          path: `${msgPath}.value`
+        });
       }
     }
 
