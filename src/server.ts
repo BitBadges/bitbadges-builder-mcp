@@ -23,11 +23,8 @@ import {
   handleGenerateAliasPath,
   buildTokenTool,
   handleBuildToken,
-  buildSmartTokenTool,
   handleBuildSmartToken,
-  buildFungibleTokenTool,
   handleBuildFungibleToken,
-  buildNFTCollectionTool,
   handleBuildNFTCollection,
   buildAddressListTool,
   handleBuildAddressList,
@@ -142,9 +139,6 @@ export function createServer(): Server {
 
         // High-level builders
         buildTokenTool,
-        buildSmartTokenTool,
-        buildFungibleTokenTool,
-        buildNFTCollectionTool,
         buildAddressListTool,
 
         // Skill instructions tool

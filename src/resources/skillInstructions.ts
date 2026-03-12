@@ -11,6 +11,7 @@ export interface SkillInstruction {
   name: string;
   description: string;
   category: 'token-type' | 'standard' | 'approval' | 'feature' | 'advanced';
+  summary: string;
   instructions: string;
   referenceCollectionIds?: string[];
 }
@@ -21,6 +22,20 @@ export const SKILL_INSTRUCTIONS: SkillInstruction[] = [
     name: 'Smart Token',
     category: 'token-type',
     description: 'IBC-backed smart token with 1:1 backing and three-approval system',
+    summary: `Required standards: ["Smart Token"]
+
+- MUST include cosmosCoinBackedPath in invariants with conversion sideA/sideB
+- MUST configure at least one alias path (decimals must match IBC denom decimals)
+- MUST create THREE default collection approvals:
+  1. Backing approval: fromListId = backing address, allowBackedMinting: true, mustPrioritize: true
+  2. Transferable approval: fromListId = "!Mint", toListId = "All" (omit for non-transferable)
+  3. Unbacking approval: toListId = backing address, allowBackedMinting: true, mustPrioritize: true
+- DO NOT use fromListId: "Mint" — tokens are created via IBC backing, not traditional minting
+- DO NOT use overridesFromOutgoingApprovals: true when fromListId is a backing address
+- Backing address is deterministic — use generate_backing_address tool
+- Optional: Add "AI Agent Vault" to standards for AI Prompt tab (display-only)
+- Alias path: symbol = base unit (e.g. "uvatom"), denomUnits = display units with decimals > 0 only, each denomUnit MUST have metadata with an image
+- All alias path and denomUnit metadata MUST include an \`image\` field (token logo URL)`,
     instructions: `## Smart Token Configuration
 
 ### Mental Model: Three Phases
@@ -64,6 +79,8 @@ Each phase maps to at least one collection approval. Design each phase independe
    - The alias path decimals MUST match the IBC denom's decimals
    - This is REQUIRED for Smart Tokens to function properly
    - Use the alias path configuration provided in the skill config
+   - Alias path denom and symbol MUST only contain a-zA-Z, _, {, }, and - characters. NEVER use the raw IBC denom (ibc/...) as the alias path denom — create a new symbol like "wuusdc" or "uwrapped"
+   - Do NOT reuse reserved symbols (USDC, ATOM, BADGE, etc.) — always prefix with "w" or similar (e.g., wUSDC, wATOM)
 
 ### Three-Approval System
 
@@ -171,7 +188,7 @@ MUST configure at least one alias path. Structure:
       "isDefaultDisplay": true,
       "metadata": { "uri": "ipfs://...", "customData": "" }
     }],
-    "metadata": { "uri": "ipfs://...", "customData": "" }
+    "metadata": { "uri": "", "customData": "", "image": "https://example.com/token-logo.png" }
   }]
 }
 \`\`\`
@@ -179,8 +196,10 @@ MUST configure at least one alias path. Structure:
 Rules:
 - symbol = base unit symbol (e.g., "uvatom")
 - denomUnits = display units with decimals > 0 ONLY (base decimals 0 is implicit)
-- Each denomUnit MUST have metadata (often the same image as the base alias path)
+- Each denomUnit MUST have metadata with an image field (often the same image as the base alias path)
+- The alias path itself MUST have metadata with an image field — this is the token logo shown in the UI
 - isDefaultDisplay: true for the primary display unit
+- **CRITICAL**: All metadata objects (alias path, denomUnits, cosmosCoinWrapperPaths) MUST include an \`image\` field with a valid URL. Missing images will be auto-fixed to a default but you should always provide a descriptive image.
 
 ### Cosmos Coin Wrapper (Optional)
 
@@ -194,8 +213,8 @@ For wrapping native Cosmos SDK coins, use \`allowSpecialWrapping: true\` and \`c
       "sideA": { "amount": "1" },
       "sideB": [{ "amount": "1", "tokenIds": [{ "start": "1", "end": "1" }], "ownershipTimes": [{ "start": "1", "end": "18446744073709551615" }] }]
     },
-    "denomUnits": [{ "decimals": "6", "symbol": "ATOM", "isDefaultDisplay": true, "metadata": { "uri": "ipfs://...", "customData": "" } }],
-    "metadata": { "uri": "ipfs://...", "customData": "" },
+    "denomUnits": [{ "decimals": "6", "symbol": "ATOM", "isDefaultDisplay": true, "metadata": { "uri": "", "customData": "", "image": "https://example.com/token-logo.png" } }],
+    "metadata": { "uri": "", "customData": "", "image": "https://example.com/token-logo.png" },
     "allowOverrideWithAnyValidToken": false
   }]
 }
@@ -221,6 +240,15 @@ For wrapping native Cosmos SDK coins, use \`allowSpecialWrapping: true\` and \`c
     name: 'Minting',
     category: 'approval',
     description: 'Mint approval patterns including public mint, whitelist mint, creator-only mint, payment-gated mint, and escrow payouts',
+    summary: `Required fields for all minting approvals:
+- fromListId: "Mint"
+- overridesFromOutgoingApprovals: true (REQUIRED for ALL Mint approvals)
+- autoApproveAllIncomingTransfers: true in defaultBalances (for public-mint collections)
+- predeterminedBalances vs approvalAmounts: incompatible — use one or the other
+- orderCalculationMethod: MUST have exactly ONE method set to true (default: useOverallNumTransfers)
+- coinTransfers override flags: false for standard payments, true for escrow payouts
+- Mint escrow: overrideFromWithApproverAddress: true + overrideToWithInitiator: true (pays the minter from the escrow address)
+- amountTrackerId: required when using maxNumTransfers or approvalAmounts`,
     instructions: `## Minting Configuration
 
 When configuring minting approvals, you create collection approvals with fromListId: "Mint" that allow tokens to be minted from the Mint address.
@@ -435,6 +463,12 @@ Key escrow rules:
     name: 'Liquidity Pools',
     category: 'standard',
     description: 'Liquidity pool standard with the "Liquidity Pools" protocol standard tag',
+    summary: `Required standards: ["Liquidity Pools"]
+
+- MUST set invariants.disablePoolCreation: false
+- MUST configure at least one alias path (required for liquidity pools to function)
+- Merkle challenges are NOT compatible with liquidity pools
+- Enables decentralized exchange (DEX) trading interfaces`,
     instructions: `## Liquidity Pools Configuration
 
 When enabling liquidity pools for a collection, follow these requirements:
@@ -470,9 +504,9 @@ When enabling liquidity pools for a collection, follow these requirements:
          "decimals": "6",
          "symbol": "vATOM",
          "isDefaultDisplay": true,
-         "metadata": { "uri": "ipfs://...", "customData": "" }
+         "metadata": { "uri": "", "customData": "", "image": "https://example.com/token-logo.png" }
        }],
-       "metadata": { "uri": "ipfs://...", "customData": "" }
+       "metadata": { "uri": "", "customData": "", "image": "https://example.com/token-logo.png" }
      }]
    }
    \`\`\`
@@ -481,6 +515,7 @@ When enabling liquidity pools for a collection, follow these requirements:
 
 - disablePoolCreation MUST be false (not true)
 - MUST configure at least one alias path (required for liquidity pools)
+- All alias path and denomUnit metadata MUST include an \`image\` field with a valid URL (token logo)
 - Merkle challenges are NOT compatible with liquidity pools
 - This enables decentralized exchange (DEX) trading interfaces`
   },
@@ -489,6 +524,13 @@ When enabling liquidity pools for a collection, follow these requirements:
     name: 'Fungible Token',
     category: 'token-type',
     description: 'Simple fungible token with fixed or unlimited supply and configurable mint/transfer approvals',
+    summary: `Required standards: ["Fungible Tokens"]
+
+- validTokenIds: MUST be exactly [{ "start": "1", "end": "1" }] (single token ID)
+- All tokens share the same token ID (1), making them interchangeable
+- Amount field in transfers determines quantity
+- Token metadata must reference token ID 1
+- Ownership times typically forever: [{ "start": "1", "end": "18446744073709551615" }]`,
     instructions: `## Fungible Token Configuration
 
 When creating a fungible token collection, you MUST follow these requirements:
@@ -533,6 +575,14 @@ When creating a fungible token collection, you MUST follow these requirements:
     name: 'NFT Collection',
     category: 'token-type',
     description: 'Non-fungible token collection with unique token IDs, metadata URIs, and badge-based ownership',
+    summary: `Required standards: ["NFTs"]
+- For tradable NFTs: ["NFTs", "Tradable", "DefaultDisplayCurrency:ubadge"]
+
+- validTokenIds: set to the range of unique token IDs (e.g. [{ "start": "1", "end": "100" }])
+- Each token ID represents a unique NFT; amount in transfers is typically "1"
+- Use {id} placeholder in tokenMetadata URI for per-token metadata (e.g. "ipfs://QmHash/{id}")
+- Mint approvals MUST have overridesFromOutgoingApprovals: true
+- Ownership times are usually forever for NFTs`,
     instructions: `## NFT Collection Configuration
 
 When creating an NFT collection, follow this pattern:
@@ -598,6 +648,19 @@ When creating an NFT collection, follow this pattern:
     name: 'Subscription',
     category: 'token-type',
     description: 'Time-based subscription token with recurring payment approvals and auto-deletion on expiry',
+    summary: `Required standards: ["Subscriptions"]
+
+- validTokenIds: MUST be exactly one token ID [{ "start": "1", "end": "1" }]
+- Subscription faucet approval requirements:
+  - fromListId: "Mint"
+  - overridesFromOutgoingApprovals: true
+  - coinTransfers: at least 1 entry, both override flags false
+  - predeterminedBalances.incrementedBalances.durationFromTimestamp: MUST be non-zero (duration in ms)
+  - allowOverrideTimestamp: MUST be true
+  - incrementTokenIdsBy: "0", incrementOwnershipTimesBy: "0"
+  - orderCalculationMethod: MUST have exactly ONE method true (default: useOverallNumTransfers)
+- Duration constants: monthly = "2592000000", annual = "31536000000", daily = "86400000"
+- CRITICAL: recurringOwnershipTimes MUST be all-zeros { startTime: "0", intervalLength: "0", chargePeriodLength: "0" } — chain enforces mutual exclusivity with durationFromTimestamp`,
     instructions: `## Subscription Collection Configuration
 
 When creating a subscription collection, you MUST follow these EXACT requirements:
@@ -681,13 +744,23 @@ When creating a subscription collection, you MUST follow these EXACT requirement
 - MUST have exactly 1 token ID (not multiple)
 - coinTransfers override flags MUST be false (not true)
 - durationFromTimestamp MUST be non-zero
-- allowOverrideTimestamp MUST be true`
+- allowOverrideTimestamp MUST be true
+- **CRITICAL MUTUAL EXCLUSIVITY**: The chain enforces that ONLY ONE of \`durationFromTimestamp\`, \`incrementOwnershipTimesBy\`, or \`recurringOwnershipTimes\` can be non-zero. For subscriptions, use \`durationFromTimestamp\` and keep \`recurringOwnershipTimes\` as ALL ZEROS: \`{ "startTime": "0", "intervalLength": "0", "chargePeriodLength": "0" }\`. DO NOT set non-zero values in \`recurringOwnershipTimes\` — the template already has the correct structure.`
   },
   {
     id: 'immutability',
     name: 'Transferability & Update Rules',
     category: 'advanced',
     description: 'Lock collection permissions to make properties permanently immutable or permanently permitted',
+    summary: `Controls whether collection properties can be changed after creation.
+
+- canUpdateCollectionApprovals: controls transfer rule mutability
+  - SECURITY: If manager can update Mint approvals, they can mint unlimited tokens
+  - Default to frozen (permanentlyForbiddenTimes: full range) unless user requests updatable
+- List IDs in permissions: ONLY use reserved IDs ("All", "Mint", "!Mint", direct "bb1..." addresses, "!bb1..." negation, colon-separated "bb1abc:bb1xyz") — NO custom list IDs
+- approvalId: "All" restricts all approvals, or use a specific approvalId string
+- Empty permission arrays: if both permanentlyPermittedTimes and permanentlyForbiddenTimes are [], the entry is redundant — replace with empty array []
+- permanentlyForbiddenTimes: [{ "start": "1", "end": "18446744073709551615" }] = frozen forever`,
     instructions: `## Transferability & Update Rules Configuration
 
 When configuring collection permissions for transferability and update rules, you MUST follow these critical requirements:
@@ -810,6 +883,13 @@ When configuring collection permissions for transferability and update rules, yo
     name: 'Custom 2FA',
     category: 'token-type',
     description: 'Two-factor authentication for transfers using a secondary approval address',
+    summary: `Required standards: ["Custom-2FA"]
+
+- autoDeletionOptions.allowPurgeIfExpired: MUST be true
+- Approval name MUST contain "Custom 2FA"
+- Use time-dependent ownershipTimes in MsgTransferTokens (not forever)
+- Calculate timestamps: current time + expiration duration (milliseconds since epoch)
+- Tokens automatically expire and can be purged after expiration`,
     instructions: `## Custom-2FA Configuration
 
 When creating a Custom-2FA collection, follow these requirements:
@@ -883,6 +963,13 @@ When creating a Custom-2FA collection, follow these requirements:
     name: 'Address List',
     category: 'token-type',
     description: 'On-chain managed address list where membership = owning x1 of token ID 1',
+    summary: `IMPORTANT: Call build_address_list() — NOT build_token. The tool handles all required structure automatically.
+
+- List membership = owning x1 of token ID 1
+- Manager can add (mint) and remove (burn) addresses
+- No peer-to-peer transfers
+- Requires TWO approvals: manager-add (minting) + manager-remove (burn to bb1qqq...s7gvmv)
+- After building, proceed with audit_collection + validate_transaction as normal`,
     instructions: `## Address List Token Type
 
 **IMPORTANT: Call build_address_list() to create this collection.** Do NOT call build_token — it does not support address lists. The build_address_list tool handles all the required structure automatically (both add and remove approvals, correct standard, correct approvalIds, correct permissions).
@@ -906,6 +993,15 @@ After calling build_address_list, proceed with audit_collection and validate_tra
     name: 'BB-402 Token-Gated Access',
     category: 'feature',
     description: 'Token-gated access protocol where ownership of specific badges grants API/resource access',
+    summary: `Protocol for token-gated access to APIs/resources using HTTP 402 Payment Required.
+
+- Flow: client requests resource -> server returns 402 + required badge criteria -> client proves ownership -> server validates via BitBadges API
+- ownershipRequirements: use $and for "must have all", $or for "must have any"
+- mustOwnAmounts: { start: 1, end: 1 } = must own at least 1
+- mustOwnAmounts: { start: 0, end: 0 } = must NOT own (exclusion)
+- Tiered access: different token IDs = different access levels
+- Time-bounded access: combine ownershipTimes with subscription tokens
+- Server-side verification: BitBadgesApi.verifyOwnership() or Blockin sign-in`,
     instructions: `## BB-402 Token-Gated Access Protocol
 
 BB-402 is a protocol for token-gated access to APIs and digital resources. It uses HTTP 402 Payment Required responses to signal that badge ownership is needed.
@@ -972,6 +1068,15 @@ Require badges from multiple collections using $and/$or logic.
     name: 'Burnable',
     category: 'approval',
     description: 'Allow token holders to burn tokens by sending them to the burn address, permanently removing them from circulation',
+    summary: `Allows holders to permanently destroy tokens by sending to burn address.
+
+- Burn address: bb1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqs7gvmv (ETH null address in BitBadges format)
+- Approval structure: fromListId: "!Mint", toListId: burn address
+- overridesToIncomingApprovals: true (burn address has no user-level incoming approvals)
+- approvalId: "burnable-approval" (standard ID used by frontend to detect burnability)
+- All amounts/transfers set to "0" (unlimited)
+- Additive: sits alongside other collection approvals
+- Do NOT use with: credit tokens (increment-only), soulbound tokens, subscription tokens`,
     instructions: `## Burnable Tokens
 
 ### Concept
@@ -1050,6 +1155,16 @@ The burnable approval is additive — it sits alongside other collection approva
     name: 'Multi-Sig / Voting',
     category: 'approval',
     description: 'Require weighted quorum voting from multiple parties before transfers can proceed (multi-sig, governance, etc.)',
+    summary: `Enables multi-signature-like approval via votingChallenges[] in approvalCriteria.
+
+- Each voter has an address and a weight
+- quorumThreshold: percentage (0-100) of total possible weight that must vote "yes"
+- Voters cast votes via MsgCastVote with yesWeight (0-100%)
+- Non-voting voters count as 0% yes; threshold is % of ALL voters' total weight, not just those who voted
+- Votes can be updated (re-casting overwrites previous vote)
+- proposalId: unique identifier — changing it resets the vote tracker
+- Vote state does not reset after quorum met — designed for one-time transfers
+- Common patterns: unanimous (threshold: "100", equal weights), majority (threshold: "51"), weighted governance`,
     instructions: `## Multi-Sig / Voting Challenges
 
 ### Concept
@@ -1147,6 +1262,14 @@ Different stakeholders have different voting power:
     name: 'AI Criteria Gate',
     category: 'feature',
     description: 'AI-evaluated criteria gate using attestation NFTs and dynamic store for automated access decisions',
+    summary: `AI agent evaluates criteria and gates access via attestation NFTs or dynamic store entries.
+
+- Approach 1 (Attestation NFT): AI agent is sole minter of non-transferable NFTs; gate access via BB-402 / must-own-badges
+  - Non-transferable: no transferable approval + locked canUpdateCollectionApprovals
+  - On-chain proof, composable, but requires gas per attestation
+- Approach 2 (Dynamic Store): AI agent writes to off-chain dynamic store; claims use whitelist plugin with useDynamicStore: true
+  - No gas per evaluation, but off-chain and not composable on-chain
+- Store AI agent address in collection.customData (JSON)`,
     instructions: `## AI Criteria Gate
 
 An AI Criteria Gate uses an AI agent to evaluate whether users meet certain criteria, then gates access via attestation NFTs or dynamic store entries.
@@ -1198,6 +1321,15 @@ For maximum flexibility:
     category: 'feature',
     description: 'Gate access based on BitBadges verified credential badges (collection ID 1)',
     referenceCollectionIds: ['1'],
+    summary: `Gate access based on BitBadges verified credential badges (collection ID 1).
+
+- Collection 1 is managed by BitBadges — you cannot mint badges in it
+- Different token IDs = different verification types
+- On-chain gate: use mustOwnTokens in approvalCriteria with collectionId: "1"
+  - Set overrideWithCurrentTime: true for current ownership verification
+  - Empty ownershipTimes = any ownership time qualifies
+- Off-chain gate: use must-own-badges claim plugin with collectionId: 1
+- Combine with other gates using $and/$or for multi-factor verification`,
     instructions: `## Verified Gate
 
 Gate access based on BitBadges verified credential badges. Collection ID 1 contains verification attestation badges managed by the BitBadges team.
@@ -1257,6 +1389,16 @@ BitBadges collection 1 contains verification badges. Different token IDs represe
     name: 'Payment Protocol',
     category: 'token-type',
     description: 'Invoices, escrows, bounties, and payment receipts using ListView standard and coinTransfer-based approvals',
+    summary: `Build invoices, milestones, bounties, or escrow-based payment collections.
+
+- Approach 1 (coinTransfer-based): each approval = one invoice/milestone with coinTransfers
+  - Required standards: ["ListView:Milestones"] or ["ListView:Invoice Requests"] or ["ListView:Bounties"]
+  - Each approval has fromListId: "Mint", coinTransfers for payment, overridesFromOutgoingApprovals: true
+- Approach 2 (Escrow-based): Smart Token with IBC backing for hold-and-release
+  - Use when funds must be held until conditions are met
+- Lock canUpdateCollectionApprovals for immutable payment terms
+- ListView is incompatible with: Subscriptions, Smart Tokens, Custom 2FA, Liquidity Pools, Tradable NFTs
+- Initiator pays gas; for mint-based payments, the payer initiates`,
     instructions: `## Payment Protocol
 
 Build invoices, milestones, bounties, or escrow-based payment collections.
@@ -1331,6 +1473,13 @@ Use a Smart Token with IBC backing for hold-and-release escrow. Funds are deposi
     name: 'Tradable NFTs',
     category: 'standard',
     description: 'Tradable token standard enabling peer-to-peer transfers with the "Tradable" protocol standard tag and DefaultDisplayCurrency',
+    summary: `Required standards: ["Tradable", "NFTs", "DefaultDisplayCurrency:ubadge"]
+
+- MUST include all three standards together
+- DefaultDisplayCurrency format: "DefaultDisplayCurrency:<denom>" (sets pricing denomination for orderbook)
+- MUST include a free transfer approval: fromListId: "!Mint", toListId: "All", initiatedByListId: "All", approvalId: "transferable-approval"
+- Enables orderbook/marketplace integration
+- Typically used with NFT collections`,
     instructions: `## Tradable NFTs Configuration
 
 When enabling trading for NFTs, follow these requirements:
@@ -1378,6 +1527,18 @@ When enabling trading for NFTs, follow these requirements:
     category: 'token-type',
     description: 'Increment-only, non-transferable credit token purchased with any ICS20 denom. Users pay X of a denom and receive Y tokens as credits/proof of payment. For a 1:1 backed token with on-chain transferability, use the Smart Token standard instead.',
     referenceCollectionIds: ['23'],
+    summary: `Required standards: ["Credit Token"]
+
+- Increment-only, non-transferable (soulbound) fungible token purchased with ICS20 denom
+- validTokenIds: [{ "start": "1", "end": "1" }] (single token ID)
+- collectionApprovals: ONLY Mint approvals (no transferable/burnable approvals)
+- Lock canUpdateCollectionApprovals (empty array = frozen)
+- defaultBalances: autoApproveAllIncomingTransfers: true, autoApproveSelfInitiatedOutgoingTransfers: true, autoApproveSelfInitiatedIncomingTransfers: true
+- All Mint approvals: overridesFromOutgoingApprovals: true, mustPrioritize: true
+- Denomination tiers: create 8-10 approval tiers (credit-1, credit-5, credit-10, etc.) for greedy decomposition
+- MUST include alias path for display
+- All permissions locked (empty arrays)
+- Key difference from Smart Token: one-way minting only, no backing/unbacking, no transferability`,
     instructions: `## Credit Token Configuration
 
 ### Concept
@@ -1468,7 +1629,7 @@ MUST include an alias path so tokens display nicely:
   },
   "symbol": "<SYMBOL>",
   "denomUnits": [],
-  "metadata": { "uri": "", "customData": "" }
+  "metadata": { "uri": "", "customData": "", "image": "https://example.com/token-logo.png" }
 }]
 \`\`\`
 
@@ -1569,9 +1730,27 @@ export function getAllSkillInstructions(): SkillInstruction[] {
 
 /**
  * Get skill content as a plain string (for programmatic access).
- * Returns the instructions text, or null if not found.
+ * Returns the full instructions text, or null if not found.
  */
 export function getSkillContent(skillId: string): string | null {
+  const skill = SKILL_INSTRUCTIONS.find(s => s.id === skillId);
+  return skill ? skill.instructions : null;
+}
+
+/**
+ * Get skill summary as a plain string (compact cheat-sheet).
+ * Returns just the summary (~200-400 tokens), or null if not found.
+ */
+export function getSkillSummary(skillId: string): string | null {
+  const skill = SKILL_INSTRUCTIONS.find(s => s.id === skillId);
+  return skill ? skill.summary : null;
+}
+
+/**
+ * Get skill details as a plain string (same as getSkillContent, clearer name).
+ * Returns the full instructions text including JSON examples and edge cases.
+ */
+export function getSkillDetails(skillId: string): string | null {
   const skill = SKILL_INSTRUCTIONS.find(s => s.id === skillId);
   return skill ? skill.instructions : null;
 }

@@ -405,12 +405,22 @@ export function handleAuditCollection(input: { collection: Record<string, unknow
     // 3c. Check for backing approval completeness (smart tokens need BOTH)
     const standards = col.standards || [];
     const isSmartToken = standards.some(s => s.toLowerCase().includes('smart token'));
-    const hasBackingApproval = approvals.some(a =>
-      (a.approvalCriteria as Record<string, unknown>)?.allowBackedMinting && a.fromListId && !a.fromListId.startsWith('!')
-    );
-    const hasUnbackingApproval = approvals.some(a =>
-      (a.approvalCriteria as Record<string, unknown>)?.allowBackedMinting && a.toListId && a.fromListId && (a.fromListId.startsWith('!') || a.fromListId === 'All')
-    );
+    // Detect backing/unbacking approvals robustly:
+    // Backing: allowBackedMinting + fromListId is NOT negated (the backing address sends tokens out)
+    // Unbacking: allowBackedMinting + fromListId IS negated or contains ':' (users send tokens to backing address)
+    // Also check by approvalId pattern as fallback
+    const hasBackingApproval = approvals.some(a => {
+      const criteria = a.approvalCriteria as Record<string, unknown> | undefined;
+      if (criteria?.allowBackedMinting && a.fromListId && !a.fromListId.startsWith('!')) return true;
+      if (a.approvalId && /backing/i.test(a.approvalId) && !/unbacking/i.test(a.approvalId)) return true;
+      return false;
+    });
+    const hasUnbackingApproval = approvals.some(a => {
+      const criteria = a.approvalCriteria as Record<string, unknown> | undefined;
+      if (criteria?.allowBackedMinting && a.toListId && a.fromListId && (a.fromListId.startsWith('!') || a.fromListId === 'All')) return true;
+      if (a.approvalId && /unbacking/i.test(a.approvalId)) return true;
+      return false;
+    });
 
     if (isSmartToken || invariants.cosmosCoinBackedPath) {
       if (!hasBackingApproval) {
@@ -581,6 +591,8 @@ export function handleAuditCollection(input: { collection: Record<string, unknow
       }
       if (typeof obj === 'object') {
         for (const [key, val] of Object.entries(obj as Record<string, unknown>)) {
+          // Skip off-chain plugin config — numbers are valid there (maxUses, numCodes, etc.)
+          if (key === 'claimConfig' || key === 'plugins' || key === 'publicParams' || key === 'privateParams') continue;
           // Only check fields that should be numeric strings
           if (['start', 'end', 'amount', 'collectionId', 'totalSupply', 'decimals',
                'overallApprovalAmount', 'perInitiatedByAddressApprovalAmount',

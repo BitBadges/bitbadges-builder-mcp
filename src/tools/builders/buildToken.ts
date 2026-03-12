@@ -48,6 +48,29 @@ export const buildTokenSchema = z.object({
   creatorAddress: z.string().describe('Creator/manager address (bb1...)'),
   name: z.string().describe('Collection/token name'),
 
+  // Token type preset
+  tokenType: z.enum(['auto', 'smart-token', 'fungible-token', 'nft-collection']).default('auto').describe('Token type preset'),
+
+  // Smart-token specific fields
+  ibcDenom: z.string().optional().describe('[smart-token] IBC denom or symbol'),
+  dailyWithdrawLimit: z.string().optional().describe('[smart-token] Daily withdrawal limit'),
+  totalWithdrawLimit: z.string().optional().describe('[smart-token] Total withdrawal limit'),
+  requires2FA: z.boolean().optional().describe('[smart-token] Whether 2FA is required'),
+  twoFACollectionId: z.string().optional().describe('[smart-token] Collection ID for 2FA tokens'),
+
+  // Fungible/NFT specific fields
+  totalSupply: z.string().optional().describe('[fungible-token/nft-collection] Total supply'),
+  mintPrice: z.string().optional().describe('[fungible-token/nft-collection] Mint price'),
+  mintPriceDenom: z.string().optional().describe('[fungible-token/nft-collection] Mint price denom'),
+  maxPerUser: z.string().optional().describe('[fungible-token/nft-collection] Max per user'),
+
+  // Shared convenience flags
+  transferable: z.boolean().optional().describe('Allow transfers (default true)'),
+  swappable: z.boolean().optional().describe('Enable liquidity pool trading'),
+  tradable: z.boolean().optional().describe('[nft-collection] Enable marketplace trading'),
+  tradingCurrency: z.string().optional().describe('[nft-collection] Trading currency denom'),
+  immutable: z.boolean().optional().describe('Lock all permissions'),
+
   // Design axes
   supply: supplySchema.describe('Supply model: "single-fungible", {type:"fixed-nft",count} or {type:"multi-edition",count,editionSize}'),
   minting: mintingSchema.describe('Minting mechanism: "public", "manager-only", "ibc-backed", "none", or object with options'),
@@ -82,7 +105,11 @@ export const buildTokenSchema = z.object({
   customData: z.string().optional().describe('Custom data string (JSON)')
 });
 
+/** Output type after Zod defaults are applied */
 export type BuildTokenInput = z.infer<typeof buildTokenSchema>;
+
+/** Input type before Zod defaults — tokenType and other preset fields are optional */
+export type BuildTokenRawInput = z.input<typeof buildTokenSchema>;
 
 export interface BuildTokenResult {
   success: boolean;
@@ -105,12 +132,35 @@ export interface BuildTokenResult {
 
 export const buildTokenTool = {
   name: 'build_token',
-  description: 'Universal token builder. Creates any collection type (fungible, NFT, smart token, etc.) from design axes. Returns MsgUniversalUpdateCollection JSON. Read bitbadges://schema/token-builder for the full field reference.',
+  description: 'Universal token builder — single entry point for all collection types (fungible tokens, NFT collections, IBC-backed smart tokens, etc.). Set tokenType for simplified inputs, or use the full design axes directly. Returns MsgUniversalUpdateCollection JSON. Read bitbadges://schema/token-builder for the full field reference.',
   inputSchema: {
     type: 'object' as const,
     properties: {
       creatorAddress: { type: 'string', description: 'Creator/manager address (bb1...)' },
       name: { type: 'string', description: 'Collection/token name' },
+      tokenType: {
+        type: 'string',
+        enum: ['auto', 'smart-token', 'fungible-token', 'nft-collection'],
+        description: 'Token type preset (default "auto"). "smart-token": IBC-backed token — requires ibcDenom, symbol. "fungible-token": ERC-20 style — requires symbol. "nft-collection": NFT collection — requires totalSupply. "auto": use explicit design axes below.'
+      },
+      // Smart-token specific (tokenType="smart-token")
+      ibcDenom: { type: 'string', description: '[smart-token] IBC denom or symbol (e.g., "USDC", "ibc/F082B65...")' },
+      dailyWithdrawLimit: { type: 'string', description: '[smart-token] Daily withdrawal limit in base units' },
+      totalWithdrawLimit: { type: 'string', description: '[smart-token] Total withdrawal limit in base units' },
+      requires2FA: { type: 'boolean', description: '[smart-token] Whether 2FA is required for withdrawals' },
+      twoFACollectionId: { type: 'string', description: '[smart-token] Collection ID for 2FA tokens' },
+      // Fungible/NFT specific
+      totalSupply: { type: 'string', description: '[fungible-token/nft-collection] Total supply' },
+      mintPrice: { type: 'string', description: '[fungible-token/nft-collection] Mint price in base units' },
+      mintPriceDenom: { type: 'string', description: '[fungible-token/nft-collection] Mint price denomination' },
+      maxPerUser: { type: 'string', description: '[fungible-token/nft-collection] Maximum per user' },
+      // Shared convenience flags
+      transferable: { type: 'boolean', description: 'Allow transfers (default true). Shorthand for transferability.' },
+      swappable: { type: 'boolean', description: 'Enable liquidity pool trading' },
+      tradable: { type: 'boolean', description: '[nft-collection] Enable marketplace trading' },
+      tradingCurrency: { type: 'string', description: '[nft-collection] Trading currency denom (default "ubadge")' },
+      immutable: { type: 'boolean', description: 'Lock all permissions (fully immutable)' },
+      // Full design axes (used when tokenType="auto" or for overrides)
       supply: {
         description: 'Supply model: "single-fungible" (default), {"type":"fixed-nft","count":"N"}, or {"type":"multi-edition","count":"N","editionSize":"M"}',
         oneOf: [
@@ -692,10 +742,123 @@ function validate(message: Record<string, unknown>, resolvedMinting: ResolvedMin
   return warnings;
 }
 
+// --- Token Type Preset Resolution ---
+
+/**
+ * Resolves tokenType presets into explicit design axes.
+ * When tokenType is set, the convenience fields (ibcDenom, totalSupply, etc.)
+ * are mapped to the corresponding design axes. Explicit design axes always
+ * take precedence over preset defaults.
+ */
+export function resolveTokenTypePreset(input: BuildTokenInput): BuildTokenInput {
+  const tokenType = input.tokenType || 'auto';
+  if (tokenType === 'auto') {
+    // Still apply convenience flags even in auto mode
+    const result = { ...input };
+    if (input.transferable === false && !input.transferability) {
+      result.transferability = 'non-transferable';
+    }
+    if (input.immutable && !input.permissions) {
+      result.permissions = 'immutable';
+    }
+    if ((input.swappable || input.tradable) && !input.trading) {
+      result.trading = {
+        swappable: input.swappable,
+        tradable: input.tradable,
+        currency: input.tradingCurrency
+      };
+    }
+    return result;
+  }
+
+  const result = { ...input };
+
+  if (tokenType === 'smart-token') {
+    // IBC-backed smart token defaults
+    if (!result.supply) result.supply = 'single-fungible';
+    if (!result.minting) {
+      if (!input.ibcDenom) {
+        // Will fail validation later, but set what we can
+        result.minting = { type: 'ibc-backed' as const, ibcDenom: '' };
+      } else {
+        result.minting = {
+          type: 'ibc-backed' as const,
+          ibcDenom: input.ibcDenom,
+          dailyWithdrawLimit: input.dailyWithdrawLimit,
+          totalWithdrawLimit: input.totalWithdrawLimit,
+          requires2FA: input.requires2FA,
+          twoFACollectionId: input.twoFACollectionId
+        };
+      }
+    }
+    if (!result.transferability) {
+      result.transferability = (input.transferable === false) ? 'non-transferable' : 'free';
+    }
+    if (!result.timeBehavior) result.timeBehavior = 'permanent';
+    if (!result.permissions) {
+      result.permissions = input.immutable ? 'immutable' : 'locked-approvals';
+    }
+    if (!result.trading && input.swappable) {
+      result.trading = { swappable: true };
+    }
+  } else if (tokenType === 'fungible-token') {
+    // ERC-20 style fungible token defaults
+    if (!result.supply) result.supply = 'single-fungible';
+    if (!result.decimals) result.decimals = input.decimals || '9';
+    if (!result.minting) {
+      result.minting = {
+        type: 'public' as const,
+        price: input.mintPrice,
+        priceDenom: input.mintPriceDenom,
+        maxPerUser: input.maxPerUser,
+        totalSupply: input.totalSupply
+      };
+    }
+    if (!result.transferability) {
+      result.transferability = (input.transferable === false) ? 'non-transferable' : 'free';
+    }
+    if (!result.timeBehavior) result.timeBehavior = 'permanent';
+    if (!result.permissions) result.permissions = 'locked-approvals';
+    if (!result.trading && input.swappable) {
+      result.trading = { swappable: true };
+    }
+  } else if (tokenType === 'nft-collection') {
+    // NFT collection defaults
+    const totalSupply = input.totalSupply;
+    if (!totalSupply) {
+      // Will be caught by handleBuildToken validation
+    }
+    if (!result.supply && totalSupply) {
+      result.supply = { type: 'fixed-nft' as const, count: totalSupply };
+    }
+    if (!result.minting) {
+      result.minting = {
+        type: 'public' as const,
+        price: input.mintPrice,
+        priceDenom: input.mintPriceDenom,
+        maxPerUser: input.maxPerUser,
+        totalSupply: input.totalSupply
+      };
+    }
+    if (!result.transferability) result.transferability = 'free';
+    if (!result.timeBehavior) result.timeBehavior = 'permanent';
+    if (!result.permissions) result.permissions = 'locked-approvals';
+    if (!result.trading && input.tradable) {
+      result.trading = { tradable: true, currency: input.tradingCurrency || 'ubadge' };
+    }
+  }
+
+  return result;
+}
+
 // --- Main Handler ---
 
-export function handleBuildToken(input: BuildTokenInput): BuildTokenResult {
+export function handleBuildToken(rawInput: BuildTokenRawInput): BuildTokenResult {
   try {
+    // Phase 0: Parse defaults and resolve tokenType preset into design axes
+    const parsed = buildTokenSchema.parse(rawInput);
+    const input = resolveTokenTypePreset(parsed);
+
     // Phase 1: Resolve
     if (!input.creatorAddress.startsWith('bb1')) {
       return { success: false, error: 'Creator address must start with "bb1"' };
