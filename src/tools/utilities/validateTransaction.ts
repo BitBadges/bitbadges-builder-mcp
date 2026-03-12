@@ -284,6 +284,23 @@ function validateApprovals(approvals: unknown[], path: string, issues: Validatio
       }
     });
 
+    // "Mint" must only appear in fromListId — it is the minting source, not a destination or initiator.
+    // If the intent is to burn tokens, use the burn address bb1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqs7gvmv instead.
+    if (typeof a.toListId === 'string' && (a.toListId === 'Mint' || a.toListId.includes('Mint'))) {
+      issues.push({
+        severity: 'error',
+        message: `toListId cannot be "Mint". "Mint" is only valid as a fromListId (minting source). To burn tokens, use the burn address: bb1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqs7gvmv`,
+        path: `${approvalPath}.toListId`
+      });
+    }
+    if (typeof a.initiatedByListId === 'string' && (a.initiatedByListId === 'Mint' || a.initiatedByListId.includes('Mint'))) {
+      issues.push({
+        severity: 'error',
+        message: `initiatedByListId cannot be "Mint". "Mint" is only valid as a fromListId (minting source). To burn tokens, use the burn address: bb1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqs7gvmv`,
+        path: `${approvalPath}.initiatedByListId`
+      });
+    }
+
     // Check Mint approval override
     if (a.fromListId === 'Mint') {
       const criteria = a.approvalCriteria as Record<string, unknown> | undefined;
@@ -504,9 +521,8 @@ function validateMsgConstructorFields(value: Record<string, unknown>, basePath: 
   ];
 
   for (const field of requiredArrayFields) {
-    if (value[`update${field.charAt(0).toUpperCase()}${field.slice(1)}`] === true || field === 'aliasPathsToAdd' || field === 'cosmosCoinWrapperPathsToAdd' || field === 'mintEscrowCoinsToTransfer') {
-      // Only check fields that are being updated or are always required
-    }
+    // If the field is present at all, it must be an array (even if not being updated).
+    // The SDK constructor will crash if it finds a non-array value.
     if (field in value && !Array.isArray(value[field])) {
       issues.push({
         severity: 'error',
@@ -604,6 +620,21 @@ function validateMsgConstructorFields(value: Record<string, unknown>, basePath: 
               }
             }
           });
+          // "Mint" must only appear in fromListId
+          if (typeof a.toListId === 'string' && (a.toListId === 'Mint' || a.toListId.includes('Mint'))) {
+            issues.push({
+              severity: 'error',
+              message: `defaultBalances.${field}[${index}].toListId cannot be "Mint". To burn tokens, use: bb1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqs7gvmv`,
+              path: `${basePath}.defaultBalances.${field}[${index}].toListId`
+            });
+          }
+          if (typeof a.initiatedByListId === 'string' && (a.initiatedByListId === 'Mint' || a.initiatedByListId.includes('Mint'))) {
+            issues.push({
+              severity: 'error',
+              message: `defaultBalances.${field}[${index}].initiatedByListId cannot be "Mint". To burn tokens, use: bb1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqs7gvmv`,
+              path: `${basePath}.defaultBalances.${field}[${index}].initiatedByListId`
+            });
+          }
         });
       }
     });
@@ -794,7 +825,7 @@ export function handleValidateTransaction(input: ValidateTransactionInput): Vali
       }
 
       // Validate defaultBalances for mint collections
-      if (value.collectionId === '0' || value.collectionId === 0) {
+      if (value.collectionId === '0') {
         const hasMintApproval = Array.isArray(value.collectionApprovals) &&
           (value.collectionApprovals as Array<Record<string, unknown>>).some(
             a => a.fromListId === 'Mint'

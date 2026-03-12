@@ -464,11 +464,15 @@ export function handleAuditCollection(input: { collection: Record<string, unknow
     // Check noForcefulPostMintTransfers invariant
     if (!invariants.noForcefulPostMintTransfers) {
       // Check if there are any approvals that could be forceful
-      const potentialForceful = approvals.some(a =>
-        a.fromListId !== 'Mint' &&
-        a.initiatedByListId === 'All' &&
-        !(a.approvalCriteria as Record<string, unknown>)?.requireToEqualsInitiatedBy
-      );
+      const potentialForceful = approvals.some(a => {
+        if (a.fromListId === 'Mint') return false; // Mint approvals are not forceful transfers
+        const initiated = a.initiatedByListId as string;
+        // Any list ID that resolves to "everyone" or "everyone except Mint" allows third-party initiation
+        const anyoneCanInitiate = initiated === 'All' || initiated === '!Mint' || initiated === 'AllWithMint';
+        if (!anyoneCanInitiate) return false;
+        const criteria = a.approvalCriteria as Record<string, unknown> | undefined;
+        return !criteria?.requireToEqualsInitiatedBy;
+      });
       if (potentialForceful) {
         findings.push({
           severity: 'warning',
