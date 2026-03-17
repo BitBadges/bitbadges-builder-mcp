@@ -684,10 +684,15 @@ function validate(message: Record<string, unknown>, resolvedMinting: ResolvedMin
       warnings.push(`CRITICAL: Mint approval "${id}" missing overridesFromOutgoingApprovals:true`);
     }
 
-    if (id === 'smart-token-backing' || id === 'smart-token-unbacking') {
+    if (id === 'smart-token-backing') {
       if (!criteria.mustPrioritize) warnings.push(`CRITICAL: ${id} missing mustPrioritize:true`);
       if (!criteria.allowBackedMinting) warnings.push(`CRITICAL: ${id} missing allowBackedMinting:true`);
-      if (criteria.overridesFromOutgoingApprovals) warnings.push(`CRITICAL: ${id} must NOT have overridesFromOutgoingApprovals`);
+      if (!criteria.overridesFromOutgoingApprovals) warnings.push(`CRITICAL: ${id} must have overridesFromOutgoingApprovals:true (backing address is protocol-controlled)`);
+    }
+    if (id === 'smart-token-unbacking') {
+      if (!criteria.mustPrioritize) warnings.push(`CRITICAL: ${id} missing mustPrioritize:true`);
+      if (!criteria.allowBackedMinting) warnings.push(`CRITICAL: ${id} missing allowBackedMinting:true`);
+      if (criteria.overridesFromOutgoingApprovals) warnings.push(`CRITICAL: ${id} must NOT have overridesFromOutgoingApprovals (sender is a regular user)`);
     }
   }
 

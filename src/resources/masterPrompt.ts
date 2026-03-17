@@ -1172,15 +1172,15 @@ Smart Tokens require TWO separate approvals:
 - toListId: "![backing address]" (everything except backing)
 - mustPrioritize: true
 - allowBackedMinting: true
-- overridesFromOutgoingApprovals: false (CRITICAL)
+- overridesFromOutgoingApprovals: true (backing address is protocol-controlled, has no user-level outgoing approvals)
 
 ### 2. Unbacking Approval (tokens TO backing address)
 - approvalId: "smart-token-unbacking"
-- fromListId: "!Mint:[backing address]"
+- fromListId: "!Mint:[backing address]" (colon-separated exclude — only regular holders can unback)
 - toListId: [backing address]
 - mustPrioritize: true
 - allowBackedMinting: true
-- overridesFromOutgoingApprovals: false
+- overridesFromOutgoingApprovals: false (sender is a regular user, their outgoing approvals should be checked)
 
 ## Required Configuration
 

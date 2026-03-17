@@ -31,7 +31,9 @@ export const SKILL_INSTRUCTIONS: SkillInstruction[] = [
   2. Transferable approval: fromListId = "!Mint", toListId = "All" (omit for non-transferable)
   3. Unbacking approval: toListId = backing address, allowBackedMinting: true, mustPrioritize: true
 - DO NOT use fromListId: "Mint" — tokens are created via IBC backing, not traditional minting
-- DO NOT use overridesFromOutgoingApprovals: true when fromListId is a backing address
+- Backing approval (FROM backing address): USE overridesFromOutgoingApprovals: true (backing address is protocol-controlled, has no user-level outgoing approvals)
+- Unbacking approval (TO backing address): DO NOT use overridesFromOutgoingApprovals: true (sender is a regular user)
+- Unbacking fromListId uses "!Mint:backingAddress" syntax (excludes both Mint and backing address — meaning only regular holders can unback)
 - Backing address is deterministic — use generate_backing_address tool
 - Optional: Add "AI Agent Vault" to standards for AI Prompt tab (display-only)
 - Alias path: symbol = base unit (e.g. "uvatom"), denomUnits = display units with decimals > 0 only, each denomUnit MUST have metadata with an image
@@ -99,13 +101,14 @@ This approval allows tokens to be sent FROM the IBC backing address (backing the
   "transferTimes": [{ "start": "1", "end": "18446744073709551615" }],
   "ownershipTimes": [{ "start": "1", "end": "18446744073709551615" }],
   "approvalCriteria": {
-    "overridesFromOutgoingApprovals": false,
+    "overridesFromOutgoingApprovals": true,
     "overridesToIncomingApprovals": false,
     "mustPrioritize": true,
     "allowBackedMinting": true
   }
 }
 \`\`\`
+Note: \`overridesFromOutgoingApprovals: true\` is required here because the backing address is protocol-controlled and has no user-level outgoing approvals.
 
 #### 2. Transferable Approval (for peer-to-peer transfers)
 This approval allows tokens to be transferred between users (non-backing addresses).
@@ -124,6 +127,7 @@ This approval allows tokens to be transferred between users (non-backing address
 
 #### 3. Unbacking Approval (for unbacking tokens)
 This approval allows tokens to be sent TO the IBC backing address (unbacking the tokens).
+The \`!Mint:bb1backingaddress...\` fromListId uses colon-separated exclude syntax — it means "everyone except Mint and the backing address", so only regular holders can unback.
 
 \`\`\`json
 {
@@ -165,7 +169,9 @@ Add "AI Agent Vault" to the standards array to enable an AI Prompt tab in the fr
 
 ### IBC Backed Minting Rules
 
-- **DO NOT use overridesFromOutgoingApprovals: true** when fromListId is a backing address (different from regular Mint approvals)
+- **Backing approval** (FROM backing address → All): **USE overridesFromOutgoingApprovals: true** — the backing address is protocol-controlled and has no user-level outgoing approvals
+- **Unbacking approval** (FROM users → TO backing address): **DO NOT use overridesFromOutgoingApprovals: true** — the sender is a regular user whose outgoing approvals should be checked
+- **Unbacking fromListId**: Use \`!Mint:backingAddress\` syntax — colon-separated addresses with \`!\` prefix means "everyone except Mint and backing address" (only regular holders can unback)
 - **Use allowBackedMinting: true** for IBC backed operations
 - **Use mustPrioritize: true** (required, not compatible with auto-scan)
 - **Backing Address**: Use the backing address as fromListId (NOT "Mint") — generated deterministically from the IBC denom via generate_backing_address tool
@@ -230,8 +236,9 @@ For wrapping native Cosmos SDK coins, use \`allowSpecialWrapping: true\` and \`c
 1. **NO fromListId: "Mint" approvals**: Tokens are created via IBC backing, not traditional minting
 2. **Use allowBackedMinting: true** in both backing and unbacking approvals
 3. **Use mustPrioritize: true** (required for IBC backed operations)
-4. **DO NOT use overridesFromOutgoingApprovals: true** when fromListId is a backing address
-5. **MUST create THREE default approvals**: backing, transferable, and unbacking
+4. **Backing approval**: USE overridesFromOutgoingApprovals: true (backing address is protocol-controlled). **Unbacking approval**: DO NOT (sender is a user)
+5. **Unbacking fromListId**: Use \`!Mint:backingAddress\` syntax — excludes both Mint and backing address so only regular holders can send tokens back
+6. **MUST create THREE default approvals**: backing, transferable, and unbacking
 6. **MUST configure alias path** with matching decimals
 7. The backing address is deterministic — use the one from generate_backing_address tool`
   },
