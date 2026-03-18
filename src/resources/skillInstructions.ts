@@ -236,11 +236,11 @@ For wrapping native Cosmos SDK coins, use \`allowSpecialWrapping: true\` and \`c
 1. **NO fromListId: "Mint" approvals**: Tokens are created via IBC backing, not traditional minting
 2. **Use allowBackedMinting: true** in both backing and unbacking approvals
 3. **Use mustPrioritize: true** (required for IBC backed operations)
-4. **Backing approval**: USE overridesFromOutgoingApprovals: true (backing address is protocol-controlled). **Unbacking approval**: DO NOT (sender is a user)
+4. **Backing approval**: overridesFromOutgoingApprovals: true is RECOMMENDED (backing addresses auto-set their approvals, so it works either way, but true is good practice). **Unbacking approval**: MUST be false (sender is a regular user)
 5. **Unbacking fromListId**: Use \`!Mint:backingAddress\` syntax — excludes both Mint and backing address so only regular holders can send tokens back
 6. **MUST create THREE default approvals**: backing, transferable, and unbacking
-6. **MUST configure alias path** with matching decimals
-7. The backing address is deterministic — use the one from generate_backing_address tool`
+7. **MUST configure alias path** with matching decimals
+8. The backing address is deterministic — use the one from generate_backing_address tool`
   },
   {
     id: 'minting',

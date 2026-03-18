@@ -136,13 +136,16 @@ const hasToken = balance.balances.some(b =>
 // 1. Use generate_backing_address MCP tool to get the deterministic backing address
 //    for an IBC denom (e.g., USDC → bb1backingaddr...)
 //
-// 2. Two approvals required:
+// 2. Three approvals required:
 //    - Backing (deposit): fromListId: "bb1backingaddr...", toListId: "!bb1backingaddr..."
-//      → mustPrioritize: true, allowBackedMinting: true
+//      → mustPrioritize: true, allowBackedMinting: true, overridesFromOutgoingApprovals: true (recommended)
+//    - Transferable (peer-to-peer): fromListId: "!Mint:bb1backingaddr...", toListId: "!Mint:bb1backingaddr..."
+//      → overridesFromOutgoingApprovals: false
 //    - Unbacking (withdraw): fromListId: "!Mint:bb1backingaddr...", toListId: "bb1backingaddr..."
-//      → mustPrioritize: true, allowBackedMinting: true
+//      → mustPrioritize: true, allowBackedMinting: true, overridesFromOutgoingApprovals: false
 //
-// 3. CRITICAL: NO overridesFromOutgoingApprovals on backing address approvals
+// 3. Backing: overridesFromOutgoingApprovals: true is RECOMMENDED (backing addresses auto-set their approvals).
+//    Unbacking: overridesFromOutgoingApprovals: false (sender is a regular user)
 // 4. Smart tokens mint from backing address, NOT from "Mint"
 // 5. invariants.cosmosCoinBackedPath must be set with the IBC denom conversion
 // 6. Need an alias path for liquidity pool / display integration
