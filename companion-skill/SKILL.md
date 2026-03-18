@@ -108,11 +108,12 @@ User: "Create a swappable token called MYTOKEN"
 - `"!Mint:bb1..."` - Smart Token unbacking format
 
 ### Smart Token Rules
-- TWO approvals required: backing + unbacking
+- THREE approvals required: backing + transferable + unbacking
 - NO `fromListId: "Mint"` approvals
 - `allowBackedMinting: true` required
 - `mustPrioritize: true` required
-- `overridesFromOutgoingApprovals: false` for backing addresses
+- `overridesFromOutgoingApprovals: true` for backing addresses (recommended — backing addresses auto-set their approvals, so it works either way)
+- `overridesFromOutgoingApprovals: false` for unbacking (sender is a regular user)
 
 ### Mint Approval Rules
 - MUST have `overridesFromOutgoingApprovals: true`

@@ -829,9 +829,10 @@ For the vast majority of collections, you should use:
    - This means tokens never expire
    - Use this unless you specifically need expiring tokens
 
-2. **overridesFromOutgoingApprovals**: Always false EXCEPT for Mint approvals
-   - Set to true ONLY when fromListId is "Mint"
-   - Set to false for all other approvals (post-mint transfers, backing addresses, etc.)
+2. **overridesFromOutgoingApprovals**: Always false EXCEPT for Mint approvals and backing address approvals
+   - Set to true when fromListId is "Mint" (REQUIRED — Mint has no outgoing approvals)
+   - Set to true when fromListId is a backing address (RECOMMENDED — backing addresses auto-set their approvals, so it works either way)
+   - Set to false for all other approvals (post-mint transfers, unbacking, etc.)
 
 3. **overridesToIncomingApprovals**: Always false
    - Almost never set to true
@@ -846,10 +847,13 @@ For the vast majority of collections, you should use:
   - Required for all minting operations
   - Allows tokens to be created without checking sender's outgoing approvals
 
+**RECOMMENDED true for:**
+- **IBC backing addresses** (Smart Tokens)
+  - Backing addresses auto-set their approvals, so it works either way, but true is good practice
+
 **MUST be false for:**
 - **Post-mint transfers** (fromListId: "!Mint" or specific addresses)
-- **IBC backing addresses** (Smart Tokens)
-  - DO NOT use true when fromListId is an IBC backing address
+- **Unbacking approvals** (sender is a regular user)
 
 ### Summary: Default Values
 
@@ -1162,9 +1166,9 @@ export const CRITICAL_RULES = MASTER_PROMPT_CONTENT.criticalRules;
 
 export const SMART_TOKEN_RULES = `# Smart Token Configuration Rules
 
-## Two-Fold Approval System
+## Three-Approval System
 
-Smart Tokens require TWO separate approvals:
+Smart Tokens require THREE separate approvals:
 
 ### 1. Backing Approval (tokens FROM backing address)
 - approvalId: "smart-token-backing"
@@ -1174,7 +1178,13 @@ Smart Tokens require TWO separate approvals:
 - allowBackedMinting: true
 - overridesFromOutgoingApprovals: true (backing address is protocol-controlled, has no user-level outgoing approvals)
 
-### 2. Unbacking Approval (tokens TO backing address)
+### 2. Transferable Approval (peer-to-peer transfers)
+- approvalId: "smart-token-transferable"
+- fromListId: "!Mint:[backing address]" (only regular holders)
+- toListId: "!Mint:[backing address]" (only regular holders)
+- overridesFromOutgoingApprovals: false (sender is a regular user)
+
+### 3. Unbacking Approval (tokens TO backing address)
 - approvalId: "smart-token-unbacking"
 - fromListId: "!Mint:[backing address]" (colon-separated exclude — only regular holders can unback)
 - toListId: [backing address]
@@ -1190,7 +1200,8 @@ Smart Tokens require TWO separate approvals:
 
 ## Key Gotchas
 - NO fromListId: "Mint" approvals
-- DO NOT use overridesFromOutgoingApprovals: true for backing addresses
+- Backing approvals: overridesFromOutgoingApprovals: true is RECOMMENDED (backing addresses auto-set their approvals, so it works either way, but true is good practice)
+- Unbacking approvals: overridesFromOutgoingApprovals MUST be false (sender is a regular user)
 - Alias path decimals MUST match IBC denom decimals
 `;
 
