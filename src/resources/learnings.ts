@@ -35,9 +35,9 @@ const LEARNINGS: LearningEntry[] = [
   },
   {
     topic: 'approvals',
-    title: 'Backing vs unbacking overrides differ',
-    content: 'Smart token backing approval (FROM backing address) SHOULD have overridesFromOutgoingApprovals: true — the backing address is protocol-controlled with no user-level outgoing approvals. Unbacking approval (FROM regular user TO backing address) must NOT have overridesFromOutgoingApprovals: true — the sender is a regular user whose outgoing approvals should be checked.',
-    severity: 'important'
+    title: 'Backing address overrides do not matter, unbacking must NOT override',
+    content: 'The backing address is protocol-controlled and its outgoing approvals are auto-set, so overridesFromOutgoingApprovals on the backing approval does not matter (true or false both work). However, the unbacking approval (FROM regular user TO backing address) must NOT have overridesFromOutgoingApprovals: true — the sender is a regular user whose outgoing approvals should be checked.',
+    severity: 'tip'
   },
 
   // Signing — educational (your app is responsible for signing)
