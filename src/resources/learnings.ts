@@ -35,8 +35,8 @@ const LEARNINGS: LearningEntry[] = [
   },
   {
     topic: 'approvals',
-    title: 'Backing address overrides do not matter, unbacking must NOT override',
-    content: 'The backing address is protocol-controlled and its outgoing approvals are auto-set, so overridesFromOutgoingApprovals on the backing approval does not matter (true or false both work). However, the unbacking approval (FROM regular user TO backing address) must NOT have overridesFromOutgoingApprovals: true — the sender is a regular user whose outgoing approvals should be checked.',
+    title: 'Overrides do not matter for backing or unbacking approvals',
+    content: 'Both the backing address and unbacking address are protocol-controlled with auto-set approvals, so overridesFromOutgoingApprovals on both backing and unbacking approvals does not matter (true or false both work).',
     severity: 'tip'
   },
 
