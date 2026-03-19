@@ -81,9 +81,9 @@ const LEARNINGS: LearningEntry[] = [
   },
   {
     topic: 'smart-tokens',
-    title: 'Three approvals required: backing, transferable, unbacking',
-    content: 'Smart tokens need three approvals: (1) backing: from backing address to users (mustPrioritize: true, allowBackedMinting: true, overridesFromOutgoingApprovals: true), (2) transferable: from regular holders to regular holders (overridesFromOutgoingApprovals: false), (3) unbacking: from users to backing address (mustPrioritize: true, allowBackedMinting: true, overridesFromOutgoingApprovals: false). Missing any of these breaks the token\'s full functionality.',
-    severity: 'critical'
+    title: 'Two approvals required, transferable is optional',
+    content: 'Smart tokens REQUIRE two approvals: (1) backing: from backing address to users (mustPrioritize: true, allowBackedMinting: true, overridesFromOutgoingApprovals: true), (2) unbacking: from users to backing address (mustPrioritize: true, allowBackedMinting: true, overridesFromOutgoingApprovals: false). A third transferable approval (from regular holders to regular holders) is COMMON for wrapped assets but OPTIONAL — omit it for simple deposit/withdraw vaults or escrows where tokens should not move between users.',
+    severity: 'important'
   },
 
   // SDK
