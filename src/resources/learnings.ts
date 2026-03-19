@@ -35,8 +35,8 @@ const LEARNINGS: LearningEntry[] = [
   },
   {
     topic: 'approvals',
-    title: 'Backing address approvals must NOT have overridesFromOutgoingApprovals',
-    content: 'Smart token backing/unbacking approvals should NOT set overridesFromOutgoingApprovals: true. The backing address is a special system address.',
+    title: 'Backing vs unbacking overrides differ',
+    content: 'Smart token backing approval (FROM backing address) SHOULD have overridesFromOutgoingApprovals: true — the backing address is protocol-controlled with no user-level outgoing approvals. Unbacking approval (FROM regular user TO backing address) must NOT have overridesFromOutgoingApprovals: true — the sender is a regular user whose outgoing approvals should be checked.',
     severity: 'important'
   },
 
@@ -81,8 +81,8 @@ const LEARNINGS: LearningEntry[] = [
   },
   {
     topic: 'smart-tokens',
-    title: 'Both backing and unbacking approvals needed',
-    content: 'Smart tokens need two approvals: (1) backing: from backing address to users (mustPrioritize: true, allowBackedMinting: true), (2) unbacking: from users to backing address (same flags). Missing either breaks deposits or withdrawals.',
+    title: 'Three approvals required: backing, transferable, unbacking',
+    content: 'Smart tokens need three approvals: (1) backing: from backing address to users (mustPrioritize: true, allowBackedMinting: true, overridesFromOutgoingApprovals: true), (2) transferable: from regular holders to regular holders (overridesFromOutgoingApprovals: false), (3) unbacking: from users to backing address (mustPrioritize: true, allowBackedMinting: true, overridesFromOutgoingApprovals: false). Missing any of these breaks the token\'s full functionality.',
     severity: 'critical'
   },
 
