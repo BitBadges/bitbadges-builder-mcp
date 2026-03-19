@@ -240,7 +240,16 @@ For wrapping native Cosmos SDK coins, use \`allowSpecialWrapping: true\` and \`c
 5. **Unbacking fromListId**: Use \`!Mint:backingAddress\` syntax — excludes both Mint and backing address so only regular holders can send tokens back
 6. **MUST create backing + unbacking approvals**. Transferable approval is common but optional (omit for vaults/escrows)
 7. **MUST configure alias path** with matching decimals
-8. The backing address is deterministic — use the one from generate_backing_address tool`
+8. The backing address is deterministic — use the one from generate_backing_address tool
+
+## Common Mistakes
+
+- DON'T use fromListId: "Mint" — smart tokens are created via IBC backing, not traditional minting. Use the backing address as fromListId instead.
+- DON'T forget mustPrioritize: true on backing and unbacking approvals — without it, the chain cannot match the approval and the transfer fails.
+- DON'T assume all three approvals are required — the transferable approval is optional. Omit it for vaults or escrows where tokens should not move between users.
+- DON'T use "All" as fromListId or toListId for backing/unbacking operations — use the exact deterministic backing address from generate_backing_address.
+- DON'T use number types for amounts or IDs — all values must be strings ("1" not 1, "18446744073709551615" not Number.MAX_SAFE_INTEGER).
+- DON'T forget to configure an alias path — smart tokens will not function without one, and the alias decimals must match the IBC denom decimals.`
   },
   {
     id: 'minting',
@@ -463,7 +472,16 @@ Key escrow rules:
 - **predeterminedBalances vs approvalAmounts**: These are incompatible — use one or the other
 - **orderCalculationMethod**: MUST have exactly ONE method set to true
 - **amountTrackerId**: Required when using maxNumTransfers or approvalAmounts
-- **autoApproveAllIncomingTransfers**: Must be true in defaultBalances for public-mint collections`
+- **autoApproveAllIncomingTransfers**: Must be true in defaultBalances for public-mint collections
+
+## Common Mistakes
+
+- DON'T use numbers instead of strings for amounts — use "1000" not 1000. All numeric values in BitBadges JSON must be string-encoded.
+- DON'T forget overridesFromOutgoingApprovals: true on Mint approvals — without it, the Mint address cannot send tokens and minting silently fails.
+- DON'T forget autoApproveAllIncomingTransfers: true in defaultBalances for public-mint collections — otherwise recipients cannot receive minted tokens.
+- DON'T forget to add prioritizedApprovals in MsgTransferTokens — even if empty ([]), this field must be present or the transfer fails.
+- DON'T use predeterminedBalances and approvalAmounts together — they are incompatible. Use one or the other.
+- DON'T set multiple methods to true in orderCalculationMethod — exactly ONE must be true (default: useOverallNumTransfers).`
   },
   {
     id: 'liquidity-pools',
@@ -560,6 +578,14 @@ When creating a fungible token collection, you MUST follow these requirements:
 - Amount field in transfers determines quantity (e.g., "amount": "100" means 100 tokens)
 - Ownership times are typically forever: [{ "start": "1", "end": "18446744073709551615" }]
 
+## Common Mistakes
+
+- DON'T use numbers instead of strings for amounts — use "1000" not 1000. All numeric values must be string-encoded.
+- DON'T forget autoApproveAllIncomingTransfers: true in defaultBalances — without it, recipients cannot receive tokens on public-mint collections.
+- DON'T forget to add prioritizedApprovals array matching your approval IDs when building MsgTransferTokens.
+- DON'T forget overridesFromOutgoingApprovals: true on Mint approvals — required for all fromListId: "Mint" approvals.
+- DON'T use multiple token IDs — fungible tokens must use exactly one token ID [{ "start": "1", "end": "1" }].
+
 ### Example Structure
 
 \`\`\`json
@@ -648,7 +674,15 @@ When creating an NFT collection, follow this pattern:
 - Amount in transfers is typically "1" (one NFT per transfer)
 - Ownership times are usually forever for NFTs
 - Mint approvals MUST have overridesFromOutgoingApprovals: true
-- Use {id} in metadata URIs for per-token metadata`
+- Use {id} in metadata URIs for per-token metadata
+
+## Common Mistakes
+
+- DON'T reuse token IDs across editions without understanding ownership times — each token ID is unique and represents a distinct NFT.
+- DON'T forget tokenIds in canUpdateTokenMetadata permission structure — the permission must specify which token ID ranges it covers.
+- DON'T use {id} in metadata name, description, or image fields — the {id} placeholder only works in the URI string itself (e.g. "ipfs://abc/{id}").
+- DON'T forget overridesFromOutgoingApprovals: true on Mint approvals — required for all minting operations.
+- DON'T use custom list IDs — only reserved IDs are valid: "All", "Mint", "!Mint", "AllWithoutMint", or direct bb1... addresses.`
   },
   {
     id: 'subscription',
@@ -752,7 +786,15 @@ When creating a subscription collection, you MUST follow these EXACT requirement
 - coinTransfers override flags MUST be false (not true)
 - durationFromTimestamp MUST be non-zero
 - allowOverrideTimestamp MUST be true
-- **CRITICAL MUTUAL EXCLUSIVITY**: The chain enforces that ONLY ONE of \`durationFromTimestamp\`, \`incrementOwnershipTimesBy\`, or \`recurringOwnershipTimes\` can be non-zero. For subscriptions, use \`durationFromTimestamp\` and keep \`recurringOwnershipTimes\` as ALL ZEROS: \`{ "startTime": "0", "intervalLength": "0", "chargePeriodLength": "0" }\`. DO NOT set non-zero values in \`recurringOwnershipTimes\` — the template already has the correct structure.`
+- **CRITICAL MUTUAL EXCLUSIVITY**: The chain enforces that ONLY ONE of \`durationFromTimestamp\`, \`incrementOwnershipTimesBy\`, or \`recurringOwnershipTimes\` can be non-zero. For subscriptions, use \`durationFromTimestamp\` and keep \`recurringOwnershipTimes\` as ALL ZEROS: \`{ "startTime": "0", "intervalLength": "0", "chargePeriodLength": "0" }\`. DO NOT set non-zero values in \`recurringOwnershipTimes\` — the template already has the correct structure.
+
+## Common Mistakes
+
+- DON'T set recurringOwnershipTimes to non-zero values — it is mutually exclusive with durationFromTimestamp. Keep all fields as "0".
+- DON'T forget durationFromTimestamp must be non-zero — this is the subscription duration in milliseconds (e.g. "2592000000" for 30 days).
+- DON'T forget allowOverrideTimestamp: true — subscriptions need this so each mint gets its own start timestamp.
+- DON'T use multiple token IDs — subscriptions must use exactly one token ID [{ "start": "1", "end": "1" }].
+- DON'T set coinTransfers override flags to true — for standard subscription payments, both overrideFromWithApproverAddress and overrideToWithInitiator must be false.`
   },
   {
     id: 'immutability',
@@ -883,7 +925,14 @@ When configuring collection permissions for transferability and update rules, yo
 - **Mint Transfer Rules**: If canUpdateCollectionApprovals is allowed for Mint, the manager could mint unlimited tokens
 - **Post-Mint Transfer Rules**: If post-mint transfer rules can be updated, the manager could change transferability
 - **Best Practice**: Default to locked (frozen) transfer rules unless user explicitly requests updatable rules
-- Only allow updates for dynamic collections where the user explicitly requests flexibility`
+- Only allow updates for dynamic collections where the user explicitly requests flexibility
+
+## Common Mistakes
+
+- DON'T use custom list IDs in permissions — only reserved IDs: "All", "Mint", "!Mint", or direct bb1... addresses.
+- DON'T leave both permanentlyPermittedTimes and permanentlyForbiddenTimes as empty arrays in a permission entry — this is redundant. Replace the entire entry with an empty array [].
+- DON'T forget that unfrozen Mint approval permissions means the manager can mint unlimited tokens — freeze canUpdateCollectionApprovals for Mint if supply should be fixed.
+- DON'T confuse empty permission array [] (neutral/unset) with a frozen permission — empty means the field is still updatable.`
   },
   {
     id: 'custom-2fa',
@@ -1718,7 +1767,15 @@ The Credit Token standard has a dedicated view page that shows:
 1. User's current token balance (using the alias path for display)
 2. Purchase form with DenomAmountSelectWithMax for the payment denom
 3. Conversion rate display (X denom = Y tokens)
-4. Multi-tier transaction decomposition for optimal gas usage`
+4. Multi-tier transaction decomposition for optimal gas usage
+
+## Common Mistakes
+
+- DON'T add transferable or burnable approvals — credit tokens are increment-only and non-transferable (soulbound). Only Mint approvals are allowed.
+- DON'T forget mustPrioritize: true on all credit token Mint approvals — required for correct tier matching.
+- DON'T forget the alias path — credit tokens will not display properly without one.
+- DON'T use numbers instead of strings for amounts — all values must be string-encoded ("100000" not 100000).
+- DON'T confuse credit tokens with smart tokens — credit tokens are one-way minting only with no backing/unbacking or transferability.`
   },
 ];
 
