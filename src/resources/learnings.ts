@@ -35,9 +35,9 @@ const LEARNINGS: LearningEntry[] = [
   },
   {
     topic: 'approvals',
-    title: 'Backing address approvals must NOT have overridesFromOutgoingApprovals',
-    content: 'Smart token backing/unbacking approvals should NOT set overridesFromOutgoingApprovals: true. The backing address is a special system address.',
-    severity: 'important'
+    title: 'Overrides do not matter for backing or unbacking approvals',
+    content: 'Both the backing address and unbacking address are protocol-controlled with auto-set approvals, so overridesFromOutgoingApprovals and overridesToIncomingApprovals on both backing and unbacking approvals do not matter (true or false both work).',
+    severity: 'tip'
   },
 
   // Signing — educational (your app is responsible for signing)
@@ -81,9 +81,9 @@ const LEARNINGS: LearningEntry[] = [
   },
   {
     topic: 'smart-tokens',
-    title: 'Both backing and unbacking approvals needed',
-    content: 'Smart tokens need two approvals: (1) backing: from backing address to users (mustPrioritize: true, allowBackedMinting: true), (2) unbacking: from users to backing address (same flags). Missing either breaks deposits or withdrawals.',
-    severity: 'critical'
+    title: 'Two approvals required, transferable is optional',
+    content: 'Smart tokens REQUIRE two approvals: (1) backing: from backing address to users (mustPrioritize: true, allowBackedMinting: true, overridesFromOutgoingApprovals: true), (2) unbacking: from users to backing address (mustPrioritize: true, allowBackedMinting: true, overridesFromOutgoingApprovals: false). A third transferable approval (from regular holders to regular holders) is COMMON for wrapped assets but OPTIONAL — omit it for simple deposit/withdraw vaults or escrows where tokens should not move between users.',
+    severity: 'important'
   },
 
   // SDK

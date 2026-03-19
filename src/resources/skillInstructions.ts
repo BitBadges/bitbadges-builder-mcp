@@ -26,10 +26,10 @@ export const SKILL_INSTRUCTIONS: SkillInstruction[] = [
 
 - MUST include cosmosCoinBackedPath in invariants with conversion sideA/sideB
 - MUST configure at least one alias path (decimals must match IBC denom decimals)
-- MUST create THREE default collection approvals:
-  1. Backing approval: fromListId = backing address, allowBackedMinting: true, mustPrioritize: true
-  2. Transferable approval: fromListId = "!Mint", toListId = "All" (omit for non-transferable)
-  3. Unbacking approval: toListId = backing address, allowBackedMinting: true, mustPrioritize: true
+- MUST create TWO required collection approvals (backing + unbacking). Transferable approval is COMMON but OPTIONAL:
+  1. Backing approval (REQUIRED): fromListId = backing address, allowBackedMinting: true, mustPrioritize: true
+  2. Transferable approval (OPTIONAL — include for wrapped assets, omit for vaults/escrows): fromListId = "!Mint", toListId = "All"
+  3. Unbacking approval (REQUIRED): toListId = backing address, allowBackedMinting: true, mustPrioritize: true
 - DO NOT use fromListId: "Mint" — tokens are created via IBC backing, not traditional minting
 - Backing approval (FROM backing address): USE overridesFromOutgoingApprovals: true (backing address is protocol-controlled, has no user-level outgoing approvals)
 - Unbacking approval (TO backing address): DO NOT use overridesFromOutgoingApprovals: true (sender is a regular user)
@@ -84,9 +84,9 @@ Each phase maps to at least one collection approval. Design each phase independe
    - Alias path denom and symbol MUST only contain a-zA-Z, _, {, }, and - characters. NEVER use the raw IBC denom (ibc/...) as the alias path denom — create a new symbol like "wuusdc" or "uwrapped"
    - Do NOT reuse reserved symbols (USDC, ATOM, BADGE, etc.) — always prefix with "w" or similar (e.g., wUSDC, wATOM)
 
-### Three-Approval System
+### Approval System
 
-Smart Tokens require THREE default approvals (backing, transferable, unbacking):
+Smart Tokens require TWO approvals (backing + unbacking). A third transferable approval is common for wrapped assets but optional for vaults/escrows:
 
 #### 1. Backing Approval (for backing tokens)
 This approval allows tokens to be sent FROM the IBC backing address (backing the tokens).
@@ -110,8 +110,8 @@ This approval allows tokens to be sent FROM the IBC backing address (backing the
 \`\`\`
 Note: \`overridesFromOutgoingApprovals: true\` is required here because the backing address is protocol-controlled and has no user-level outgoing approvals.
 
-#### 2. Transferable Approval (for peer-to-peer transfers)
-This approval allows tokens to be transferred between users (non-backing addresses).
+#### 2. Transferable Approval (OPTIONAL — for peer-to-peer transfers)
+This approval allows tokens to be transferred between users (non-backing addresses). Include for wrapped assets where holders need to trade/transfer. Omit for simple deposit/withdraw vaults or escrows where tokens should not move between users.
 
 \`\`\`json
 {
@@ -238,7 +238,7 @@ For wrapping native Cosmos SDK coins, use \`allowSpecialWrapping: true\` and \`c
 3. **Use mustPrioritize: true** (required for IBC backed operations)
 4. **Backing approval**: overridesFromOutgoingApprovals: true is RECOMMENDED (backing addresses auto-set their approvals, so it works either way, but true is good practice). **Unbacking approval**: MUST be false (sender is a regular user)
 5. **Unbacking fromListId**: Use \`!Mint:backingAddress\` syntax — excludes both Mint and backing address so only regular holders can send tokens back
-6. **MUST create THREE default approvals**: backing, transferable, and unbacking
+6. **MUST create backing + unbacking approvals**. Transferable approval is common but optional (omit for vaults/escrows)
 7. **MUST configure alias path** with matching decimals
 8. The backing address is deterministic — use the one from generate_backing_address tool`
   },
