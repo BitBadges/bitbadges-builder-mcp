@@ -36,7 +36,7 @@ const LEARNINGS: LearningEntry[] = [
   {
     topic: 'approvals',
     title: 'Overrides do not matter for backing or unbacking approvals',
-    content: 'Both the backing address and unbacking address are protocol-controlled with auto-set approvals, so overridesFromOutgoingApprovals on both backing and unbacking approvals does not matter (true or false both work).',
+    content: 'Both the backing address and unbacking address are protocol-controlled with auto-set approvals, so overridesFromOutgoingApprovals and overridesToIncomingApprovals on both backing and unbacking approvals do not matter (true or false both work).',
     severity: 'tip'
   },
 
