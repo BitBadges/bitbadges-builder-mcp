@@ -21,7 +21,7 @@ export const SKILL_INSTRUCTIONS: SkillInstruction[] = [
     id: 'smart-token',
     name: 'Smart Token',
     category: 'token-type',
-    description: 'IBC-backed smart token with 1:1 backing and three-approval system',
+    description: 'IBC-backed smart token with 1:1 backing and two required approvals (backing + unbacking)',
     summary: `Required standards: ["Smart Token"]
 
 - MUST include cosmosCoinBackedPath in invariants with conversion sideA/sideB
