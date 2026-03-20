@@ -1166,9 +1166,9 @@ export const CRITICAL_RULES = MASTER_PROMPT_CONTENT.criticalRules;
 
 export const SMART_TOKEN_RULES = `# Smart Token Configuration Rules
 
-## Three-Approval System
+## Two-Approval System
 
-Smart Tokens require THREE separate approvals:
+Smart Tokens require TWO approvals (backing + unbacking). The transferable approval is common but optional:
 
 ### 1. Backing Approval (tokens FROM backing address)
 - approvalId: "smart-token-backing"

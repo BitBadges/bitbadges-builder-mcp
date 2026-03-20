@@ -144,13 +144,13 @@ export function createServer(): Server {
         // Skill instructions tool
         {
           name: 'get_skill_instructions',
-          description: 'Get detailed instructions for a specific skill. Skills: smart-token, fungible-token, nft-collection, subscription, bb-402, ai-criteria-gate, minting, custom-2fa, immutability, liquidity-pools, payment-protocol, verified, tradable, address-list. Decision matrices are in bitbadges://recipes/all.',
+          description: 'Get detailed instructions for a specific skill. Skills: smart-token, fungible-token, nft-collection, subscription, bb-402, ai-criteria-gate, minting, custom-2fa, immutability, liquidity-pools, payment-protocol, verified, tradable, address-list, burnable, multi-sig-voting, credit-token. Decision matrices are in bitbadges://recipes/all.',
           inputSchema: {
             type: 'object',
             properties: {
               skillId: {
                 type: 'string',
-                description: 'Skill ID: smart-token, fungible-token, nft-collection, subscription, or bb-402'
+                description: 'Skill ID: smart-token, minting, liquidity-pools, fungible-token, nft-collection, subscription, immutability, custom-2fa, address-list, bb-402, burnable, multi-sig-voting, ai-criteria-gate, verified, payment-protocol, tradable, credit-token'
               }
             },
             required: ['skillId']

@@ -136,10 +136,10 @@ const hasToken = balance.balances.some(b =>
 // 1. Use generate_backing_address MCP tool to get the deterministic backing address
 //    for an IBC denom (e.g., USDC → bb1backingaddr...)
 //
-// 2. Three approvals required:
+// 2. Two approvals required (backing + unbacking). Transferable is common but optional:
 //    - Backing (deposit): fromListId: "bb1backingaddr...", toListId: "!bb1backingaddr..."
 //      → mustPrioritize: true, allowBackedMinting: true, overridesFromOutgoingApprovals: true (recommended)
-//    - Transferable (peer-to-peer): fromListId: "!Mint:bb1backingaddr...", toListId: "!Mint:bb1backingaddr..."
+//    - Transferable (peer-to-peer) (OPTIONAL): fromListId: "!Mint:bb1backingaddr...", toListId: "!Mint:bb1backingaddr..."
 //      → overridesFromOutgoingApprovals: false
 //    - Unbacking (withdraw): fromListId: "!Mint:bb1backingaddr...", toListId: "bb1backingaddr..."
 //      → mustPrioritize: true, allowBackedMinting: true, overridesFromOutgoingApprovals: false
