@@ -350,6 +350,37 @@ export function handleAuditCollection(input: { collection: Record<string, unknow
             recommendation: 'Add mustPrioritize: true to approvalCriteria.'
           });
         }
+
+        // Exact backing address guardrail (chain rule enforced in PR #34):
+        // isExactlyAddress returns true only for a bare address string. Exactly one side
+        // (fromListId XOR toListId) must equal the backing address string exactly.
+        const backingPath = invariants.cosmosCoinBackedPath as Record<string, unknown> | undefined;
+        const backingAddr: string | undefined =
+          (backingPath?.address as string | undefined) ||
+          (col.cosmosCoinWrapperPathsToAdd as { address?: string }[] | undefined)?.[0]?.address;
+
+        if (backingAddr) {
+          const fromIsExact = fromId === backingAddr;
+          const toIsExact = toId === backingAddr;
+
+          if (fromIsExact && toIsExact) {
+            findings.push({
+              severity: 'critical',
+              category: 'approval-bug',
+              title: `Backing approval "${approvalId}" has BOTH sides set to the backing address`,
+              detail: `Both fromListId ("${fromId}") and toListId ("${toId}") are the backing address. The chain requires exactly one side to be the backing address (isExactlyAddress). Broad lists ("All", multi-address, inverted) do NOT satisfy this rule — and having both sides set is also rejected.`,
+              recommendation: 'For a deposit (backing) approval set fromListId to the backing address and toListId to the recipient list (e.g. "!Mint:backingAddress"). For a withdrawal (unbacking) approval set toListId to the backing address and fromListId to the sender list.'
+            });
+          } else if (!fromIsExact && !toIsExact) {
+            findings.push({
+              severity: 'critical',
+              category: 'approval-bug',
+              title: `Backing approval "${approvalId}" has NEITHER side set to the backing address exactly`,
+              detail: `fromListId is "${fromId}" and toListId is "${toId}". Neither is the bare backing address string ("${backingAddr}"). The chain enforces that exactly one of fromListId or toListId must equal the backing address exactly — broad lists such as "All", inverted lists, or compound lists do NOT satisfy this rule and the chain will reject the approval.`,
+              recommendation: 'Set exactly one side to the bare backing address string. For a deposit approval use fromListId: "<backingAddr>". For a withdrawal approval use toListId: "<backingAddr>".'
+            });
+          }
+        }
       }
 
       // --- Dangerous sender/recipient combos ---
