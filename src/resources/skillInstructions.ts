@@ -1777,6 +1777,469 @@ The Credit Token standard has a dedicated view page that shows:
 - DON'T use numbers instead of strings for amounts — all values must be string-encoded ("100000" not 100000).
 - DON'T confuse credit tokens with smart tokens — credit tokens are one-way minting only with no backing/unbacking or transferability.`
   },
+  {
+    id: 'escrow-pact',
+    name: 'Escrow Pact',
+    category: 'advanced',
+    description: 'Multi-party escrow agreement (pact) using a USDC-backed smart token with configurable deposits, verification, time-gated releases, late penalties, and post-completion credential transfers. Covers task hiring, data trading, service agreements, bounties, and any scenario requiring trustless payment with conditions.',
+    summary: `An escrow pact is a Smart Token with approval-level rules encoding the full lifecycle of a multi-party agreement.
+
+Core concept: USDC is backed 1:1 into a single token ID. Multiple parties deposit (back) into the same token. Approvals control who can transfer how much to whom, under what conditions, and when. All permissions are permanently locked at creation — no one can change the rules after deployment.
+
+Key features:
+- Pre-task deposits: poster escrows payment, worker stakes security deposit (both back into same token)
+- On-chain deposit verification: mustOwnBadges on release approvals checks worker deposited
+- Verification: voting challenges gate releases (single verifier, 2-of-3 panel, or poster sign-off)
+- Verifier incentives: flat fee via separate amount-capped approval (neutral — paid on any decision)
+- Time gates: transferTimes windows for timeouts, late penalties, grace periods
+- Amount caps: talliedApprovalAmounts limit how much each approval can move
+- Mutex: natural balance depletion prevents double-claiming (approve + deny can't both fire)
+- Post-completion: mustOwnBadges can require alt-tokens (completion badges, certificates) before withdrawal
+- Extensions: informal — timeout is a right, not obligation. Don't exercise it = extension.
+- All manager permissions locked: canUpdateCollectionApprovals, canUpdateCollectionPermissions, canDeleteCollection, canUpdateManager, canUpdateStandards permanently forbidden
+
+Builds on: smart-token (backing/unbacking), multi-sig-voting (voting challenges), immutability (locked permissions)`,
+    instructions: `## Escrow Pact Configuration
+
+### Concept
+
+An escrow pact is a trustless agreement between 2-3 parties (poster/client, worker/agent, optional verifier) where funds are locked in a USDC-backed smart token and released based on configurable conditions. The pact collection is created per-agreement with all rules encoded in approvals and all execution-affecting permissions permanently locked.
+
+### Architecture: Three Phases
+
+\`\`\`
+PHASE 1 — PRE-TASK DEPOSITS
+  Poster backs USDC → holds tokens (payment + fees + bonds)
+  Worker backs USDC → holds tokens (security deposit)
+  Both parties now have skin in the game
+
+PHASE 2 — TASK EXECUTION + RESOLUTION
+  Work happens off-chain
+  Verification: poster sign-off, verifier vote, or timeout
+  Approvals gate which path the tokens take
+
+PHASE 3 — WITHDRAWAL + POST-COMPLETION
+  Winners unback tokens → receive USDC
+  Completion badges mint from separate credential collection
+  Reviews posted
+\`\`\`
+
+### Single Token ID Model
+
+ALL funds live in token ID 1. Multiple parties back into the same token. Approvals with amount caps control the logical "buckets" (payment, fees, deposits, penalties).
+
+\`\`\`
+Token #1 = USDC-backed 1:1
+Total supply = poster deposit + worker deposit + bonds
+Each party holds their own tokens after backing
+Approvals control: who can transfer how much to whom, when, under what conditions
+\`\`\`
+
+### Required Structure
+
+1. **Standards**: \`["Smart Token"]\`
+2. **Invariants**: cosmosCoinBackedPath with 1:1 conversion (see smart-token skill)
+3. **Alias path**: required for Smart Token display
+4. **Permissions**: ALL permanently locked (see Locked Permissions section below)
+5. **validTokenIds**: \`[{ "start": "1", "end": "1" }]\` (single token)
+
+### Approval Categories
+
+Every escrow pact has these approval categories. Include only what's needed for the specific agreement:
+
+#### 1. Backing Approvals (Deposits)
+
+Each party that deposits funds gets a separate backing approval with amount caps.
+
+**Poster backing (always required):**
+\`\`\`json
+{
+  "fromListId": "bb1backingAddress...",
+  "toListId": "bb1posterAddress...",
+  "initiatedByListId": "bb1posterAddress...",
+  "approvalId": "poster-backing",
+  "tokenIds": [{ "start": "1", "end": "1" }],
+  "transferTimes": [{ "start": "1", "end": "18446744073709551615" }],
+  "ownershipTimes": [{ "start": "1", "end": "18446744073709551615" }],
+  "approvalCriteria": {
+    "overridesFromOutgoingApprovals": true,
+    "mustPrioritize": true,
+    "allowBackedMinting": true,
+    "maxNumTransfers": {
+      "overallMaxNumTransfers": "1",
+      "perInitiatedByAddressMaxNumTransfers": "1",
+      "perToAddressMaxNumTransfers": "0",
+      "perFromAddressMaxNumTransfers": "0",
+      "amountTrackerId": "poster-backing-tracker",
+      "resetTimeIntervals": { "startTime": "0", "intervalLength": "0" }
+    }
+  }
+}
+\`\`\`
+
+**Worker backing (optional — security deposit):**
+Same structure but with worker addresses. The worker deposits their own USDC as skin in the game.
+
+\`\`\`json
+{
+  "fromListId": "bb1backingAddress...",
+  "toListId": "bb1workerAddress...",
+  "initiatedByListId": "bb1workerAddress...",
+  "approvalId": "worker-deposit-backing",
+  "approvalCriteria": {
+    "overridesFromOutgoingApprovals": true,
+    "mustPrioritize": true,
+    "allowBackedMinting": true,
+    "maxNumTransfers": {
+      "overallMaxNumTransfers": "1",
+      "perInitiatedByAddressMaxNumTransfers": "1",
+      "amountTrackerId": "worker-deposit-tracker",
+      "resetTimeIntervals": { "startTime": "0", "intervalLength": "0" }
+    }
+  }
+}
+\`\`\`
+
+#### 2. Release Approvals (Payment Paths)
+
+These control how the poster's tokens reach the worker. Gate with voting challenges, time windows, or simple sign-off.
+
+**Simple sign-off (poster releases directly):**
+\`\`\`json
+{
+  "fromListId": "bb1posterAddress...",
+  "toListId": "bb1workerAddress...",
+  "initiatedByListId": "bb1posterAddress...",
+  "approvalId": "poster-release",
+  "approvalCriteria": {
+    "overridesFromOutgoingApprovals": false,
+    "mustOwnBadges": [{
+      "collectionId": "THIS_COLLECTION_ID",
+      "tokenIds": [{ "start": "1", "end": "1" }],
+      "ownershipTimes": [],
+      "mustOwnAmounts": { "start": "WORKER_DEPOSIT_AMOUNT", "end": "18446744073709551615" },
+      "ownershipTimesCheckType": "must-own-all"
+    }],
+    "maxNumTransfers": {
+      "overallMaxNumTransfers": "1",
+      "amountTrackerId": "release-tracker",
+      "resetTimeIntervals": { "startTime": "0", "intervalLength": "0" }
+    }
+  }
+}
+\`\`\`
+
+Note: \`mustOwnBadges\` checks that the worker (toListId) holds their deposit tokens. This gates the release on the worker having deposited — fully on-chain, no verifier needed.
+
+**Verifier-gated release (voting challenge):**
+\`\`\`json
+{
+  "fromListId": "bb1posterAddress...",
+  "toListId": "bb1workerAddress...",
+  "initiatedByListId": "bb1workerAddress...",
+  "approvalId": "approve-release",
+  "approvalCriteria": {
+    "overridesFromOutgoingApprovals": true,
+    "votingChallenges": [{
+      "proposalId": "task-approve",
+      "quorumThreshold": "100",
+      "voters": [{ "address": "bb1verifierAddress...", "weight": "1" }],
+      "uri": "",
+      "customData": ""
+    }],
+    "maxNumTransfers": {
+      "overallMaxNumTransfers": "1",
+      "amountTrackerId": "approve-tracker",
+      "resetTimeIntervals": { "startTime": "0", "intervalLength": "0" }
+    },
+    "approvalAmounts": {
+      "overallApprovalAmount": "PAYMENT_AMOUNT",
+      "amountTrackerId": "approve-amount-tracker",
+      "resetTimeIntervals": { "startTime": "0", "intervalLength": "0" }
+    }
+  }
+}
+\`\`\`
+
+**Deny/refund path (verifier denies — poster reclaims):**
+\`\`\`json
+{
+  "fromListId": "bb1posterAddress...",
+  "toListId": "bb1posterAddress...",
+  "initiatedByListId": "bb1posterAddress...",
+  "approvalId": "deny-refund",
+  "approvalCriteria": {
+    "votingChallenges": [{
+      "proposalId": "task-deny",
+      "quorumThreshold": "100",
+      "voters": [{ "address": "bb1verifierAddress...", "weight": "1" }],
+      "uri": "",
+      "customData": ""
+    }],
+    "approvalAmounts": {
+      "overallApprovalAmount": "PAYMENT_AMOUNT",
+      "amountTrackerId": "deny-amount-tracker",
+      "resetTimeIntervals": { "startTime": "0", "intervalLength": "0" }
+    }
+  }
+}
+\`\`\`
+
+**Mutex**: approve-release and deny-refund target the same tokens from the same address. Once one fires, the poster's balance is depleted and the other can't execute. Natural mutual exclusion.
+
+#### 3. Timeout Approvals (Fallbacks)
+
+Every path must have a fallback. Use \`transferTimes\` to gate when the fallback activates.
+
+**Agent timeout-release (poster ghosts):**
+\`\`\`json
+{
+  "fromListId": "bb1posterAddress...",
+  "toListId": "bb1workerAddress...",
+  "initiatedByListId": "bb1workerAddress...",
+  "approvalId": "timeout-release",
+  "transferTimes": [{ "start": "DEADLINE_MS", "end": "18446744073709551615" }],
+  "approvalCriteria": {
+    "overridesFromOutgoingApprovals": true
+  }
+}
+\`\`\`
+
+\`DEADLINE_MS\` = creation timestamp + timeout hours * 3600000. Before this time, the approval simply doesn't match. After it, the worker can claim.
+
+**Poster timeout-refund (worker ghosts):**
+\`\`\`json
+{
+  "fromListId": "bb1posterAddress...",
+  "toListId": "bb1posterAddress...",
+  "initiatedByListId": "bb1posterAddress...",
+  "approvalId": "timeout-refund",
+  "transferTimes": [{ "start": "DEADLINE_MS", "end": "18446744073709551615" }],
+  "approvalCriteria": {
+    "overridesFromOutgoingApprovals": false
+  }
+}
+\`\`\`
+
+#### 4. Verifier Fee Approval (Flat Fee)
+
+The verifier receives a fixed amount regardless of their decision. Two fee approvals — one gated by the approve vote, one by the deny vote. Whichever vote the verifier casts, the corresponding fee approval activates.
+
+\`\`\`json
+{
+  "fromListId": "bb1posterAddress...",
+  "toListId": "bb1verifierAddress...",
+  "initiatedByListId": "bb1verifierAddress...",
+  "approvalId": "verifier-fee-on-approve",
+  "approvalCriteria": {
+    "overridesFromOutgoingApprovals": true,
+    "votingChallenges": [{
+      "proposalId": "task-approve",
+      "quorumThreshold": "100",
+      "voters": [{ "address": "bb1verifierAddress...", "weight": "1" }]
+    }],
+    "approvalAmounts": {
+      "overallApprovalAmount": "VERIFIER_FEE",
+      "amountTrackerId": "fee-approve-tracker"
+    }
+  }
+}
+\`\`\`
+
+Duplicate with \`approvalId: "verifier-fee-on-deny"\` and \`proposalId: "task-deny"\`. The verifier claims via whichever they voted on.
+
+**Why this is neutral**: The verifier gets VERIFIER_FEE whether they approve or deny. No financial incentive to rubber-stamp.
+
+#### 5. Worker Deposit Approvals
+
+**Deposit return (worker reclaims after success):**
+\`\`\`json
+{
+  "fromListId": "bb1workerAddress...",
+  "toListId": "bb1workerAddress...",
+  "initiatedByListId": "bb1workerAddress...",
+  "approvalId": "deposit-return",
+  "approvalCriteria": {
+    "overridesFromOutgoingApprovals": false,
+    "approvalAmounts": {
+      "overallApprovalAmount": "DEPOSIT_AMOUNT",
+      "amountTrackerId": "deposit-return-tracker"
+    }
+  }
+}
+\`\`\`
+
+The worker can reclaim their deposit anytime. If they reclaim before delivering, the poster won't release payment (game theory). If they deliver and poster releases, they reclaim normally.
+
+**Deposit forfeit (poster takes worker deposit on timeout):**
+\`\`\`json
+{
+  "fromListId": "bb1workerAddress...",
+  "toListId": "bb1posterAddress...",
+  "initiatedByListId": "bb1posterAddress...",
+  "approvalId": "deposit-forfeit",
+  "transferTimes": [{ "start": "DEADLINE_MS", "end": "18446744073709551615" }],
+  "approvalCriteria": {
+    "overridesFromOutgoingApprovals": true,
+    "approvalAmounts": {
+      "overallApprovalAmount": "DEPOSIT_AMOUNT",
+      "amountTrackerId": "deposit-forfeit-tracker"
+    }
+  }
+}
+\`\`\`
+
+Time-gated: poster can only take the deposit after the deadline. Natural mutex with deposit-return: once one fires, balance depletes.
+
+#### 6. Late Penalty Approvals
+
+Split a portion of the payment into a penalty pool. Two time-windowed approvals control who gets it.
+
+**On-time bonus (poster gives penalty portion to worker before deadline):**
+\`\`\`json
+{
+  "fromListId": "bb1posterAddress...",
+  "toListId": "bb1workerAddress...",
+  "initiatedByListId": "bb1posterAddress...",
+  "approvalId": "ontime-bonus",
+  "transferTimes": [{ "start": "1", "end": "GRACE_DEADLINE_MS" }],
+  "approvalCriteria": {
+    "approvalAmounts": {
+      "overallApprovalAmount": "PENALTY_AMOUNT",
+      "amountTrackerId": "ontime-tracker"
+    }
+  }
+}
+\`\`\`
+
+**Penalty refund (poster reclaims penalty after grace period):**
+\`\`\`json
+{
+  "fromListId": "bb1posterAddress...",
+  "toListId": "bb1posterAddress...",
+  "initiatedByListId": "bb1posterAddress...",
+  "approvalId": "penalty-refund",
+  "transferTimes": [{ "start": "GRACE_DEADLINE_MS", "end": "18446744073709551615" }],
+  "approvalCriteria": {
+    "approvalAmounts": {
+      "overallApprovalAmount": "PENALTY_AMOUNT",
+      "amountTrackerId": "penalty-refund-tracker"
+    }
+  }
+}
+\`\`\`
+
+\`GRACE_DEADLINE_MS\` = creation + (timeoutHours + gracePeriodHours) * 3600000.
+
+#### 7. Unbacking Approval (Always Required)
+
+Standard smart token unbacking. Anyone holding tokens can burn them for USDC.
+
+\`\`\`json
+{
+  "fromListId": "!Mint:bb1backingAddress...",
+  "toListId": "bb1backingAddress...",
+  "initiatedByListId": "All",
+  "approvalId": "unbacking",
+  "approvalCriteria": {
+    "overridesFromOutgoingApprovals": false,
+    "mustPrioritize": true,
+    "allowBackedMinting": true
+  }
+}
+\`\`\`
+
+#### 8. Alt-Token Gating (Post-Completion)
+
+Use \`mustOwnBadges\` to require alt-tokens before withdrawal. This links the escrow to external credential systems.
+
+\`\`\`json
+{
+  "approvalCriteria": {
+    "mustOwnBadges": [{
+      "collectionId": "COMPLETION_BADGE_COLLECTION",
+      "tokenIds": [{ "start": "1", "end": "1" }],
+      "mustOwnAmounts": { "start": "1", "end": "18446744073709551615" },
+      "ownershipTimesCheckType": "must-own-all"
+    }]
+  }
+}
+\`\`\`
+
+Examples:
+- Poster won't release until worker holds a "proof of delivery" NFT
+- Worker won't start until poster provides an "access credential" token
+- Unbacking requires holding a completion badge from a platform collection
+
+### Locked Permissions (REQUIRED)
+
+ALL execution-affecting permissions MUST be permanently forbidden. Fallbacks are handled via time-gated approvals, NOT manager permission updates.
+
+\`\`\`json
+{
+  "canUpdateCollectionApprovals": [{
+    "fromListId": "All", "toListId": "All", "initiatedByListId": "All",
+    "transferTimes": [{ "start": "1", "end": "18446744073709551615" }],
+    "tokenIds": [{ "start": "1", "end": "1" }],
+    "ownershipTimes": [{ "start": "1", "end": "18446744073709551615" }],
+    "approvalId": "All",
+    "permanentlyPermittedTimes": [],
+    "permanentlyForbiddenTimes": [{ "start": "1", "end": "18446744073709551615" }]
+  }],
+  "canUpdateManager": [{ "permanentlyPermittedTimes": [], "permanentlyForbiddenTimes": [{ "start": "1", "end": "18446744073709551615" }] }],
+  "canDeleteCollection": [{ "permanentlyPermittedTimes": [], "permanentlyForbiddenTimes": [{ "start": "1", "end": "18446744073709551615" }] }],
+  "canUpdateStandards": [{ "permanentlyPermittedTimes": [], "permanentlyForbiddenTimes": [{ "start": "1", "end": "18446744073709551615" }] }],
+  "canUpdateCollectionPermissions": [{ "permanentlyPermittedTimes": [], "permanentlyForbiddenTimes": [{ "start": "1", "end": "18446744073709551615" }] }]
+}
+\`\`\`
+
+### Common Pact Patterns
+
+#### Pattern A: Simple Trust (Poster Signs Off)
+Approvals: poster-backing + poster-release (with mustOwnBadges for deposit check) + timeout-release + unbacking
+Optional: worker-deposit-backing + deposit-return + deposit-forfeit
+
+#### Pattern B: Verified Third-Party
+Approvals: poster-backing + approve-release (voting challenge) + deny-refund (voting challenge) + verifier-fee-on-approve + verifier-fee-on-deny + timeout-release + unbacking
+Optional: worker-deposit + late penalty
+
+#### Pattern C: Mutual Deposit + 2-of-3 Vote
+Both poster and worker deposit bonds. Release gated by 2-of-3 vote (poster, worker, verifier). Losing party forfeits bond.
+
+#### Pattern D: Milestones
+Poster backs total budget. Multiple release approvals with different amount caps (one per milestone). Each milestone has its own timeout. Global refund covers all milestones if project abandoned.
+
+#### Pattern E: Bounty
+Poster backs bounty. Award approval has toListId: "All" and overallMaxNumTransfers: "1" — poster can send to any address but only once. Timeout refund returns to poster.
+
+### Incentive Design
+
+| Party | Incentive | Enforcement |
+|---|---|---|
+| Worker delivers | Gets paid + deposit returned | Payment release + deposit-return approvals |
+| Worker ghosts | Loses deposit | deposit-forfeit (time-gated) |
+| Poster pays | Gets deliverable | Escrow locks funds upfront |
+| Poster ghosts | Worker auto-claims after timeout | timeout-release (time-gated) |
+| Verifier acts | Gets flat fee | verifier-fee approvals (vote-gated) |
+| Verifier ghosts | Fee reclaimed + reputation hit | timeout + off-chain reputation tracking |
+
+### Extensions and Informalities
+
+- **Extensions**: Timeout is a right, not an obligation. If both parties want more time, simply don't exercise the timeout approval.
+- **Disputes**: For v1, rely on verifier reputation. For advanced: add a second-tier appeal with an M-of-N arbitrator panel (additional voting challenge with higher threshold).
+- **Recurring**: Not natively supported per-pact. Create sequential pacts for recurring agreements.
+- **Chaining**: Agent unbacks from Pact A, backs into Pact B. Not atomic but functional.
+
+### Common Mistakes
+
+- DON'T use multiple token IDs for different "buckets" — smart tokens must use a single token ID. Use amount-capped approvals instead.
+- DON'T forget to lock ALL permissions — any unlocked permission lets someone change the rules after deployment.
+- DON'T make verifier fee conditional on approve/deny outcome — this creates bias. Use flat fee with two vote-gated fee approvals.
+- DON'T forget timeout fallbacks on every path — without them, funds can be locked forever if a party ghosts.
+- DON'T use overridesFromOutgoingApprovals: true on release approvals where the poster is the sender — unless the poster is NOT the initiator (e.g., timeout where the worker initiates).
+- DON'T forget mustOwnBadges for deposit verification — this is how you on-chain gate the release on the worker having deposited.
+- DON'T use the same amountTrackerId across multiple approvals unless you want them to share a counter.`
+  },
 ];
 
 
