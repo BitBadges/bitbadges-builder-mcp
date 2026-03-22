@@ -23,6 +23,13 @@ export const buildClaimSchema = z.object({
   whitelist: z.array(z.string()).optional().describe('Array of bb1... addresses for whitelist-gated claims'),
   maxUsesPerAddress: z.number().optional().describe('Max claims per address (default 1)'),
 
+  // optional action (links claim to a collection approval)
+  action: z.object({
+    collectionId: z.string().optional().describe('Collection ID to link this claim to'),
+    badgeIds: z.array(z.object({ start: z.string(), end: z.string() })).optional().describe('Badge ID ranges for the claim action'),
+    ownershipTimes: z.array(z.object({ start: z.string(), end: z.string() })).optional().describe('Ownership time ranges for the claim action')
+  }).passthrough().optional().describe('Action object to include in the claim (links to a collection approval). All fields passed through as-is.'),
+
   // optional features
   showInSearchResults: z.boolean().optional().describe('Whether to show this claim in search results'),
   categories: z.array(z.string()).optional().describe('Categories for the claim')
@@ -62,6 +69,23 @@ export const buildClaimTool = {
         description: 'Array of bb1... addresses (whitelist-gated only)'
       },
       maxUsesPerAddress: { type: 'number', description: 'Max claims per address (default 1, whitelist-gated only)' },
+      action: {
+        type: 'object',
+        description: 'Action object to include in the claim — links to a collection approval. Pass collectionId, badgeIds, ownershipTimes, or any other fields needed. For code-gated claims, seedCode is merged in automatically.',
+        properties: {
+          collectionId: { type: 'string', description: 'Collection ID to link this claim to' },
+          badgeIds: {
+            type: 'array',
+            items: { type: 'object', properties: { start: { type: 'string' }, end: { type: 'string' } }, required: ['start', 'end'] },
+            description: 'Badge ID ranges for the claim action'
+          },
+          ownershipTimes: {
+            type: 'array',
+            items: { type: 'object', properties: { start: { type: 'string' }, end: { type: 'string' } }, required: ['start', 'end'] },
+            description: 'Ownership time ranges for the claim action'
+          }
+        }
+      },
       showInSearchResults: { type: 'boolean', description: 'Whether to show this claim in search results' },
       categories: { type: 'array', items: { type: 'string' }, description: 'Categories for the claim' }
     },
@@ -165,9 +189,13 @@ export function handleBuildClaim(input: BuildClaimInput): BuildClaimResult {
     categories: input.categories ?? []
   };
 
-  // For code-gated claims, include seedCode in action so the API can build the merkle tree
-  if (seedCode) {
-    claim.action = { seedCode };
+  // Always include action when provided by the caller.
+  // For code-gated claims, merge seedCode into the action automatically.
+  if (input.action !== undefined || seedCode) {
+    claim.action = {
+      ...(input.action ?? {}),
+      ...(seedCode ? { seedCode } : {})
+    };
   }
 
   // Build the API payload
