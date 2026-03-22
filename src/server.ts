@@ -23,9 +23,6 @@ import {
   handleGenerateAliasPath,
   buildTokenTool,
   handleBuildToken,
-  handleBuildSmartToken,
-  handleBuildFungibleToken,
-  handleBuildNFTCollection,
   buildAddressListTool,
   handleBuildAddressList,
   // Address utilities
@@ -256,27 +253,6 @@ export function createServer(): Server {
         // High-level builders
         case 'build_token': {
           const result = handleBuildToken(args as Parameters<typeof handleBuildToken>[0]);
-          return {
-            content: [{ type: 'text', text: JSON.stringify(result, null, 2) }]
-          };
-        }
-
-        case 'build_smart_token': {
-          const result = handleBuildSmartToken(args as Parameters<typeof handleBuildSmartToken>[0]);
-          return {
-            content: [{ type: 'text', text: JSON.stringify(result, null, 2) }]
-          };
-        }
-
-        case 'build_fungible_token': {
-          const result = handleBuildFungibleToken(args as Parameters<typeof handleBuildFungibleToken>[0]);
-          return {
-            content: [{ type: 'text', text: JSON.stringify(result, null, 2) }]
-          };
-        }
-
-        case 'build_nft_collection': {
-          const result = handleBuildNFTCollection(args as Parameters<typeof handleBuildNFTCollection>[0]);
           return {
             content: [{ type: 'text', text: JSON.stringify(result, null, 2) }]
           };

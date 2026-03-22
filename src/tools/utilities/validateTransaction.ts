@@ -7,7 +7,10 @@ import { z } from 'zod';
 import { AddressList, MsgUniversalUpdateCollection } from 'bitbadgesjs-sdk';
 
 export const validateTransactionSchema = z.object({
-  transactionJson: z.string().describe('The transaction JSON to validate')
+  transactionJson: z.string().optional().describe('The transaction JSON to validate (as a string)'),
+  transaction: z.object({}).passthrough().optional().describe('The transaction object to validate (alternative to transactionJson)')
+}).refine(data => data.transactionJson !== undefined || data.transaction !== undefined, {
+  message: 'Either transactionJson or transaction must be provided'
 });
 
 export type ValidateTransactionInput = z.infer<typeof validateTransactionSchema>;
@@ -31,10 +34,13 @@ export const validateTransactionTool = {
     properties: {
       transactionJson: {
         type: 'string',
-        description: 'The transaction JSON to validate (as a string)'
+        description: 'The transaction JSON to validate (as a string). Either this or transaction must be provided.'
+      },
+      transaction: {
+        type: 'object',
+        description: 'The transaction object to validate (alternative to transactionJson — pass the object directly without JSON.stringify).'
       }
-    },
-    required: ['transactionJson']
+    }
   }
 };
 
@@ -689,10 +695,15 @@ function validateMsgConstructorFields(value: Record<string, unknown>, basePath: 
 export function handleValidateTransaction(input: ValidateTransactionInput): ValidateTransactionResult {
   const issues: ValidationIssue[] = [];
 
+  // Normalize: accept either a pre-parsed object or a JSON string
+  const resolvedJson: string = input.transaction !== undefined
+    ? JSON.stringify(input.transaction)
+    : (input.transactionJson ?? '');
+
   // Parse JSON
   let tx: unknown;
   try {
-    tx = JSON.parse(input.transactionJson);
+    tx = JSON.parse(resolvedJson);
   } catch (error) {
     return {
       valid: false,

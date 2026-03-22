@@ -7,7 +7,10 @@ import { z } from 'zod';
 import { simulateTx } from '../../sdk/apiClient.js';
 
 export const simulateTransactionSchema = z.object({
-  transactionJson: z.string().describe('The full transaction JSON to simulate')
+  transactionJson: z.string().optional().describe('The full transaction JSON to simulate (as a string). Either this or transaction must be provided.'),
+  transaction: z.object({}).passthrough().optional().describe('The transaction object to simulate (alternative to transactionJson — pass the object directly without JSON.stringify).')
+}).refine(data => data.transactionJson !== undefined || data.transaction !== undefined, {
+  message: 'Either transactionJson or transaction must be provided'
 });
 
 export type SimulateTransactionInput = z.infer<typeof simulateTransactionSchema>;
@@ -29,16 +32,22 @@ export const simulateTransactionTool = {
     properties: {
       transactionJson: {
         type: 'string',
-        description: 'The full transaction JSON to simulate'
+        description: 'The full transaction JSON to simulate (as a string). Either this or transaction must be provided.'
+      },
+      transaction: {
+        type: 'object',
+        description: 'The transaction object to simulate (alternative to transactionJson — pass the object directly without JSON.stringify).'
       }
-    },
-    required: ['transactionJson']
+    }
   }
 };
 
 export async function handleSimulateTransaction(input: SimulateTransactionInput): Promise<SimulateTransactionResult> {
   try {
-    const { transactionJson } = input;
+    // Normalize: accept either a pre-parsed object or a JSON string
+    const resolvedJson: string = input.transaction !== undefined
+      ? JSON.stringify(input.transaction)
+      : (input.transactionJson ?? '');
 
     // Parse the transaction JSON
     let tx: {
@@ -51,7 +60,7 @@ export async function handleSimulateTransaction(input: SimulateTransactionInput)
     };
 
     try {
-      tx = JSON.parse(transactionJson);
+      tx = JSON.parse(resolvedJson);
     } catch {
       return {
         success: false,
