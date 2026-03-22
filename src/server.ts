@@ -72,7 +72,10 @@ import {
   handleExplainCollection,
   // Claim builder
   buildClaimTool,
-  handleBuildClaim
+  handleBuildClaim,
+  // Standards compliance
+  verifyStandardsCompliance,
+  formatVerificationResult
 } from './tools/index.js';
 
 // Import resources
@@ -191,7 +194,20 @@ export function createServer(): Server {
         explainCollectionTool,
 
         // Claim builder
-        buildClaimTool
+        buildClaimTool,
+
+        // Standards compliance
+        {
+          name: 'verify_standards',
+          description: 'Verify that a collection transaction complies with BitBadges protocol standards (subscription, credit token, smart token, etc.). Returns violations with severity levels. Complements audit_collection which covers security — this covers standards compliance.',
+          inputSchema: {
+            type: 'object' as const,
+            properties: {
+              transaction: { type: 'object', description: 'The transaction object to verify (MsgUniversalUpdateCollection or similar)' },
+              transactionJson: { type: 'string', description: 'The transaction as a JSON string (alternative to transaction object)' }
+            }
+          }
+        }
       ]
     };
   });
@@ -438,6 +454,18 @@ export function createServer(): Server {
           return {
             content: [{ type: 'text', text: JSON.stringify(result, null, 2) }]
           };
+        }
+
+        // Standards compliance
+        case 'verify_standards': {
+          let tx = args;
+          if (typeof (args as any).transactionJson === 'string') {
+            tx = JSON.parse((args as any).transactionJson);
+          } else if ((args as any).transaction) {
+            tx = (args as any).transaction;
+          }
+          const result = verifyStandardsCompliance(tx);
+          return { content: [{ type: 'text', text: formatVerificationResult(result) }] };
         }
 
         default:
