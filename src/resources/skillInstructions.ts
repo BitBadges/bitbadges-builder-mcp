@@ -686,7 +686,7 @@ Fungible tokens use approvalAmounts (NOT predeterminedBalances) to track minting
     category: 'token-type',
     description: 'Non-fungible token collection with unique token IDs, metadata URIs, and badge-based ownership',
     summary: `Required standards: ["NFTs"]
-- For tradable NFTs: ["NFTs", "Tradable", "DefaultDisplayCurrency:ubadge"]
+- For tradable NFTs: ["NFTs", "NFTMarketplace", "NFTPricingDenom:ubadge"]
 
 - validTokenIds: set to the range of unique token IDs (e.g. [{ "start": "1", "end": "100" }])
 - Each token ID represents a unique NFT; amount in transfers is typically "1"
@@ -701,7 +701,7 @@ When creating an NFT collection, follow this pattern:
 
 1. **Standards**: Include "NFTs" in the standards array
    - Example: "standards": ["NFTs"]
-   - For tradable NFTs: "standards": ["NFTs", "Tradable", "DefaultDisplayCurrency:ubadge"]
+   - For tradable NFTs: "standards": ["NFTs", "NFTMarketplace", "NFTPricingDenom:ubadge"]
 
 2. **validTokenIds**: Set to the range of unique token IDs
    - Example for 100 NFTs: [{ "start": "1", "end": "100" }]
@@ -1785,23 +1785,24 @@ The primitives (mustOwnTokens, transferTimes, votingChallenges, amount caps, bal
     id: 'tradable',
     name: 'Tradable NFTs',
     category: 'standard',
-    description: 'Tradable token standard enabling peer-to-peer transfers with the "Tradable" protocol standard tag and DefaultDisplayCurrency',
-    summary: `Required standards: ["Tradable", "NFTs", "DefaultDisplayCurrency:ubadge"]
+    description: 'NFT marketplace standard enabling peer-to-peer transfers with the "NFTMarketplace" standard tag and NFTPricingDenom',
+    summary: `Required standards: ["NFTMarketplace", "NFTs", "NFTPricingDenom:ubadge"]
 
 - MUST include all three standards together
-- DefaultDisplayCurrency format: "DefaultDisplayCurrency:<denom>" (sets pricing denomination for orderbook)
+- NFTPricingDenom format: "NFTPricingDenom:<denom>" (sets pricing denomination for orderbook)
 - MUST include a free transfer approval: fromListId: "!Mint", toListId: "All", initiatedByListId: "All", approvalId: "transferable-approval"
 - Enables orderbook/marketplace integration
-- Typically used with NFT collections`,
+- Typically used with NFT collections
+- Note: Legacy names "Tradable" and "DefaultDisplayCurrency" are still accepted for existing collections`,
     instructions: `## Tradable NFTs Configuration
 
 When enabling trading for NFTs, follow these requirements:
 
 ### Required Structure
 
-1. **Standards**: MUST include "Tradable", "NFTs", and "DefaultDisplayCurrency:ubadge"
-   - "standards": ["Tradable", "NFTs", "DefaultDisplayCurrency:ubadge"]
-   - DefaultDisplayCurrency sets the pricing denomination for orderbook display
+1. **Standards**: MUST include "NFTMarketplace", "NFTs", and "NFTPricingDenom:ubadge"
+   - "standards": ["NFTMarketplace", "NFTs", "NFTPricingDenom:ubadge"]
+   - NFTPricingDenom sets the pricing denomination for orderbook display
    - Replace "ubadge" with your desired currency denom if different
 
 2. **Free Transfer Approval**: Include a default collection approval for peer-to-peer transfers
@@ -1822,17 +1823,18 @@ When enabling trading for NFTs, follow these requirements:
 \`\`\`json
 {
   "updateStandards": true,
-  "standards": ["Tradable", "NFTs", "DefaultDisplayCurrency:ubadge"]
+  "standards": ["NFTMarketplace", "NFTs", "NFTPricingDenom:ubadge"]
 }
 \`\`\`
 
 ### Tradable Gotchas
 
 - MUST include all three standards together
-- DefaultDisplayCurrency format: "DefaultDisplayCurrency:denom"
+- NFTPricingDenom format: "NFTPricingDenom:denom"
 - This enables orderbook/marketplace integration
 - Typically used with NFT collections
-- The currency denom determines how prices are displayed in marketplaces`
+- The currency denom determines how prices are displayed in marketplaces
+- Legacy names "Tradable" and "DefaultDisplayCurrency" still work for existing collections`
   },
   {
     id: 'credit-token',
