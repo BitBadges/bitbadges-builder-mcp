@@ -137,7 +137,7 @@ All string numbers are uint64 strings. FOREVER_TIMES = [{start:"1",end:"18446744
 | Field | Type | Notes |
 |-------|------|-------|
 | updateStandards | boolean | @default true |
-| standards | string[] | @pattern "Fungible Tokens", "NFTs", "Smart Token", "Liquidity Pools", "NFTMarketplace", "Tradable", "NFTPricingDenom:DENOM", "DefaultDisplayCurrency:DENOM" |
+| standards | string[] | @pattern "Fungible Tokens", "NFTs", "Smart Token", "Liquidity Pools", "NFTMarketplace", "NFTPricingDenom:DENOM", "Non-Transferable", "Custom-2FA", "AI Agent Stablecoin", "AI Agent Vault". Legacy aliases: "Tradable" (use "NFTMarketplace"), "DefaultDisplayCurrency:DENOM" (use "NFTPricingDenom:DENOM") |
 
 ### Invariants
 | Field | Type | Notes |

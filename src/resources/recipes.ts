@@ -25,7 +25,7 @@ export const RECIPES: Recipe[] = [
 // |---------------------------|-----------------|---------------------------------------------|------------------------------------------------|
 // | Cryptocurrency / points   | Fungible Token   | "Fungible Tokens"                           | Single token ID 1                               |
 // | Digital collectibles      | NFT Collection   | "NFTs"                                      | Unique token IDs                                |
-// | Trading / marketplace     | NFT + Tradable   | "NFTs", "Tradable", "DefaultDisplayCurrency" | Orderbook integration                           |
+// | Trading / marketplace     | NFT + Marketplace| "NFTs", "NFTMarketplace", "NFTPricingDenom"  | Orderbook integration                           |
 // | Recurring payment         | Subscription     | "Subscriptions"                             | durationFromTimestamp, allowOverrideTimestamp    |
 // | Wrapped IBC asset         | Smart Token      | "Smart Token"                               | cosmosCoinBackedPath, alias paths               |
 // | Vault / escrow            | Smart Token      | "Smart Token"                               | Non-transferable variant                        |
