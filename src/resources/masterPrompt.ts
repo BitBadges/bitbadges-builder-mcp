@@ -87,9 +87,6 @@ BitBadges uses the \`x/precisebank\` module to bridge the decimal gap between Co
 When the user wants to:
 - Create new collection → Use MsgUniversalUpdateCollection with collectionId: "0"
 - Update existing collection → Use MsgUniversalUpdateCollection with actual collection ID
-- Mint tokens → Use MsgTransferTokens with from: "Mint"
-- Transfer tokens → Use MsgTransferTokens with from: "bb1..." address
-- Create + Mint in one transaction → Use both messages, both with collectionId: "0"
 - Create subscription → Use MsgUniversalUpdateCollection with "Subscriptions" standard
 
 ## Build → Audit → Deploy Flow (MANDATORY)
@@ -129,11 +126,10 @@ NEVER skip the audit step. Always present audit findings to the user before depl
    - **CollectionApprovalPermission**: "canUpdateCollectionApprovals": [] (if both time arrays are empty)
    - **Rule**: If both time arrays are empty, the permission provides no restrictions, so use [] instead of the full object structure
 14. **Token IDs vs Supply**: Think carefully about whether the user wants 1 token ID with high supply (e.g., 1 ID with 1000 supply for a fungible token) vs many token IDs with 1 supply each (e.g., 1000 IDs with 1 supply each for an NFT collection). This is especially important for NFTs and collections that could have multiple IDs.
-15. **prioritizedApprovals MUST be specified**: In MsgTransferTokens, the prioritizedApprovals field MUST always be explicitly specified (use [] if no specific approvals needed).
-16. **orderCalculationMethod - EXACTLY ONE true**: When using incrementedBalances with startBalances, exactly ONE orderCalculationMethod field must be true. Default: useOverallNumTransfers: true.
-17. **canUpdateValidTokenIds default**: Should be **forbidden (frozen)** unless user explicitly specifies otherwise - most collections have fixed token ID ranges.
-18. **canUpdateCollectionApprovals SECURITY**: Should be **forbidden (frozen)** by default, especially with Mint approvals. If manager can update approvals, they can create new mint approvals = unlimited minting.
-19. **defaultBalances MUST include autoApproveAllIncomingTransfers: true**: For ANY collection with mint approvals, set defaultBalances with autoApproveAllIncomingTransfers: true. Without this, recipients CANNOT receive minted tokens. This is the #1 deployment bug. Always include: \`defaultBalances: { balances: [], outgoingApprovals: [], incomingApprovals: [], autoApproveAllIncomingTransfers: true, autoApproveSelfInitiatedOutgoingTransfers: true, autoApproveSelfInitiatedIncomingTransfers: true, userPermissions: {} }\``,
+15. **orderCalculationMethod - EXACTLY ONE true**: When using incrementedBalances with startBalances, exactly ONE orderCalculationMethod field must be true. Default: useOverallNumTransfers: true.
+16. **canUpdateValidTokenIds default**: Should be **forbidden (frozen)** unless user explicitly specifies otherwise - most collections have fixed token ID ranges.
+17. **canUpdateCollectionApprovals SECURITY**: Should be **forbidden (frozen)** by default, especially with Mint approvals. If manager can update approvals, they can create new mint approvals = unlimited minting.
+18. **defaultBalances MUST include autoApproveAllIncomingTransfers: true**: For ANY collection with mint approvals, set defaultBalances with autoApproveAllIncomingTransfers: true. Without this, recipients CANNOT receive minted tokens. This is the #1 deployment bug. Always include: \`defaultBalances: { balances: [], outgoingApprovals: [], incomingApprovals: [], autoApproveAllIncomingTransfers: true, autoApproveSelfInitiatedOutgoingTransfers: true, autoApproveSelfInitiatedIncomingTransfers: true, userPermissions: {} }\``,
 
   transactionStructure: `## Transaction Structure
 
@@ -141,8 +137,7 @@ The complete transaction is a JSON object with this EXACT structure:
 
 {
   "messages": [
-    { "typeUrl": "/tokenization.MsgUniversalUpdateCollection", "value": {...} },
-    { "typeUrl": "/tokenization.MsgTransferTokens", "value": {...} }
+    { "typeUrl": "/tokenization.MsgUniversalUpdateCollection", "value": {...} }
   ],
   "memo": "Optional memo text",
   "fee": {
@@ -164,15 +159,12 @@ The complete transaction is a JSON object with this EXACT structure:
 | typeUrl | Purpose |
 |---------|---------|
 | /tokenization.MsgUniversalUpdateCollection | Create/update collections |
-| /tokenization.MsgTransferTokens | Transfer/mint tokens |
 | /tokenization.MsgCreateAddressLists | Create reusable address lists |
 | /tokenization.MsgUpdateUserApprovals | Update user-level approvals |
 
 ### Message Selection
 - **New collection**: MsgUniversalUpdateCollection with collectionId: "0"
-- **Update collection**: MsgUniversalUpdateCollection with actual ID
-- **Mint tokens**: MsgTransferTokens with from: "Mint"
-- **Transfer tokens**: MsgTransferTokens with from: "bb1..."`,
+- **Update collection**: MsgUniversalUpdateCollection with actual ID`,
 
   msgUniversalUpdateCollection: `## MsgUniversalUpdateCollection - Complete Structure
 
@@ -330,53 +322,6 @@ Here is the COMPLETE structure with ALL required fields and their types:
 | disablePoolCreation | If true, can't create liquidity pools |
 | cosmosCoinBackedPath | IBC backing configuration for Smart Tokens |
 | evmQueryChallenges | EVM query challenges checked after ALL transfers (v25+) |`,
-
-  msgTransferTokens: `## MsgTransferTokens - Complete Structure
-
-{
-  "typeUrl": "/tokenization.MsgTransferTokens",
-  "value": {
-    "creator": "bb1...",  // REQUIRED: Signer address
-    "collectionId": "0",  // REQUIRED: Collection ID or "0" for just-created
-    "transfers": [{  // REQUIRED: Array of transfer objects
-      "from": "Mint",  // REQUIRED: "Mint" for minting, or bb1... address
-      "toAddresses": ["bb1recipient..."],  // REQUIRED: Array of recipients
-      "balances": [{  // REQUIRED: Array of balance objects
-        "amount": "1",  // REQUIRED: String
-        "tokenIds": [{ "start": "1", "end": "1" }],  // REQUIRED
-        "ownershipTimes": [{ "start": "1", "end": "18446744073709551615" }]  // REQUIRED
-      }],
-      "prioritizedApprovals": [{  // REQUIRED: MUST always be specified (use [] if none needed)
-        "approvalId": "my-approval",  // REQUIRED
-        "approvalLevel": "collection",  // REQUIRED: "collection" for collection approvals
-        "approverAddress": "",  // REQUIRED: Empty string for collection approvals
-        "version": "0"  // REQUIRED
-      }],  // CRITICAL: Always specify this field explicitly, even if empty []
-      "onlyCheckPrioritizedCollectionApprovals": false,  // REQUIRED
-      "onlyCheckPrioritizedIncomingApprovals": false,  // REQUIRED
-      "onlyCheckPrioritizedOutgoingApprovals": false,  // REQUIRED
-      "memo": ""  // REQUIRED
-    }]
-  }
-}
-
-### prioritizedApprovals - CRITICAL
-
-The prioritizedApprovals field MUST always be explicitly specified:
-- If you want to use a specific approval, include it in the array
-- If no specific approvals needed, use empty array: \`"prioritizedApprovals": []\`
-- NEVER omit this field
-
-### Time-Dependent Ownership
-
-For expiring tokens, calculate timestamps:
-- Current time: Date.now() (milliseconds since epoch)
-- Example: 5 minutes from now = Date.now() + (5 * 60 * 1000)
-
-"ownershipTimes": [{
-  "start": "1706000000000",  // Current timestamp as string
-  "end": "1706000300000"     // Future timestamp as string
-}]`,
 
   approvalsSystem: `## Approvals System
 
@@ -902,7 +847,6 @@ For the vast majority of collections, you should use:
 | Missing periods in descriptions | Always end with proper punctuation |
 | Redundant empty permission objects | Use [] if both time arrays empty |
 | Assuming supply = IDs | Don't assume "1000 tokens" means 1000 IDs |
-| Missing prioritizedApprovals | Always specify, even if empty [] |
 | Multiple orderCalculationMethod true | Exactly ONE must be true |
 | Subscription coinTransfers overrides true | MUST be false for subscriptions |
 | Subscription durationFromTimestamp "0" | MUST be non-zero (duration in ms) |
