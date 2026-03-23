@@ -49,7 +49,7 @@ export const buildTokenSchema = z.object({
   name: z.string().describe('Collection/token name'),
 
   // Token type preset
-  tokenType: z.enum(['auto', 'smart-token', 'fungible-token', 'nft-collection']).default('auto').describe('Token type preset'),
+  tokenType: z.enum(['auto', 'smart-token', 'fungible-token', 'nft-collection', 'quest']).default('auto').describe('Token type preset'),
 
   // Smart-token specific fields
   ibcDenom: z.string().optional().describe('[smart-token] IBC denom or symbol'),
@@ -57,6 +57,11 @@ export const buildTokenSchema = z.object({
   totalWithdrawLimit: z.string().optional().describe('[smart-token] Total withdrawal limit'),
   requires2FA: z.boolean().optional().describe('[smart-token] Whether 2FA is required'),
   twoFACollectionId: z.string().optional().describe('[smart-token] Collection ID for 2FA tokens'),
+
+  // Quest specific fields
+  rewardAmount: z.string().optional().describe('[quest] Reward amount per claim in base units'),
+  rewardDenom: z.string().optional().describe('[quest] Reward denomination (default "ubadge")'),
+  maxClaims: z.string().optional().describe('[quest] Maximum number of claims'),
 
   // Fungible/NFT specific fields
   totalSupply: z.string().optional().describe('[fungible-token/nft-collection] Total supply'),
@@ -140,8 +145,8 @@ export const buildTokenTool = {
       name: { type: 'string', description: 'Collection/token name' },
       tokenType: {
         type: 'string',
-        enum: ['auto', 'smart-token', 'fungible-token', 'nft-collection'],
-        description: 'Token type preset (default "auto"). "smart-token": IBC-backed token — requires ibcDenom, symbol. "fungible-token": ERC-20 style — requires symbol. "nft-collection": NFT collection — requires totalSupply. "auto": use explicit design axes below.'
+        enum: ['auto', 'smart-token', 'fungible-token', 'nft-collection', 'quest'],
+        description: 'Token type preset (default "auto"). "smart-token": IBC-backed token — requires ibcDenom, symbol. "fungible-token": ERC-20 style — requires symbol. "nft-collection": NFT collection — requires totalSupply. "quest": Quest/reward collection — requires rewardAmount, maxClaims. "auto": use explicit design axes below.'
       },
       // Smart-token specific (tokenType="smart-token")
       ibcDenom: { type: 'string', description: '[smart-token] IBC denom or symbol (e.g., "USDC", "ibc/F082B65...")' },
@@ -149,6 +154,10 @@ export const buildTokenTool = {
       totalWithdrawLimit: { type: 'string', description: '[smart-token] Total withdrawal limit in base units' },
       requires2FA: { type: 'boolean', description: '[smart-token] Whether 2FA is required for withdrawals' },
       twoFACollectionId: { type: 'string', description: '[smart-token] Collection ID for 2FA tokens' },
+      // Quest specific (tokenType="quest")
+      rewardAmount: { type: 'string', description: '[quest] Reward amount per claim in base units' },
+      rewardDenom: { type: 'string', description: '[quest] Reward denomination (default "ubadge")' },
+      maxClaims: { type: 'string', description: '[quest] Maximum number of claims' },
       // Fungible/NFT specific
       totalSupply: { type: 'string', description: '[fungible-token/nft-collection] Total supply' },
       mintPrice: { type: 'string', description: '[fungible-token/nft-collection] Mint price in base units' },
@@ -744,6 +753,26 @@ function validate(message: Record<string, unknown>, resolvedMinting: ResolvedMin
     warnings.push('CRITICAL: ibc-backed but cosmosCoinBackedPath not set in invariants');
   }
 
+  // 11. Quest checks
+  if (input.tokenType === 'quest') {
+    const stds = (value.standards || []) as string[];
+    if (!stds.includes('Quests')) {
+      warnings.push('CRITICAL: Quest missing "Quests" in standards');
+    }
+    if (!inv?.noCustomOwnershipTimes) {
+      warnings.push('CRITICAL: Quest requires noCustomOwnershipTimes: true');
+    }
+    const questApproval = approvals.find(a => (a.approvalId as string) === 'quest-approval');
+    if (questApproval) {
+      const qCriteria = (questApproval.approvalCriteria || {}) as Record<string, unknown>;
+      if (!qCriteria.overridesFromOutgoingApprovals) {
+        warnings.push('CRITICAL: Quest approval missing overridesFromOutgoingApprovals: true');
+      }
+    } else {
+      warnings.push('CRITICAL: Quest collection missing quest-approval');
+    }
+  }
+
   return warnings;
 }
 
@@ -851,6 +880,17 @@ export function resolveTokenTypePreset(input: BuildTokenInput): BuildTokenInput 
     if (!result.trading && input.tradable) {
       result.trading = { tradable: true, currency: input.tradingCurrency || 'ubadge' };
     }
+  } else if (tokenType === 'quest') {
+    // Quest collection: single token, merkle-gated mint, coin reward
+    result.supply = 'single-fungible';
+    result.minting = 'none'; // quest uses custom approval, not standard minting
+    if (!result.transferability) {
+      result.transferability = (input.transferable === false) ? 'non-transferable' : 'free';
+    }
+    if (!result.timeBehavior) result.timeBehavior = 'permanent';
+    if (!result.permissions) {
+      result.permissions = input.immutable ? 'immutable' : 'locked-approvals';
+    }
   }
 
   return result;
@@ -884,36 +924,167 @@ export function handleBuildToken(rawInput: BuildTokenRawInput): BuildTokenResult
     const decimals = input.decimals || (isIbcBacked && resolvedMinting.ibcDecimals ? String(resolvedMinting.ibcDecimals) : '9');
 
     // Phase 2: Generate
-    const approvals = buildApprovals(resolvedSupply, resolvedMinting, input, input.creatorAddress);
-    const permissions = buildPermissions(input.permissions, resolvedSupply.tokenIdRange, input.customPermissions);
+    const isQuest = input.tokenType === 'quest';
+    let approvals: Record<string, unknown>[];
+    let questTokenIds: { start: string; end: string }[] | undefined;
+    let mintEscrowCoinsToTransfer: Record<string, unknown>[] = [];
+
+    if (isQuest) {
+      // Quest: validate required fields
+      if (!input.rewardAmount) {
+        return { success: false, error: 'Quest tokenType requires rewardAmount' };
+      }
+      if (!input.maxClaims) {
+        return { success: false, error: 'Quest tokenType requires maxClaims' };
+      }
+
+      const rewardAmount = input.rewardAmount;
+      const rewardDenom = input.rewardDenom || 'ubadge';
+      const maxClaims = input.maxClaims;
+      questTokenIds = [{ start: '1', end: '1' }];
+
+      // Build quest approval matching SDK isQuestApproval() validator
+      const questApproval: Record<string, unknown> = {
+        fromListId: 'Mint',
+        toListId: 'All',
+        initiatedByListId: 'All',
+        transferTimes: FOREVER_TIMES,
+        tokenIds: questTokenIds,
+        ownershipTimes: FOREVER_TIMES,
+        uri: 'ipfs://METADATA_APPROVAL_quest-approval',
+        customData: '',
+        approvalId: 'quest-approval',
+        approvalCriteria: {
+          merkleChallenges: [{
+            root: '',
+            expectedProofLength: '0',
+            maxUsesPerLeaf: '1',
+            useCreatorAddressAsLeaf: false,
+            uri: '',
+            customData: ''
+          }],
+          mustOwnTokens: [],
+          dynamicStoreChallenges: [],
+          ethSignatureChallenges: [],
+          votingChallenges: [],
+          evmQueryChallenges: [],
+          coinTransfers: BigInt(rewardAmount) > 0n ? [{
+            to: '',
+            overrideFromWithApproverAddress: true,
+            overrideToWithInitiator: true,
+            coins: [{ amount: rewardAmount, denom: rewardDenom }]
+          }] : [],
+          predeterminedBalances: {
+            manualBalances: [],
+            orderCalculationMethod: {
+              useOverallNumTransfers: true,
+              usePerToAddressNumTransfers: false,
+              usePerFromAddressNumTransfers: false,
+              usePerInitiatedByAddressNumTransfers: false,
+              useMerkleChallengeLeafIndex: false,
+              challengeTrackerId: ''
+            },
+            incrementedBalances: {
+              startBalances: [{ amount: '1', tokenIds: questTokenIds, ownershipTimes: FOREVER_TIMES }],
+              incrementTokenIdsBy: '0',
+              incrementOwnershipTimesBy: '0',
+              durationFromTimestamp: '0',
+              allowOverrideTimestamp: false,
+              allowOverrideWithAnyValidToken: false,
+              recurringOwnershipTimes: { startTime: '0', intervalLength: '0', chargePeriodLength: '0' }
+            }
+          },
+          maxNumTransfers: {
+            overallMaxNumTransfers: maxClaims,
+            perToAddressMaxNumTransfers: '0',
+            perFromAddressMaxNumTransfers: '0',
+            perInitiatedByAddressMaxNumTransfers: '0',
+            amountTrackerId: 'quest-approval',
+            resetTimeIntervals: { startTime: '0', intervalLength: '0' }
+          },
+          approvalAmounts: {
+            overallApprovalAmount: '0',
+            perFromAddressApprovalAmount: '0',
+            perToAddressApprovalAmount: '0',
+            perInitiatedByAddressApprovalAmount: '0',
+            amountTrackerId: 'quest-approval',
+            resetTimeIntervals: { startTime: '0', intervalLength: '0' }
+          },
+          requireToEqualsInitiatedBy: false,
+          requireFromEqualsInitiatedBy: false,
+          overridesFromOutgoingApprovals: true,
+          userRoyalties: { percentage: '0', payoutAddress: '' },
+          mustPrioritize: false,
+          allowBackedMinting: false,
+          allowSpecialWrapping: false
+        },
+        version: '0'
+      };
+
+      approvals = [questApproval];
+
+      // Also add transfer approval if transferable
+      if (input.transferability === 'free') {
+        approvals.push({
+          fromListId: '!Mint',
+          toListId: 'All',
+          initiatedByListId: 'All',
+          transferTimes: FOREVER_TIMES,
+          tokenIds: questTokenIds,
+          ownershipTimes: FOREVER_TIMES,
+          uri: 'ipfs://METADATA_APPROVAL_free-transfer',
+          customData: '',
+          approvalId: 'free-transfer',
+          approvalCriteria: {},
+          version: '0'
+        });
+      }
+
+      // Fund escrow
+      if (BigInt(rewardAmount) > 0n) {
+        mintEscrowCoinsToTransfer = [{
+          denom: rewardDenom,
+          amount: String(BigInt(rewardAmount) * BigInt(maxClaims))
+        }];
+      }
+    } else {
+      approvals = buildApprovals(resolvedSupply, resolvedMinting, input, input.creatorAddress);
+    }
+
+    const permissions = buildPermissions(input.permissions, isQuest ? [{ start: '1', end: '1' }] : resolvedSupply.tokenIdRange, input.customPermissions);
 
     // Standards
     const isSubscription = typeof input.timeBehavior === 'object' && input.timeBehavior.type === 'subscription';
     const standards: string[] = [];
-    if (isIbcBacked) standards.push('Smart Token');
-    if (isSubscription) standards.push('Subscriptions');
-    if (!isNFT && !isSubscription) standards.push('Fungible Tokens');
-    if (isNFT) standards.push('NFTs');
-    if (isSwappable) standards.push('Liquidity Pools');
-    if (isTradable) {
-      standards.push('NFTMarketplace');
-      standards.push(`NFTPricingDenom:${input.trading?.currency || 'ubadge'}`);
+    if (isQuest) {
+      standards.push('Quests');
+    } else {
+      if (isIbcBacked) standards.push('Smart Token');
+      if (isSubscription) standards.push('Subscriptions');
+      if (!isNFT && !isSubscription) standards.push('Fungible Tokens');
+      if (isNFT) standards.push('NFTs');
+      if (isSwappable) standards.push('Liquidity Pools');
+      if (isTradable) {
+        standards.push('NFTMarketplace');
+        standards.push(`NFTPricingDenom:${input.trading?.currency || 'ubadge'}`);
+      }
     }
 
     // Alias paths
     const aliasPathsToAdd: Record<string, unknown>[] = [];
-    if (isSwappable || isIbcBacked) {
+    if (!isQuest && (isSwappable || isIbcBacked)) {
       aliasPathsToAdd.push(buildAliasPath(symbol, decimals, isIbcBacked));
     }
 
     // Invariants
     const isExpiring = typeof input.timeBehavior === 'object' && input.timeBehavior.type === 'expiring';
     const hasTimeBoundedOwnership = isIbcBacked || isSubscription || isExpiring;
+    const effectiveTokenIdRange = isQuest ? [{ start: '1', end: '1' }] : resolvedSupply.tokenIdRange;
     const invariants: Record<string, unknown> = {
-      noCustomOwnershipTimes: !hasTimeBoundedOwnership,
-      maxSupplyPerId: isNFT ? resolvedSupply.editionSize : (resolvedMinting.totalSupply || '0'),
+      noCustomOwnershipTimes: isQuest ? true : !hasTimeBoundedOwnership,
+      maxSupplyPerId: isQuest ? '0' : (isNFT ? resolvedSupply.editionSize : (resolvedMinting.totalSupply || '0')),
       noForcefulPostMintTransfers: true,
-      disablePoolCreation: !isSwappable,
+      disablePoolCreation: isQuest ? true : !isSwappable,
       cosmosCoinBackedPath: isIbcBacked ? {
         conversion: {
           sideA: { amount: '1', denom: resolvedMinting.resolvedIbcDenom },
@@ -933,7 +1104,7 @@ export function handleBuildToken(rawInput: BuildTokenRawInput): BuildTokenResult
         collectionId: '0',
 
         updateValidTokenIds: true,
-        validTokenIds: resolvedSupply.tokenIdRange,
+        validTokenIds: effectiveTokenIdRange,
 
         updateCollectionPermissions: true,
         collectionPermissions: permissions,
@@ -945,7 +1116,7 @@ export function handleBuildToken(rawInput: BuildTokenRawInput): BuildTokenResult
         collectionMetadata: { uri: 'ipfs://METADATA_COLLECTION', customData: '' },
 
         updateTokenMetadata: true,
-        tokenMetadata: [{ uri: tokenMetadataUri, customData: '', tokenIds: resolvedSupply.tokenIdRange }],
+        tokenMetadata: [{ uri: tokenMetadataUri, customData: '', tokenIds: effectiveTokenIdRange }],
 
         updateCustomData: true,
         customData: input.customData || '',
@@ -975,7 +1146,7 @@ export function handleBuildToken(rawInput: BuildTokenRawInput): BuildTokenResult
         updateIsArchived: false,
         isArchived: false,
 
-        mintEscrowCoinsToTransfer: [],
+        mintEscrowCoinsToTransfer,
 
         invariants,
 
@@ -1022,13 +1193,22 @@ export function handleBuildToken(rawInput: BuildTokenRawInput): BuildTokenResult
 
     // Design summary
     const features: string[] = [];
-    features.push(resolvedSupply.type === 'single-fungible' ? 'Fungible token' : `${resolvedSupply.count} ${resolvedSupply.type === 'fixed-nft' ? 'NFTs' : 'multi-edition tokens'}`);
-    features.push(`Minting: ${resolvedMinting.type}`);
-    features.push(`Transferability: ${input.transferability}`);
-    if (isSwappable) features.push('Liquidity pools enabled');
-    if (isTradable) features.push('Marketplace trading');
-    if (resolvedMinting.requires2FA) features.push('2FA required');
+    if (isQuest) {
+      features.push('Quest collection');
+      features.push(`Reward: ${input.rewardAmount} ${input.rewardDenom || 'ubadge'} per claim`);
+      features.push(`Max claims: ${input.maxClaims}`);
+      features.push(`Transferability: ${input.transferability}`);
+    } else {
+      features.push(resolvedSupply.type === 'single-fungible' ? 'Fungible token' : `${resolvedSupply.count} ${resolvedSupply.type === 'fixed-nft' ? 'NFTs' : 'multi-edition tokens'}`);
+      features.push(`Minting: ${resolvedMinting.type}`);
+      features.push(`Transferability: ${input.transferability}`);
+      if (isSwappable) features.push('Liquidity pools enabled');
+      if (isTradable) features.push('Marketplace trading');
+      if (resolvedMinting.requires2FA) features.push('2FA required');
+    }
     if (input.permissions === 'immutable') features.push('Fully immutable');
+
+    const questNextSteps = 'IMPORTANT: Run audit_collection on this transaction before deploying. Then validate_transaction -> return transaction for user review to deploy.';
 
     return {
       success: true,
@@ -1037,15 +1217,15 @@ export function handleBuildToken(rawInput: BuildTokenRawInput): BuildTokenResult
         metadataPlaceholders
       },
       designSummary: {
-        supply: resolvedSupply.type + (resolvedSupply.type !== 'single-fungible' ? ` (${resolvedSupply.count})` : ''),
-        minting: resolvedMinting.type,
+        supply: isQuest ? 'quest (single token)' : (resolvedSupply.type + (resolvedSupply.type !== 'single-fungible' ? ` (${resolvedSupply.count})` : '')),
+        minting: isQuest ? 'quest (merkle-gated)' : resolvedMinting.type,
         transferability: input.transferability,
         timeBehavior: typeof input.timeBehavior === 'string' ? input.timeBehavior : input.timeBehavior.type,
         permissions: input.permissions,
         features
       },
       warnings: warnings.length ? warnings : undefined,
-      nextSteps: 'IMPORTANT: Run audit_collection on this transaction before deploying. Then validate_transaction -> return transaction for user review to deploy.'
+      nextSteps: isQuest ? questNextSteps : 'IMPORTANT: Run audit_collection on this transaction before deploying. Then validate_transaction -> return transaction for user review to deploy.'
     };
   } catch (error) {
     return {
