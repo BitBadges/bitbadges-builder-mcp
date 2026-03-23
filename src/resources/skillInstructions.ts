@@ -2261,77 +2261,80 @@ Lock approvals and token IDs:
 
 ### Mental Model
 
-A quest collection rewards users for completing criteria. The structure:
-1. Collection with quest approval (merkle-gated mint + coin payout)
-2. Claim criteria (codes, passwords, whitelist, etc.) configured in the merkle challenge
-3. Escrow funded upfront (rewardAmount * maxClaims)
+A quest collection rewards users for completing criteria. Users receive a quest badge (token 1) + coin payout.
 
-Users complete the criteria and claim their reward — they receive the quest badge (token 1) + coin payout.
+### Build Steps (call ALL in parallel in one round)
 
-### Required Structure
+1. \`set_standards\` → \`["Quests"]\`
+2. \`set_valid_token_ids\` → \`[{ "start": "1", "end": "1" }]\`
+3. \`set_invariants\` → \`{ "noCustomOwnershipTimes": true }\`
+4. \`set_permissions\` → \`{ "preset": "locked-approvals" }\`
+5. \`set_default_balances\` → empty balances, all auto-approve true
+6. \`set_collection_metadata\` / \`set_token_metadata\` — descriptive content
+7. \`add_approval\` — the quest approval (see exact structure below)
+8. **\`set_mint_escrow_coins\`** — REQUIRED for coin rewards. Amount = rewardPerClaim × maxClaims.
 
-1. **Standards**: MUST include "Quests"
-   \`\`\`json
-   { "standards": ["Quests"] }
-   \`\`\`
+### Quest Approval (add_approval)
 
-2. **Valid Token IDs**: Exactly one token
-   \`\`\`json
-   { "validTokenIds": [{ "start": "1", "end": "1" }] }
-   \`\`\`
+Use approvalId \`"quest-approval"\`. The EXACT approvalCriteria structure:
 
-3. **Invariants**: noCustomOwnershipTimes must be true
-   \`\`\`json
-   { "invariants": { "noCustomOwnershipTimes": true } }
-   \`\`\`
+\`\`\`json
+{
+  "approvalId": "quest-approval",
+  "fromListId": "Mint",
+  "toListId": "All",
+  "initiatedByListId": "All",
+  "tokenIds": [{"start":"1","end":"1"}],
+  "approvalCriteria": {
+    "overridesFromOutgoingApprovals": true,
+    "maxNumTransfers": {
+      "overallMaxNumTransfers": "<maxClaims>"
+    },
+    "predeterminedBalances": {
+      "manualBalances": [],
+      "incrementedBalances": {
+        "startBalances": [{ "amount": "1", "tokenIds": [{"start":"1","end":"1"}], "ownershipTimes": [{"start":"1","end":"18446744073709551615"}] }],
+        "incrementTokenIdsBy": "0",
+        "incrementOwnershipTimesBy": "0",
+        "durationFromTimestamp": "0",
+        "allowOverrideTimestamp": false,
+        "recurringOwnershipTimes": { "startTime": "0", "intervalLength": "0", "chargePeriodLength": "0" }
+      },
+      "orderCalculationMethod": {
+        "useOverallNumTransfers": true,
+        "usePerToAddressNumTransfers": false,
+        "usePerFromAddressNumTransfers": false,
+        "usePerInitiatedByAddressNumTransfers": false,
+        "useMerkleChallengeLeafIndex": false,
+        "challengeTrackerId": ""
+      }
+    },
+    "coinTransfers": [{
+      "to": "",
+      "overrideFromWithApproverAddress": true,
+      "overrideToWithInitiator": true,
+      "coins": [{ "amount": "<rewardAmount>", "denom": "<rewardDenom>" }]
+    }],
+    "merkleChallenges": [{ "root": "", "expectedProofLength": "0", "maxUsesPerLeaf": "1", "uri": "", "customData": "", "useCreatorAddressAsLeaf": false, "claimConfig": { ... } }]
+  }
+}
+\`\`\`
 
-4. **Quest Approval** (use add_approval): Single collection approval with:
-   - \`fromListId: "Mint"\`, \`toListId: "All"\`, \`initiatedByListId: "All"\`
-   - \`overridesFromOutgoingApprovals: true\` — required for minting
-   - Single merkle challenge with \`maxUsesPerLeaf: "1"\`
-   - Coin transfers with \`overrideFromWithApproverAddress: true\` + \`overrideToWithInitiator: true\` (rewards go to claimant)
-   - Predetermined balances: amount 1, token 1, no increments, no recurring
-   - \`maxNumTransfers.overallMaxNumTransfers\` = number of max claims
-   - \`approvalId: "quest-approval"\`
+### Escrow Funding (REQUIRED)
 
-   Key approvalCriteria fields:
-   \`\`\`json
-   {
-     "predeterminedBalances": {
-       "incrementedBalances": {
-         "startBalances": [{ "amount": "1", "tokenIds": [{"start":"1","end":"1"}], "ownershipTimes": [{"start":"1","end":"18446744073709551615"}] }],
-         "incrementTokenIdsBy": "0",
-         "incrementOwnershipTimesBy": "0",
-         "durationFromTimestamp": "0",
-         "allowOverrideTimestamp": false,
-         "recurringOwnershipTimes": { "startTime": "0", "intervalLength": "0", "chargePeriodLength": "0" }
-       },
-       "orderCalculationMethod": { "useOverallNumTransfers": true }
-     },
-     "coinTransfers": [{
-       "to": "",
-       "overrideFromWithApproverAddress": true,
-       "overrideToWithInitiator": true,
-       "coins": [{ "amount": "<rewardAmount>", "denom": "<rewardDenom>" }]
-     }]
-   }
-   \`\`\`
-
-5. **Escrow Funding**: mintEscrowCoinsToTransfer funds the reward pool (rewardAmount * maxClaims)
-   \`\`\`json
-   { "mintEscrowCoinsToTransfer": [{ "denom": "ubadge", "amount": "5000000" }] }
-   \`\`\`
-
-6. **Permissions**: Use "locked-approvals" preset (set_permissions)
-
-7. **Default Balances**: Empty balances, all auto-approve flags true (set_default_balances)
+Call \`set_mint_escrow_coins\` in the SAME round as the other tools. Example for 10 ATOM reward × 50 claims:
+\`\`\`
+set_mint_escrow_coins({ coins: [{ denom: "ibc/A4DB...", amount: "500000000" }] })
+\`\`\`
+Without this, the escrow has no funds and claims will fail.
 
 ### Common Mistakes
 
-- DON'T set validTokenIds to anything other than [{start: "1", end: "1"}]
-- DON'T use multiple merkle challenges — quest protocol requires exactly 1
-- DON'T set maxUsesPerLeaf to anything other than 1 — each user claims once
-- DON'T forget to fund the escrow (mintEscrowCoinsToTransfer)
+- DON'T add extra fields to coinTransfers — the ONLY fields are: to, overrideFromWithApproverAddress, overrideToWithInitiator, coins. NO startTime, NO other fields.
+- DON'T omit \`manualBalances: []\` in predeterminedBalances — SDK crashes without it
+- DON'T omit fields in orderCalculationMethod — include ALL boolean fields
+- DON'T forget \`set_mint_escrow_coins\` — without it, the escrow is empty and rewards can't be paid
+- DON'T set maxUsesPerLeaf to anything other than "1" — each user claims once
 - DON'T set allowOverrideTimestamp: true — quests require false
 - DON'T set useCreatorAddressAsLeaf: true — quests require false`
   },

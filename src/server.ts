@@ -83,6 +83,7 @@ import {
   setCollectionMetadataTool, handleSetCollectionMetadata,
   setTokenMetadataTool, handleSetTokenMetadata,
   setCustomDataTool, handleSetCustomData,
+  setMintEscrowCoinsTool, handleSetMintEscrowCoins,
   addApprovalTool, handleAddApproval,
   removeApprovalTool, handleRemoveApproval,
   setApprovalMetadataTool, handleSetApprovalMetadata,
@@ -235,6 +236,7 @@ export function createServer(): Server {
         setCollectionMetadataTool,
         setTokenMetadataTool,
         setCustomDataTool,
+        setMintEscrowCoinsTool,
         addApprovalTool,
         removeApprovalTool,
         setApprovalMetadataTool,
@@ -518,6 +520,10 @@ export function createServer(): Server {
         }
         case 'set_custom_data': {
           const result = handleSetCustomData(args as any);
+          return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+        }
+        case 'set_mint_escrow_coins': {
+          const result = handleSetMintEscrowCoins(args as any);
           return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
         }
         case 'add_approval': {

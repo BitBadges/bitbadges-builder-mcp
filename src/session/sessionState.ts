@@ -91,6 +91,7 @@ export function getOrCreateSession(sessionId?: string, creatorAddress?: string):
           manager: creatorAddress || '',
           updateCustomData: false,
           customData: '',
+          mintEscrowCoinsToTransfer: [],
           aliasPathsToAdd: [],
           cosmosCoinWrapperPathsToAdd: []
         }
@@ -185,6 +186,11 @@ export function setCustomData(sessionId: string | undefined, customData: string)
   const value = getCollectionValue(sessionId);
   value.customData = customData;
   value.updateCustomData = true;
+}
+
+export function setMintEscrowCoins(sessionId: string | undefined, coins: Array<{ denom: string; amount: string }>): void {
+  const value = getCollectionValue(sessionId);
+  value.mintEscrowCoinsToTransfer = coins;
 }
 
 export function setCollectionMetadata(sessionId: string | undefined, name: string, description: string, image: string): void {
