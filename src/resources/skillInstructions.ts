@@ -226,6 +226,59 @@ For wrapping native Cosmos SDK coins, use \`allowSpecialWrapping: true\` and \`c
 }
 \`\`\`
 
+### Optional: Unbacking Withdraw Limits
+
+Add approvalAmounts to the unbacking approval to enforce daily or total withdraw limits:
+
+\`\`\`json
+{
+  "approvalCriteria": {
+    "mustPrioritize": true,
+    "allowBackedMinting": true,
+    "overridesFromOutgoingApprovals": false,
+    "approvalAmounts": {
+      "overallApprovalAmount": "0",
+      "perFromAddressApprovalAmount": "1000000",
+      "perToAddressApprovalAmount": "0",
+      "perInitiatedByAddressApprovalAmount": "0",
+      "amountTrackerId": "daily-withdraw-limit",
+      "resetTimeIntervals": { "startTime": "0", "intervalLength": "86400000" }
+    }
+  }
+}
+\`\`\`
+
+- **Daily limit**: Use perFromAddressApprovalAmount with resetTimeIntervals.intervalLength: "86400000" (24 hours in ms)
+- **Total limit**: Use overallApprovalAmount with intervalLength: "0" (no reset)
+- amountTrackerId must be unique per approval
+
+### Optional: 2FA on Unbacking
+
+Require ownership of a 2FA token to withdraw. Add mustOwnTokens to the unbacking approval:
+
+\`\`\`json
+{
+  "approvalCriteria": {
+    "mustPrioritize": true,
+    "allowBackedMinting": true,
+    "overridesFromOutgoingApprovals": false,
+    "mustOwnTokens": [{
+      "collectionId": "74",
+      "amountRange": { "start": "1", "end": "18446744073709551615" },
+      "ownershipTimes": [{ "start": "1", "end": "18446744073709551615" }],
+      "tokenIds": [{ "start": "1", "end": "18446744073709551615" }],
+      "overrideWithCurrentTime": true,
+      "mustSatisfyForAllAssets": false,
+      "ownershipCheckParty": "initiator"
+    }]
+  }
+}
+\`\`\`
+
+- collectionId: the 2FA collection ID
+- overrideWithCurrentTime: true ensures the check uses the current time (important for expiring 2FA tokens)
+- ownershipCheckParty: "initiator" checks the person initiating the withdrawal
+
 ### Metadata Guidance
 
 - Collection metadata, token metadata, alias path metadata, and denomUnit metadata should all have descriptive names/descriptions and images
@@ -572,6 +625,30 @@ When creating a fungible token collection, you MUST follow these requirements:
 3. **Token Metadata**: Each tokenMetadata entry must reference token ID 1
    - Example: "tokenIds": [{ "start": "1", "end": "1" }]
 
+### Supply Tracking with approvalAmounts
+
+Fungible tokens use approvalAmounts (NOT predeterminedBalances) to track minting supply:
+
+\`\`\`json
+{
+  "approvalCriteria": {
+    "overridesFromOutgoingApprovals": true,
+    "approvalAmounts": {
+      "overallApprovalAmount": "1000000",
+      "perInitiatedByAddressApprovalAmount": "1000",
+      "perToAddressApprovalAmount": "0",
+      "perFromAddressApprovalAmount": "0",
+      "amountTrackerId": "mint-tracker",
+      "resetTimeIntervals": { "startTime": "0", "intervalLength": "0" }
+    }
+  }
+}
+\`\`\`
+
+- overallApprovalAmount: total supply cap (use "0" for unlimited)
+- perInitiatedByAddressApprovalAmount: max per user (use "0" for unlimited)
+- IMPORTANT: predeterminedBalances and approvalAmounts are INCOMPATIBLE — fungible tokens use approvalAmounts, NOT predeterminedBalances
+
 ### Pattern-Specific Gotchas
 
 - All tokens share the same token ID (1), making them interchangeable
@@ -580,9 +657,9 @@ When creating a fungible token collection, you MUST follow these requirements:
 
 ## Common Mistakes
 
+- DON'T use predeterminedBalances for fungible tokens — use approvalAmounts instead. They are incompatible.
 - DON'T use numbers instead of strings for amounts — use "1000" not 1000. All numeric values must be string-encoded.
 - DON'T forget autoApproveAllIncomingTransfers: true in defaultBalances — without it, recipients cannot receive tokens on public-mint collections.
-- DON'T forget to add prioritizedApprovals array matching your approval IDs when building MsgTransferTokens.
 - DON'T forget overridesFromOutgoingApprovals: true on Mint approvals — required for all fromListId: "Mint" approvals.
 - DON'T use multiple token IDs — fungible tokens must use exactly one token ID [{ "start": "1", "end": "1" }].
 
@@ -667,6 +744,50 @@ When creating an NFT collection, follow this pattern:
   "standards": ["NFTs"]
 }
 \`\`\`
+
+### Sequential Minting with predeterminedBalances
+
+For NFTs, use predeterminedBalances with incrementTokenIdsBy: "1" to mint tokens sequentially (token 1, then 2, then 3, etc.):
+
+\`\`\`json
+{
+  "approvalCriteria": {
+    "overridesFromOutgoingApprovals": true,
+    "predeterminedBalances": {
+      "manualBalances": [],
+      "incrementedBalances": {
+        "startBalances": [{ "amount": "1", "tokenIds": [{ "start": "1", "end": "1" }], "ownershipTimes": [{ "start": "1", "end": "18446744073709551615" }] }],
+        "incrementTokenIdsBy": "1",
+        "incrementOwnershipTimesBy": "0",
+        "durationFromTimestamp": "0",
+        "allowOverrideTimestamp": false,
+        "recurringOwnershipTimes": { "startTime": "0", "intervalLength": "0", "chargePeriodLength": "0" },
+        "allowOverrideWithAnyValidToken": false
+      },
+      "orderCalculationMethod": {
+        "useOverallNumTransfers": true,
+        "usePerToAddressNumTransfers": false,
+        "usePerFromAddressNumTransfers": false,
+        "usePerInitiatedByAddressNumTransfers": false,
+        "useMerkleChallengeLeafIndex": false,
+        "challengeTrackerId": ""
+      }
+    },
+    "maxNumTransfers": {
+      "overallMaxNumTransfers": "100",
+      "perInitiatedByAddressMaxNumTransfers": "1",
+      "perToAddressMaxNumTransfers": "0",
+      "perFromAddressMaxNumTransfers": "0",
+      "amountTrackerId": "nft-mint-tracker",
+      "resetTimeIntervals": { "startTime": "0", "intervalLength": "0" }
+    }
+  }
+}
+\`\`\`
+
+Key: incrementTokenIdsBy: "1" means each mint gets the next sequential token ID. Use maxNumTransfers to cap total mints and per-user mints.
+
+IMPORTANT: predeterminedBalances and approvalAmounts are INCOMPATIBLE — use one or the other. NFTs use predeterminedBalances (not approvalAmounts).
 
 ### NFT-Specific Gotchas
 
@@ -794,7 +915,8 @@ When creating a subscription collection, you MUST follow these EXACT requirement
 - DON'T forget durationFromTimestamp must be non-zero — this is the subscription duration in milliseconds (e.g. "2592000000" for 30 days).
 - DON'T forget allowOverrideTimestamp: true — subscriptions need this so each mint gets its own start timestamp.
 - DON'T use multiple token IDs — subscriptions must use exactly one token ID [{ "start": "1", "end": "1" }].
-- DON'T set coinTransfers override flags to true — for standard subscription payments, both overrideFromWithApproverAddress and overrideToWithInitiator must be false.`
+- DON'T set coinTransfers override flags to true — for standard subscription payments, both overrideFromWithApproverAddress and overrideToWithInitiator must be false.
+- DON'T set noCustomOwnershipTimes: true in invariants — subscriptions require noCustomOwnershipTimes: false (or omit the invariant) because each subscription period mints a new ownershipTime window.`
   },
   {
     id: 'immutability',
@@ -919,6 +1041,36 @@ When configuring collection permissions for transferability and update rules, yo
 
 **For CollectionApprovalPermission** (canUpdateCollectionApprovals):
 - If both time arrays are empty, use empty array: \`"canUpdateCollectionApprovals": []\`
+
+### Permission Presets
+
+Three common permission configurations:
+
+**1. Fully Immutable** — Everything frozen. Nothing can change after creation.
+- ALL permissions set to permanentlyForbiddenTimes: FOREVER
+- Use when: the collection should never change
+
+**2. Manager Controlled** — Manager can change everything except delete.
+- canDeleteCollection: frozen (always)
+- Everything else: permanentlyPermittedTimes: FOREVER
+- Use when: the manager needs full control (issuer-controlled tokens, evolving collections)
+
+**3. Locked Approvals (recommended default)** — Approvals and supply frozen, metadata editable.
+- canDeleteCollection: frozen
+- canUpdateStandards: frozen
+- canUpdateManager: frozen
+- canUpdateValidTokenIds: frozen
+- canUpdateCollectionApprovals: frozen
+- canUpdateCollectionMetadata: allowed
+- canUpdateTokenMetadata: allowed
+- canArchiveCollection: allowed
+- canUpdateCustomData: allowed
+- Use when: supply and rules should be immutable but metadata needs updates
+
+**Understanding permission states:**
+- Empty array [] = neutral (neither forbidden nor permitted — can be set later)
+- permanentlyForbiddenTimes: FOREVER = frozen (can never be changed)
+- permanentlyPermittedTimes: FOREVER = permanently allowed (manager can always change this field)
 
 ### Security Considerations
 
@@ -1444,25 +1596,36 @@ BitBadges collection 1 contains verification badges. Different token IDs represe
     id: 'payment-protocol',
     name: 'Payment Protocol',
     category: 'token-type',
-    description: 'Invoices, escrows, bounties, and payment receipts using ListView standard and coinTransfer-based approvals',
-    summary: `Build invoices, milestones, bounties, or escrow-based payment collections.
+    description: 'Invoices, escrows, bounties, milestones, and multi-party agreements using coinTransfer-based approvals or IBC-backed smart token escrow',
+    summary: `Build invoices, milestones, bounties, escrow agreements, or any payment flow.
 
-- Approach 1 (coinTransfer-based): each approval = one invoice/milestone with coinTransfers
-  - Required standards: ["ListView:Milestones"] or ["ListView:Invoice Requests"] or ["ListView:Bounties"]
-  - Each approval has fromListId: "Mint", coinTransfers for payment, overridesFromOutgoingApprovals: true
-- Approach 2 (Escrow-based): Smart Token with IBC backing for hold-and-release
-  - Use when funds must be held until conditions are met
-- Lock canUpdateCollectionApprovals for immutable payment terms
-- ListView is incompatible with: Subscriptions, Smart Tokens, Custom 2FA, Liquidity Pools, Tradable NFTs
-- Initiator pays gas; for mint-based payments, the payer initiates`,
+Two approaches:
+- **Approach 1 (coinTransfer-based)**: Simple one-shot payments. Each approval = one invoice/milestone with coinTransfers.
+  - Standards: ["ListView:Milestones"] or ["ListView:Invoice Requests"] or ["ListView:Bounties"]
+  - Each approval: fromListId "Mint", coinTransfers for payment, overridesFromOutgoingApprovals: true
+  - ListView incompatible with: Subscriptions, Smart Tokens, Custom 2FA, Liquidity Pools, Tradable NFTs
+- **Approach 2 (Escrow)**: Funds held in IBC-backed smart token until conditions are met.
+  - Standards: ["Smart Token"]
+  - USDC/ATOM backed 1:1 into single token ID. Approvals control deposit, release, refund, dispute, timeout.
+  - Typically 6-12+ approvals modeling the full lifecycle of a multi-party agreement.
+  - All permissions permanently locked — no one can change rules after deployment.
+
+Key design: each approval = one conditional branch. Not all get used — they define what CAN happen.
+- Lock canUpdateCollectionApprovals for immutable terms
+- Initiator pays gas; for mint-based, the payer initiates`,
     instructions: `## Payment Protocol
 
-Build invoices, milestones, bounties, or escrow-based payment collections.
+Build invoices, milestones, bounties, escrow agreements, or any payment flow.
 
-### Two Approaches
+### Which approach to use
 
-#### Approach 1: coinTransfer-Based (Simple Payments)
-Each approval is an invoice/milestone with coinTransfers. Uses the **ListView** display standard.
+**Default to Approach 2 (Smart Token Escrow)** unless the request is clearly a simple one-shot payment with no hold/release/refund logic. Smart token escrow is the superset — it can do everything coinTransfers can, plus escrow, conditional release, refunds, multi-party deposits, and dispute resolution. When in doubt, use Approach 2.
+
+Use Approach 1 only for simple scenarios like: "create an invoice for 10 BADGE" or "milestone list where payer pays on completion" — where funds move immediately at transfer time with no hold period.
+
+### Approach 1: coinTransfer-Based (Simple Payments)
+
+Each approval is an invoice/milestone with coinTransfers. Uses the **ListView** display standard. Only for simple one-shot payments — no escrow, no hold-and-release, no refunds.
 
 **Required:**
 - Standards: ["ListView:Milestones"] or ["ListView:Invoice Requests"] or ["ListView:Bounties"]
@@ -1474,55 +1637,149 @@ Each approval is an invoice/milestone with coinTransfers. Uses the **ListView** 
 **Invoice/Milestone Example:**
 \`\`\`json
 {
-  "collectionApprovals": [
-    {
-      "fromListId": "Mint",
-      "toListId": "All",
-      "initiatedByListId": "bb1payer...",
-      "approvalId": "milestone-1",
-      "tokenIds": [{ "start": "1", "end": "1" }],
-      "transferTimes": [{ "start": "1", "end": "18446744073709551615" }],
-      "ownershipTimes": [{ "start": "1", "end": "18446744073709551615" }],
-      "uri": "ipfs://milestone-1-metadata",
-      "customData": "",
-      "approvalCriteria": {
-        "coinTransfers": [{
-          "to": "bb1payee...",
-          "coins": [{ "denom": "ubadge", "amount": "10000000000" }],
-          "overrideFromWithApproverAddress": false,
-          "overrideToWithInitiator": false
-        }],
-        "overridesFromOutgoingApprovals": true,
-        "maxNumTransfers": {
-          "overallMaxNumTransfers": "1",
-          "perToAddressMaxNumTransfers": "0",
-          "perFromAddressMaxNumTransfers": "0",
-          "perInitiatedByAddressMaxNumTransfers": "0",
-          "amountTrackerId": "milestone-1-tracker",
-          "resetTimeIntervals": { "startTime": "0", "intervalLength": "0" }
-        }
+  "collectionApprovals": [{
+    "fromListId": "Mint",
+    "toListId": "All",
+    "initiatedByListId": "bb1payer...",
+    "approvalId": "milestone-1",
+    "tokenIds": [{ "start": "1", "end": "1" }],
+    "transferTimes": [{ "start": "1", "end": "18446744073709551615" }],
+    "ownershipTimes": [{ "start": "1", "end": "18446744073709551615" }],
+    "approvalCriteria": {
+      "coinTransfers": [{
+        "to": "bb1payee...",
+        "coins": [{ "denom": "ubadge", "amount": "10000000000" }],
+        "overrideFromWithApproverAddress": false,
+        "overrideToWithInitiator": false
+      }],
+      "overridesFromOutgoingApprovals": true,
+      "maxNumTransfers": {
+        "overallMaxNumTransfers": "1",
+        "amountTrackerId": "milestone-1-tracker",
+        "resetTimeIntervals": { "startTime": "0", "intervalLength": "0" }
       }
     }
-  ],
+  }],
   "standards": ["ListView:Milestones"]
 }
 \`\`\`
 
-#### Approach 2: Escrow-Based (Smart Token)
-Use a Smart Token with IBC backing for hold-and-release escrow. Funds are deposited to the backing address and released via unbacking approval when conditions are met.
+**ListView incompatibility**: ListView is incompatible with Subscriptions, Smart Tokens, Custom 2FA, Liquidity Pools, Tradable NFTs.
+
+### Approach 2: Escrow (Smart Token)
+
+Use a USDC/ATOM-backed smart token for hold-and-release escrow. Funds are deposited (backed) and released via approval-controlled transfers, then withdrawn (unbacked) for the underlying ICS20 coins.
 
 **When to use escrow vs coinTransfers:**
 - coinTransfers: One-shot payment at transfer time (simpler)
-- Escrow: Funds held until conditions met, refundable (more complex but safer for both parties)
+- Escrow: Funds held until conditions met, refundable, multi-party (more complex but trustless)
+
+**Architecture: Three Phases**
+\`\`\`
+PHASE 1 — DEPOSITS: Parties back ICS20 coins into the smart token (backing approvals)
+PHASE 2 — RESOLUTION: Approvals control who can move tokens to whom, gated by conditions
+PHASE 3 — WITHDRAWAL: Winners unback tokens to receive ICS20 coins
+\`\`\`
+
+**Required structure:**
+- Standards: ["Smart Token"]
+- Invariants: cosmosCoinBackedPath with 1:1 conversion
+- Alias path for display
+- validTokenIds: [{ "start": "1", "end": "1" }] (single token, amount-capped approvals for logical buckets)
+- ALL permissions permanently locked
+
+**Escrow approval categories:**
+
+1. **Backing approvals (deposits)** — each depositing party gets a separate backing approval with amount caps
+\`\`\`json
+{
+  "fromListId": "bb1backingAddress...",
+  "toListId": "bb1posterAddress...",
+  "initiatedByListId": "bb1posterAddress...",
+  "approvalId": "poster-backing",
+  "approvalCriteria": {
+    "overridesFromOutgoingApprovals": true,
+    "mustPrioritize": true,
+    "allowBackedMinting": true,
+    "maxNumTransfers": { "overallMaxNumTransfers": "1", "amountTrackerId": "poster-backing-tracker", "resetTimeIntervals": { "startTime": "0", "intervalLength": "0" } }
+  }
+}
+\`\`\`
+
+2. **Release approvals (payment paths)** — control how funds move. Gate with:
+   - Simple sign-off: initiatedByListId = poster address
+   - Verifier-gated: votingChallenges with quorum threshold
+   - mustOwnBadges: require deposit verification or credentials
+   - approvalAmounts: cap how much each approval can move
+
+3. **Timeout approvals (fallbacks)** — use transferTimes to gate when fallbacks activate
+\`\`\`json
+{
+  "approvalId": "timeout-release",
+  "transferTimes": [{ "start": "DEADLINE_MS", "end": "18446744073709551615" }],
+  "approvalCriteria": { "overridesFromOutgoingApprovals": true }
+}
+\`\`\`
+DEADLINE_MS = creation timestamp + timeout hours * 3600000
+
+4. **Verifier fee approvals** — flat fee regardless of decision (neutral incentive). Two approvals: one gated by approve vote, one by deny vote.
+
+5. **Deposit return/forfeit** — worker reclaims on success, poster takes on timeout. Natural mutex via balance depletion.
+
+6. **Unbacking approval** — standard smart token unbacking. Anyone holding tokens can burn for ICS20 coins.
+
+### Multi-Approval Lifecycle Design
+
+Payment protocols typically have **6-12+ approvals** modeling every possible flow. Not all get used in a single transaction — they define the complete lifecycle of what CAN happen.
+
+**Example: Freelancer escrow with 8 approvals**
+1. \`poster-deposit\` — poster backs USDC into escrow
+2. \`worker-deposit\` — worker deposits a bond (optional)
+3. \`release-on-completion\` — poster releases funds to worker
+4. \`timeout-refund\` — poster reclaims if worker ghosts (time-gated)
+5. \`dispute-resolution\` — arbitrator releases funds (vote-gated)
+6. \`worker-bond-return\` — worker reclaims bond on success
+7. \`worker-bond-forfeit\` — poster takes bond on timeout
+8. \`penalty-fee\` — arbitrator fee on dispute
+
+Happy path uses #1, #3, #6. Dispute uses #1, #2, #5, #7, #8. Timeout uses #1, #4. The approvals define all possibilities.
+
+**Common patterns:**
+- **Pattern A — Simple Trust**: poster-backing + poster-release + timeout-release + unbacking (4 approvals)
+- **Pattern B — Verified Third-Party**: + approve-release + deny-refund + verifier-fees (7+ approvals)
+- **Pattern C — Mutual Deposit + Vote**: both parties deposit, 2-of-3 vote gates release (8+ approvals)
+- **Pattern D — Milestones**: poster backs total budget, separate release approval per milestone (N+3 approvals)
+- **Pattern E — Bounty**: poster backs bounty, award approval with toListId "All" + overallMaxNumTransfers "1" (4 approvals)
+
+### How conditional branching works
+
+All approvals are effectively **OR logic** — any approval can be satisfied as long as its criteria match. The chain doesn't enforce "if A then B" directly. To implement conditional flows, get creative with criteria composition:
+
+- **Balance depletion as mutex**: approve-release and deny-refund target the same tokens. Once one fires, balance depletes and the other can't execute. Natural mutual exclusion.
+- **mustOwnTokens for state gating**: mint soulbound tokens (from this or another collection) to represent state transitions, then require them via mustOwnTokens on downstream approvals. E.g., mint a "work-completed" badge, then the release approval requires holding it.
+- **transferTimes for temporal gating**: only allow certain approvals after a deadline passes.
+- **votingChallenges for human decisions**: gate approvals behind explicit votes from designated parties.
+- **Amount caps for partial flows**: use approvalAmounts to limit how much each branch can move, preventing over-claiming.
+
+The primitives (mustOwnTokens, transferTimes, votingChallenges, amount caps, balance depletion) combine to model complex conditional logic even though each approval is independently satisfiable.
 
 ### Decision Tree
 
-1. **coinTransfers vs 1:1 backing**: coinTransfers are simpler (one-shot payment). Smart Token escrow is needed when funds must be held, escrowed, or redeemable later.
-2. **Permission locking**: For agreements (invoices, escrows), lock \`canUpdateCollectionApprovals\` so terms are immutable.
-3. **Who pays gas?**: The initiator pays gas. For mint-based payments, the payer initiates.
+1. **Default to Smart Token Escrow (Approach 2)** unless clearly a simple one-shot payment. Escrow handles everything — payments, holds, refunds, disputes, multi-party flows. Only use coinTransfers (Approach 1) for trivially simple invoices with no hold period.
+2. **Permission locking**: For agreements, lock \`canUpdateCollectionApprovals\` so terms are immutable.
+3. **Who pays gas?**: The initiator pays gas. For mint-based, the payer initiates.
 4. **Multiple currencies**: A single collection can accept different IBC denoms in different approvals.
-5. **Refunds**: For coinTransfer-based payments, refunds require a separate approval. For escrow, configure return-to-depositor.
-6. **Standard incompatibility**: ListView is incompatible with Subscriptions, Smart Tokens, Custom 2FA, Liquidity Pools, Tradable NFTs, and other protocol standards.`
+5. **Refunds**: For coinTransfer-based, refunds require a separate approval. For escrow, use timeout-refund approvals.
+6. **Timeouts**: Every escrow path MUST have a timeout fallback — without them, funds can be locked forever.
+
+## Common Mistakes
+
+- DON'T use multiple token IDs for different "buckets" in escrow — use a single token ID with amount-capped approvals instead.
+- DON'T forget timeout fallbacks on every path — funds can be locked forever if a party ghosts.
+- DON'T make verifier fee conditional on outcome — use flat fee with two vote-gated fee approvals for neutral incentives.
+- DON'T forget to lock ALL permissions for escrow — any unlocked permission lets someone change the rules.
+- DON'T use the same amountTrackerId across multiple approvals unless you want them to share a counter.
+- DON'T forget mustOwnBadges for deposit verification — this is how you on-chain gate releases on deposits.`
   },
   {
     id: 'tradable',
@@ -1776,6 +2033,211 @@ The Credit Token standard has a dedicated view page that shows:
 - DON'T forget the alias path — credit tokens will not display properly without one.
 - DON'T use numbers instead of strings for amounts — all values must be string-encoded ("100000" not 100000).
 - DON'T confuse credit tokens with smart tokens — credit tokens are one-way minting only with no backing/unbacking or transferability.`
+  },
+  // escrow-pact removed — functionality merged into payment-protocol
+  {
+    id: 'auto-mint',
+    name: 'Auto-Mint',
+    category: 'feature',
+    description: 'Mint and distribute tokens to recipients at collection creation time using MsgTransferTokens',
+    summary: `Post-creation minting — adds MsgTransferTokens messages to the transaction so tokens are distributed immediately after collection creation.
+
+- Transaction can contain MsgUniversalUpdateCollection PLUS one or more MsgTransferTokens messages
+- All transfer messages use collectionId: "0" to reference the just-created collection
+- prioritizedApprovals MUST always be specified (use [] if none needed)
+- from: "Mint" for minting new tokens, bb1... address for peer-to-peer transfers
+- The signing user (creator) is the initiator — collection must have an approval allowing this
+- All numbers as strings — "1" not 1
+- Prefer predeterminedBalances with x0 increments over maxNumTransfers for better frontend UX
+
+When to use:
+- User asks to mint tokens to themselves or others at creation time
+- Initial distribution or pre-allocation of tokens
+- Manager-only collections where the manager should receive all tokens immediately
+
+When NOT to use:
+- Public mint collections (users mint later via approval)
+- Subscription collections (users mint on subscribe)
+- Smart tokens (users deposit IBC coins to mint)
+- Any collection where minting happens post-creation through approvals`,
+    instructions: `## Auto-Mint — Post-Creation Transfers
+
+A transaction can contain the collection creation message (MsgUniversalUpdateCollection) PLUS one or more MsgTransferTokens messages. All use collectionId: "0" to reference the just-created collection.
+
+### MsgTransferTokens Structure
+
+\`\`\`json
+{
+  "typeUrl": "/tokenization.MsgTransferTokens",
+  "value": {
+    "creator": "bb1...",
+    "collectionId": "0",
+    "transfers": [{
+      "from": "Mint",
+      "toAddresses": ["bb1recipientaddress..."],
+      "balances": [{
+        "amount": "1",
+        "tokenIds": [{ "start": "1", "end": "1" }],
+        "ownershipTimes": [{ "start": "1", "end": "18446744073709551615" }]
+      }],
+      "prioritizedApprovals": [{
+        "approvalId": "the-mint-approval-id",
+        "approvalLevel": "collection",
+        "approverAddress": "",
+        "version": "0"
+      }],
+      "onlyCheckPrioritizedCollectionApprovals": false,
+      "onlyCheckPrioritizedIncomingApprovals": false,
+      "onlyCheckPrioritizedOutgoingApprovals": false,
+      "memo": ""
+    }]
+  }
+}
+\`\`\`
+
+### When to add a transfer message
+- User asks to mint tokens to themselves or others at creation time
+- User wants initial distribution or pre-allocation of tokens
+- Manager-only collections where the manager should receive all tokens immediately
+- Any scenario where tokens should exist in wallets right after collection creation
+
+### When NOT to add a transfer message
+- Public mint collections (users mint later via the approval)
+- Subscription collections (users mint on subscribe)
+- Smart tokens (users deposit IBC coins to mint)
+- Any collection where minting happens post-creation through approvals
+
+### Critical transfer rules
+1. **prioritizedApprovals MUST be specified** — even if empty []. Match the approvalId to one of the collection's collectionApprovals.
+2. **from: "Mint"** for minting new tokens. Use a bb1... address for peer-to-peer transfers.
+3. **The signing user (creator) is the initiator** — the collection must have an approval that allows this address as initiatedBy.
+4. **collectionId: "0"** is auto-set — it references the collection created by message[0] in the same transaction.
+5. **All numbers as strings** — "1" not 1.
+6. **Prefer predeterminedBalances for one-time or fixed-use approvals** — Use incrementedBalances with x0 increments (incrementTokenIdsBy: "0", incrementOwnershipTimesBy: "0") instead of relying solely on maxNumTransfers. The frontend auto-detects predeterminedBalances and shows users the exact tokens they will receive, providing much better UX. Avoid manualBalances; incrementedBalances with x0 increments is preferred.
+
+### Time-Dependent Ownership
+
+For expiring tokens, calculate timestamps:
+- Current time: use get_current_timestamp tool (milliseconds since epoch)
+- Example: 5 minutes from now = current timestamp + (5 * 60 * 1000)
+
+\`\`\`json
+"ownershipTimes": [{
+  "start": "1706000000000",
+  "end": "1706000300000"
+}]
+\`\`\`
+
+### Session-based patch operations
+- add_transfer: { op: "add_transfer", transfer: { transfers: [...] } } — appends a MsgTransferTokens to the transaction
+- remove_transfer: { op: "remove_transfer", index: 0 } — removes transfer message by index (0-based among transfer messages)
+- update_transfer: { op: "update_transfer", index: 0, changes: {...} } — deep-merges changes into the transfer message
+
+### Common mistakes
+- DON'T forget to add prioritizedApprovals in MsgTransferTokens — even if empty ([]), this field must be present or the transfer fails.
+- DON'T forget that the collection must have a mint approval that allows the creator as initiatedBy.
+- DON'T add transfer messages for subscription, smart token, or public mint collections — minting happens post-creation through approvals.`
+  },
+  {
+    id: 'address-list',
+    name: 'Address List',
+    category: 'token-type',
+    description: 'On-chain address list where membership = owning x1 of token ID 1. Manager can add/remove addresses.',
+    summary: `Required standards: ["Address List"]
+
+- validTokenIds: MUST be exactly [{ "start": "1", "end": "1" }]
+- TWO collection approvals required with EXACT approvalIds (frontend depends on these):
+  1. "manager-add": fromListId "Mint", toListId "All", initiatedByListId = creator. Mints token to add address.
+  2. "manager-remove": fromListId "All", toListId burn address (bb1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqs7gvmv), initiatedByListId = creator. Burns token to remove address.
+- BOTH approvals MUST have overridesFromOutgoingApprovals: true
+- NO peer-to-peer transfer approval — only manager can modify the list
+- Standard is "Address List" (NOT "Non-Transferable")
+- Use build_address_list tool instead of build_token for this type`,
+    instructions: `## Address List Configuration
+
+An address list collection represents membership as token ownership: owning x1 of token ID 1 = being on the list. The manager controls membership by minting (adding) and burning (removing) tokens.
+
+### CRITICAL: Exact Approval IDs Required
+
+The frontend identifies address list approvals by their EXACT approvalIds. Using different IDs will break the UI.
+
+- Approval 1: approvalId MUST be **"manager-add"**
+- Approval 2: approvalId MUST be **"manager-remove"**
+
+### Required Structure
+
+1. **Standards**: ["Address List"] (NOT "Non-Transferable")
+2. **validTokenIds**: [{ "start": "1", "end": "1" }]
+3. **Burn address**: bb1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqs7gvmv (ETH null address in bb1 format)
+
+### Manager-Add Approval (mint to add)
+
+\`\`\`json
+{
+  "fromListId": "Mint",
+  "toListId": "All",
+  "initiatedByListId": "bb1creator...",
+  "transferTimes": [{ "start": "1", "end": "18446744073709551615" }],
+  "tokenIds": [{ "start": "1", "end": "1" }],
+  "ownershipTimes": [{ "start": "1", "end": "18446744073709551615" }],
+  "uri": "ipfs://METADATA_APPROVAL_manager-add",
+  "customData": "",
+  "approvalId": "manager-add",
+  "approvalCriteria": {
+    "overridesFromOutgoingApprovals": true
+  },
+  "version": "0"
+}
+\`\`\`
+
+### Manager-Remove Approval (forceful burn to remove)
+
+\`\`\`json
+{
+  "fromListId": "All",
+  "toListId": "bb1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqs7gvmv",
+  "initiatedByListId": "bb1creator...",
+  "transferTimes": [{ "start": "1", "end": "18446744073709551615" }],
+  "tokenIds": [{ "start": "1", "end": "1" }],
+  "ownershipTimes": [{ "start": "1", "end": "18446744073709551615" }],
+  "uri": "ipfs://METADATA_APPROVAL_manager-remove",
+  "customData": "",
+  "approvalId": "manager-remove",
+  "approvalCriteria": {
+    "overridesFromOutgoingApprovals": true
+  },
+  "version": "0"
+}
+\`\`\`
+
+### Default Balances
+
+\`\`\`json
+{
+  "balances": [],
+  "outgoingApprovals": [],
+  "incomingApprovals": [],
+  "autoApproveAllIncomingTransfers": true,
+  "autoApproveSelfInitiatedOutgoingTransfers": true,
+  "autoApproveSelfInitiatedIncomingTransfers": true,
+  "userPermissions": {}
+}
+\`\`\`
+
+### Permissions
+
+Lock approvals and token IDs:
+- canUpdateCollectionApprovals: frozen
+- canUpdateValidTokenIds: frozen
+- canUpdateManager: frozen (typically)
+
+## Common Mistakes
+
+- DON'T use approvalId other than "manager-add" and "manager-remove" — the frontend depends on these exact strings.
+- DON'T use standard "Non-Transferable" — address lists use "Address List".
+- DON'T add a peer-to-peer transfer approval — only the manager should modify the list.
+- DON'T use build_token — use build_address_list instead for this type.
+- DON'T forget overridesFromOutgoingApprovals: true on BOTH approvals.`
   },
 ];
 

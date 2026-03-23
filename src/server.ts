@@ -72,7 +72,27 @@ import {
   handleBuildClaim,
   // Standards compliance
   verifyStandardsCompliance,
-  formatVerificationResult
+  formatVerificationResult,
+  // Session-based per-field tools (v2)
+  setStandardsTool, handleSetStandards,
+  setValidTokenIdsTool, handleSetValidTokenIds,
+  setDefaultBalancesTool, handleSetDefaultBalances,
+  setPermissionsTool, handleSetPermissions,
+  setInvariantsTool, handleSetInvariants,
+  setManagerTool, handleSetManager,
+  setCollectionMetadataTool, handleSetCollectionMetadata,
+  setTokenMetadataTool, handleSetTokenMetadata,
+  setCustomDataTool, handleSetCustomData,
+  addApprovalTool, handleAddApproval,
+  removeApprovalTool, handleRemoveApproval,
+  setApprovalMetadataTool, handleSetApprovalMetadata,
+  addAliasPathTool, handleAddAliasPath,
+  removeAliasPathTool, handleRemoveAliasPath,
+  addCosmosWrapperPathTool, handleAddCosmosWrapperPath,
+  removeCosmosWrapperPathTool, handleRemoveCosmosWrapperPath,
+  addTransferTool, handleAddTransfer,
+  removeTransferTool, handleRemoveTransfer,
+  getTransactionTool, handleGetTransaction
 } from './tools/index.js';
 
 // Import resources
@@ -204,7 +224,27 @@ export function createServer(): Server {
               transactionJson: { type: 'string', description: 'The transaction as a JSON string (alternative to transaction object)' }
             }
           }
-        }
+        },
+        // Session-based per-field tools (v2)
+        setStandardsTool,
+        setValidTokenIdsTool,
+        setDefaultBalancesTool,
+        setPermissionsTool,
+        setInvariantsTool,
+        setManagerTool,
+        setCollectionMetadataTool,
+        setTokenMetadataTool,
+        setCustomDataTool,
+        addApprovalTool,
+        removeApprovalTool,
+        setApprovalMetadataTool,
+        addAliasPathTool,
+        removeAliasPathTool,
+        addCosmosWrapperPathTool,
+        removeCosmosWrapperPathTool,
+        addTransferTool,
+        removeTransferTool,
+        getTransactionTool
       ]
     };
   });
@@ -442,6 +482,83 @@ export function createServer(): Server {
           }
           const result = verifyStandardsCompliance(tx);
           return { content: [{ type: 'text', text: formatVerificationResult(result) }] };
+        }
+        // Session-based per-field tools (v2)
+        case 'set_standards': {
+          const result = handleSetStandards(args as any);
+          return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+        }
+        case 'set_valid_token_ids': {
+          const result = handleSetValidTokenIds(args as any);
+          return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+        }
+        case 'set_default_balances': {
+          const result = handleSetDefaultBalances(args as any);
+          return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+        }
+        case 'set_permissions': {
+          const result = handleSetPermissions(args as any);
+          return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+        }
+        case 'set_invariants': {
+          const result = handleSetInvariants(args as any);
+          return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+        }
+        case 'set_manager': {
+          const result = handleSetManager(args as any);
+          return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+        }
+        case 'set_collection_metadata': {
+          const result = handleSetCollectionMetadata(args as any);
+          return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+        }
+        case 'set_token_metadata': {
+          const result = handleSetTokenMetadata(args as any);
+          return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+        }
+        case 'set_custom_data': {
+          const result = handleSetCustomData(args as any);
+          return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+        }
+        case 'add_approval': {
+          const result = handleAddApproval(args as any);
+          return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+        }
+        case 'remove_approval': {
+          const result = handleRemoveApproval(args as any);
+          return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+        }
+        case 'set_approval_metadata': {
+          const result = handleSetApprovalMetadata(args as any);
+          return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+        }
+        case 'add_alias_path': {
+          const result = handleAddAliasPath(args as any);
+          return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+        }
+        case 'remove_alias_path': {
+          const result = handleRemoveAliasPath(args as any);
+          return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+        }
+        case 'add_cosmos_wrapper_path': {
+          const result = handleAddCosmosWrapperPath(args as any);
+          return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+        }
+        case 'remove_cosmos_wrapper_path': {
+          const result = handleRemoveCosmosWrapperPath(args as any);
+          return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+        }
+        case 'add_transfer': {
+          const result = handleAddTransfer(args as any);
+          return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+        }
+        case 'remove_transfer': {
+          const result = handleRemoveTransfer(args as any);
+          return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+        }
+        case 'get_transaction': {
+          const result = handleGetTransaction(args as any);
+          return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
         }
 
         default:
