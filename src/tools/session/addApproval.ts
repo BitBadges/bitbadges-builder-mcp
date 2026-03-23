@@ -258,6 +258,48 @@ export function handleAddApproval(input: AddApprovalInput) {
       version: '0'
     };
 
+    // Normalize approvalCriteria — fill in missing sub-fields that cause SDK crashes
+    const criteria = approval.approvalCriteria as Record<string, any>;
+    const DEFAULT_RESET = { startTime: '0', intervalLength: '0' };
+    if (criteria.maxNumTransfers) {
+      criteria.maxNumTransfers.resetTimeIntervals = criteria.maxNumTransfers.resetTimeIntervals || DEFAULT_RESET;
+      criteria.maxNumTransfers.amountTrackerId = criteria.maxNumTransfers.amountTrackerId || approval.approvalId || '';
+      criteria.maxNumTransfers.perToAddressMaxNumTransfers = criteria.maxNumTransfers.perToAddressMaxNumTransfers || '0';
+      criteria.maxNumTransfers.perFromAddressMaxNumTransfers = criteria.maxNumTransfers.perFromAddressMaxNumTransfers || '0';
+      criteria.maxNumTransfers.perInitiatedByAddressMaxNumTransfers = criteria.maxNumTransfers.perInitiatedByAddressMaxNumTransfers || '0';
+    }
+    if (criteria.approvalAmounts) {
+      criteria.approvalAmounts.resetTimeIntervals = criteria.approvalAmounts.resetTimeIntervals || DEFAULT_RESET;
+      criteria.approvalAmounts.amountTrackerId = criteria.approvalAmounts.amountTrackerId || approval.approvalId || '';
+      criteria.approvalAmounts.perToAddressApprovalAmount = criteria.approvalAmounts.perToAddressApprovalAmount || '0';
+      criteria.approvalAmounts.perFromAddressApprovalAmount = criteria.approvalAmounts.perFromAddressApprovalAmount || '0';
+      criteria.approvalAmounts.perInitiatedByAddressApprovalAmount = criteria.approvalAmounts.perInitiatedByAddressApprovalAmount || '0';
+    }
+    if (criteria.predeterminedBalances) {
+      criteria.predeterminedBalances.manualBalances = criteria.predeterminedBalances.manualBalances || [];
+      if (criteria.predeterminedBalances.orderCalculationMethod) {
+        const ocm = criteria.predeterminedBalances.orderCalculationMethod;
+        ocm.usePerToAddressNumTransfers = ocm.usePerToAddressNumTransfers ?? false;
+        ocm.usePerFromAddressNumTransfers = ocm.usePerFromAddressNumTransfers ?? false;
+        ocm.usePerInitiatedByAddressNumTransfers = ocm.usePerInitiatedByAddressNumTransfers ?? false;
+        ocm.useMerkleChallengeLeafIndex = ocm.useMerkleChallengeLeafIndex ?? false;
+        ocm.challengeTrackerId = ocm.challengeTrackerId ?? '';
+      }
+      if (criteria.predeterminedBalances.incrementedBalances) {
+        const ib = criteria.predeterminedBalances.incrementedBalances;
+        ib.recurringOwnershipTimes = ib.recurringOwnershipTimes || { startTime: '0', intervalLength: '0', chargePeriodLength: '0' };
+      }
+    }
+    // Strip invalid fields from coinTransfers (e.g. hallucinated startTime)
+    if (Array.isArray(criteria.coinTransfers)) {
+      criteria.coinTransfers = criteria.coinTransfers.map((ct: any) => ({
+        to: ct.to ?? '',
+        coins: ct.coins ?? [],
+        overrideFromWithApproverAddress: ct.overrideFromWithApproverAddress ?? false,
+        overrideToWithInitiator: ct.overrideToWithInitiator ?? false
+      }));
+    }
+
     // Validate IBC denoms in coinTransfers — catch hallucinated denoms from training data
     const coinTransfers = (input.approvalCriteria as any)?.coinTransfers;
     const warnings: string[] = [];

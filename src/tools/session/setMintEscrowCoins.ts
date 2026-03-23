@@ -39,6 +39,11 @@ export const setMintEscrowCoinsTool = {
 
 export function handleSetMintEscrowCoins(input: SetMintEscrowCoinsInput) {
   getOrCreateSession(input.sessionId, input.creatorAddress);
-  setMintEscrowCoinsInSession(input.sessionId, input.coins);
-  return { success: true, coins: input.coins };
+  // Handle case where AI passes coins as a JSON string instead of array
+  let coins = input.coins;
+  if (typeof coins === 'string') {
+    try { coins = JSON.parse(coins); } catch { return { success: false, error: 'coins must be an array of {denom, amount} objects' }; }
+  }
+  setMintEscrowCoinsInSession(input.sessionId, coins);
+  return { success: true, coins };
 }
