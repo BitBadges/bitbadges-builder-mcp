@@ -509,6 +509,97 @@ function validatePermissions(permissions: unknown, path: string, issues: Validat
 }
 
 /**
+ * Validate approval criteria constraints: merkle challenge limits, plugin requirements, caps
+ */
+function validateApprovalCriteria(approvals: unknown[], path: string, issues: ValidationIssue[]): void {
+  if (!Array.isArray(approvals)) return;
+  approvals.forEach((approval, index) => {
+    if (!approval || typeof approval !== 'object') return;
+    const a = approval as Record<string, unknown>;
+    const criteria = a.approvalCriteria as Record<string, unknown> | undefined;
+    if (!criteria) return;
+    const approvalPath = `${path}[${index}]`;
+
+    // merkleChallenges max 1 per approval
+    if (Array.isArray(criteria.merkleChallenges) && (criteria.merkleChallenges as unknown[]).length > 1) {
+      issues.push({
+        severity: 'error',
+        message: `Each approval supports at most 1 merkleChallenge. Found ${(criteria.merkleChallenges as unknown[]).length}.`,
+        path: `${approvalPath}.approvalCriteria.merkleChallenges`
+      });
+    }
+
+    // Validate claimConfig plugins inside merkleChallenges
+    if (Array.isArray(criteria.merkleChallenges)) {
+      (criteria.merkleChallenges as unknown[]).forEach((mc, mcIdx) => {
+        if (!mc || typeof mc !== 'object') return;
+        const challenge = mc as Record<string, unknown>;
+        const claimConfig = challenge.claimConfig as Record<string, unknown> | undefined;
+        if (!claimConfig) return;
+        const plugins = claimConfig.plugins;
+        if (!Array.isArray(plugins)) return;
+
+        // numUses plugin required for claims
+        const hasNumUses = (plugins as any[]).some((p: any) => p?.pluginId === 'numUses');
+        if (!hasNumUses) {
+          issues.push({
+            severity: 'error',
+            message: 'Claims require a numUses plugin. Add { pluginId: "numUses", publicParams: { maxUses: N } }.',
+            path: `${approvalPath}.approvalCriteria.merkleChallenges[${mcIdx}].claimConfig.plugins`
+          });
+        }
+
+        // maxUses/numCodes cap at 50,000
+        (plugins as any[]).forEach((p: any) => {
+          if (p?.pluginId === 'numUses' && p?.publicParams?.maxUses > 50000) {
+            issues.push({
+              severity: 'error',
+              message: `numUses maxUses (${p.publicParams.maxUses}) exceeds 50,000 limit.`,
+              path: `${approvalPath}.approvalCriteria.merkleChallenges[${mcIdx}].claimConfig.plugins[numUses].maxUses`
+            });
+          }
+          if (p?.pluginId === 'codes' && p?.publicParams?.numCodes > 50000) {
+            issues.push({
+              severity: 'error',
+              message: `codes numCodes (${p.publicParams.numCodes}) exceeds 50,000 limit.`,
+              path: `${approvalPath}.approvalCriteria.merkleChallenges[${mcIdx}].claimConfig.plugins[codes].numCodes`
+            });
+          }
+        });
+      });
+    }
+
+    // Sync check: off-chain numUses must match on-chain maxNumTransfers
+    if (Array.isArray(criteria.merkleChallenges) && (criteria.merkleChallenges as unknown[]).length > 0) {
+      // Find numUses maxUses from the first claimConfig
+      const firstMc = (criteria.merkleChallenges as any[])[0];
+      const claimPlugins = firstMc?.claimConfig?.plugins;
+      if (Array.isArray(claimPlugins)) {
+        const numUsesP = (claimPlugins as any[]).find((p: any) => p?.pluginId === 'numUses');
+        const offChainMaxUses = numUsesP?.publicParams?.maxUses;
+        if (offChainMaxUses != null && offChainMaxUses > 0) {
+          const mnt = criteria.maxNumTransfers as Record<string, unknown> | undefined;
+          const onChainOverall = mnt?.overallMaxNumTransfers;
+          if (!onChainOverall || onChainOverall === '0') {
+            issues.push({
+              severity: 'warning',
+              message: `Claim has numUses maxUses=${offChainMaxUses} but on-chain overallMaxNumTransfers is unset or "0". Users may claim off-chain but fail on-chain. Set overallMaxNumTransfers to "${offChainMaxUses}" to sync limits.`,
+              path: `${approvalPath}.approvalCriteria.maxNumTransfers.overallMaxNumTransfers`
+            });
+          } else if (onChainOverall !== String(offChainMaxUses) && Number(onChainOverall) < offChainMaxUses) {
+            issues.push({
+              severity: 'warning',
+              message: `Off-chain numUses maxUses (${offChainMaxUses}) exceeds on-chain overallMaxNumTransfers (${onChainOverall}). Users may claim off-chain but fail on-chain. Set overallMaxNumTransfers to "${offChainMaxUses}".`,
+              path: `${approvalPath}.approvalCriteria.maxNumTransfers.overallMaxNumTransfers`
+            });
+          }
+        }
+      }
+    }
+  });
+}
+
+/**
  * Constructor sanity check for MsgUniversalUpdateCollection.
  * Mirrors what the SDK's `new MsgUniversalUpdateCollection()` and the frontend constructors expect.
  * Every field that the SDK/frontend calls .map() or accesses as a property must exist with the right type.
@@ -775,6 +866,15 @@ export function handleValidateTransaction(input: ValidateTransactionInput): Vali
       // --- Constructor sanity check: ensure all fields the SDK constructor expects exist ---
       validateMsgConstructorFields(value, `${msgPath}.value`, issues);
 
+      // --- mintEscrowCoinsToTransfer max 1 ---
+      if (Array.isArray(value.mintEscrowCoinsToTransfer) && (value.mintEscrowCoinsToTransfer as unknown[]).length > 1) {
+        issues.push({
+          severity: 'error',
+          message: 'mintEscrowCoinsToTransfer supports at most 1 coin entry.',
+          path: `${msgPath}.value.mintEscrowCoinsToTransfer`
+        });
+      }
+
       // --- Specific validation rules ---
 
       // Check creator
@@ -805,6 +905,18 @@ export function handleValidateTransaction(input: ValidateTransactionInput): Vali
       if (Array.isArray(value.collectionApprovals)) {
         const standards = Array.isArray(value.standards) ? value.standards as string[] : undefined;
         validateApprovals(value.collectionApprovals, `${msgPath}.value.collectionApprovals`, issues, standards);
+        validateApprovalCriteria(value.collectionApprovals as unknown[], `${msgPath}.value.collectionApprovals`, issues);
+      }
+
+      // Validate approval criteria in defaultBalances
+      if (value.defaultBalances && typeof value.defaultBalances === 'object') {
+        const db = value.defaultBalances as Record<string, unknown>;
+        if (Array.isArray(db.incomingApprovals)) {
+          validateApprovalCriteria(db.incomingApprovals as unknown[], `${msgPath}.value.defaultBalances.incomingApprovals`, issues);
+        }
+        if (Array.isArray(db.outgoingApprovals)) {
+          validateApprovalCriteria(db.outgoingApprovals as unknown[], `${msgPath}.value.defaultBalances.outgoingApprovals`, issues);
+        }
       }
 
       // Validate subscription-specific: validTokenIds must be exactly 1 token
@@ -845,13 +957,13 @@ export function handleValidateTransaction(input: ValidateTransactionInput): Vali
           const defaultBal = value.defaultBalances as Record<string, unknown> | undefined;
           if (!defaultBal) {
             issues.push({
-              severity: 'warning',
+              severity: 'error',
               message: 'Collection has mint approvals but no defaultBalances. Recipients will not be able to receive tokens. Add defaultBalances with autoApproveAllIncomingTransfers: true.',
               path: `${msgPath}.value.defaultBalances`
             });
           } else if (!defaultBal.autoApproveAllIncomingTransfers) {
             issues.push({
-              severity: 'warning',
+              severity: 'error',
               message: 'defaultBalances.autoApproveAllIncomingTransfers is not true. Recipients will not be able to receive minted tokens.',
               path: `${msgPath}.value.defaultBalances.autoApproveAllIncomingTransfers`
             });
