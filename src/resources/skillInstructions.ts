@@ -2245,16 +2245,15 @@ Lock approvals and token IDs:
     id: 'quest',
     name: 'Quest',
     category: 'token-type',
-    description: 'Quest/reward collection with merkle-gated claims and coin payouts per completion',
+    description: 'Quest/reward collection — users complete criteria and claim a badge + coin payout',
     summary: `Required standards: ["Quests"]
 
 - Single token only: validTokenIds = [{start: "1", end: "1"}]
-- Single merkle challenge with maxUsesPerLeaf: 1 (one claim per user)
+- Quest approval MUST be properly gated — typically via an off-chain claim (merkle challenge with claimConfig), but can also use on-chain criteria (mustOwnTokens, dynamicStoreChallenges, evmQueryChallenges, votingChallenges)
 - Coin transfers with overrideFromWithApproverAddress: true + overrideToWithInitiator: true
 - predeterminedBalances: amount 1, no increments, no recurring, no duration
-- Escrow funded upfront via mintEscrowCoinsToTransfer (rewardAmount * maxClaims)
+- Escrow funded upfront via set_mint_escrow_coins (rewardAmount * maxClaims)
 - invariants.noCustomOwnershipTimes: true
-- Claims (codes, passwords, whitelist) are configured as part of the merkle challenge in the quest approval
 - Permissions: use "locked-approvals" preset (recommended)
 - Default balances: empty balances, all auto-approve flags true`,
     instructions: `## Quest Configuration
@@ -2262,6 +2261,13 @@ Lock approvals and token IDs:
 ### Mental Model
 
 A quest collection rewards users for completing criteria. Users receive a quest badge (token 1) + coin payout.
+
+The quest approval MUST be properly gated so that only eligible users can claim. Gating options:
+- **Off-chain claim (most common)**: A merkle challenge with claimConfig containing plugins (password, codes, whitelist, etc.). The claim is verified off-chain by BitBadges, and a merkle proof is issued for on-chain redemption.
+- **On-chain criteria**: mustOwnTokens (require holding specific tokens/badges), dynamicStoreChallenges, evmQueryChallenges, votingChallenges — these are checked directly on-chain during the transfer.
+- **Both**: Combine off-chain claims with on-chain criteria for layered verification.
+
+Choose the gating approach based on the user's request. If they mention passwords, codes, or whitelists, use an off-chain claim. If they mention token ownership or on-chain conditions, use the corresponding on-chain criteria.
 
 ### Build Steps (call ALL in parallel in one round)
 
@@ -2314,11 +2320,18 @@ Use approvalId \`"quest-approval"\`. The EXACT approvalCriteria structure:
       "overrideFromWithApproverAddress": true,
       "overrideToWithInitiator": true,
       "coins": [{ "amount": "<rewardAmount>", "denom": "<rewardDenom>" }]
-    }],
-    "merkleChallenges": [{ "root": "", "expectedProofLength": "0", "maxUsesPerLeaf": "1", "uri": "", "customData": "", "useCreatorAddressAsLeaf": false, "claimConfig": { ... } }]
+    }]
   }
 }
 \`\`\`
+
+**Gating** — add ONE OR MORE of these to approvalCriteria based on the user's request:
+- **Off-chain claim**: \`"merkleChallenges": [{ "root": "", "expectedProofLength": "0", "maxUsesPerLeaf": "1", "uri": "", "customData": "", "useCreatorAddressAsLeaf": false, "claimConfig": { "approach": "in-site", "label": "...", "plugins": [...] } }]\`
+- **Token ownership**: \`"mustOwnTokens": [{ "collectionId": "...", "amountRange": {"start":"1","end":"18446744073709551615"}, ... }]\`
+- **Dynamic store**: \`"dynamicStoreChallenges": [...]\`
+- **EVM query**: \`"evmQueryChallenges": [...]\`
+
+Off-chain claims are the most common for quests (passwords, codes, whitelists). On-chain criteria can be combined with or used instead of claims.
 
 ### Escrow Funding (REQUIRED)
 
