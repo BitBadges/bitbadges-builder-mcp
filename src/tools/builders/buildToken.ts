@@ -896,8 +896,8 @@ export function handleBuildToken(rawInput: BuildTokenRawInput): BuildTokenResult
     if (isNFT) standards.push('NFTs');
     if (isSwappable) standards.push('Liquidity Pools');
     if (isTradable) {
-      standards.push('Tradable');
-      standards.push(`DefaultDisplayCurrency:${input.trading?.currency || 'ubadge'}`);
+      standards.push('NFTMarketplace');
+      standards.push(`NFTPricingDenom:${input.trading?.currency || 'ubadge'}`);
     }
 
     // Alias paths
