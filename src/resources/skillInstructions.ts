@@ -31,8 +31,8 @@ export const SKILL_INSTRUCTIONS: SkillInstruction[] = [
   2. Transferable approval (OPTIONAL — include for wrapped assets, omit for vaults/escrows): fromListId = "!Mint", toListId = "All"
   3. Unbacking approval (REQUIRED): toListId = backing address, allowBackedMinting: true, mustPrioritize: true
 - DO NOT use fromListId: "Mint" — tokens are created via IBC backing, not traditional minting
-- Backing approval (FROM backing address): USE overridesFromOutgoingApprovals: true (backing address is protocol-controlled, has no user-level outgoing approvals)
-- Unbacking approval (TO backing address): DO NOT use overridesFromOutgoingApprovals: true (sender is a regular user)
+- Backing addresses are protocol-controlled with auto-set approvals — overridesFromOutgoingApprovals is irrelevant for backing/unbacking (leave unset or false)
+- noForcefulPostMintTransfers invariant should be TRUE — smart tokens do NOT need forceful transfer overrides
 - Unbacking fromListId uses "!Mint:backingAddress" syntax (excludes both Mint and backing address — meaning only regular holders can unback)
 - Backing address is deterministic — use generate_backing_address tool
 - Optional: Add "AI Agent Vault" to standards for AI Prompt tab (display-only)
@@ -101,14 +101,12 @@ This approval allows tokens to be sent FROM the IBC backing address (backing the
   "transferTimes": [{ "start": "1", "end": "18446744073709551615" }],
   "ownershipTimes": [{ "start": "1", "end": "18446744073709551615" }],
   "approvalCriteria": {
-    "overridesFromOutgoingApprovals": true,
-    "overridesToIncomingApprovals": false,
     "mustPrioritize": true,
     "allowBackedMinting": true
   }
 }
 \`\`\`
-Note: \`overridesFromOutgoingApprovals: true\` is required here because the backing address is protocol-controlled and has no user-level outgoing approvals.
+Note: Backing addresses are protocol-controlled with auto-set approvals. overridesFromOutgoingApprovals is irrelevant and can be omitted.
 
 #### 2. Transferable Approval (OPTIONAL — for peer-to-peer transfers)
 This approval allows tokens to be transferred between users (non-backing addresses). Include for wrapped assets where holders need to trade/transfer. Omit for simple deposit/withdraw vaults or escrows where tokens should not move between users.
@@ -139,8 +137,6 @@ The \`!Mint:bb1backingaddress...\` fromListId uses colon-separated exclude synta
   "transferTimes": [{ "start": "1", "end": "18446744073709551615" }],
   "ownershipTimes": [{ "start": "1", "end": "18446744073709551615" }],
   "approvalCriteria": {
-    "overridesFromOutgoingApprovals": false,
-    "overridesToIncomingApprovals": false,
     "mustPrioritize": true,
     "allowBackedMinting": true
   }

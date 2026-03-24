@@ -696,12 +696,12 @@ function validate(message: Record<string, unknown>, resolvedMinting: ResolvedMin
     if (id === 'smart-token-backing') {
       if (!criteria.mustPrioritize) warnings.push(`CRITICAL: ${id} missing mustPrioritize:true`);
       if (!criteria.allowBackedMinting) warnings.push(`CRITICAL: ${id} missing allowBackedMinting:true`);
-      if (!criteria.overridesFromOutgoingApprovals) warnings.push(`CRITICAL: ${id} must have overridesFromOutgoingApprovals:true (backing address is protocol-controlled)`);
+      // Backing addresses are protocol-controlled — overridesFromOutgoingApprovals is irrelevant
     }
     if (id === 'smart-token-unbacking') {
       if (!criteria.mustPrioritize) warnings.push(`CRITICAL: ${id} missing mustPrioritize:true`);
       if (!criteria.allowBackedMinting) warnings.push(`CRITICAL: ${id} missing allowBackedMinting:true`);
-      if (criteria.overridesFromOutgoingApprovals) warnings.push(`CRITICAL: ${id} must NOT have overridesFromOutgoingApprovals (sender is a regular user)`);
+      // Backing addresses are protocol-controlled — overridesFromOutgoingApprovals is irrelevant
     }
   }
 

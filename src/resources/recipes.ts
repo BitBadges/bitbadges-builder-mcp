@@ -138,14 +138,13 @@ const hasToken = balance.balances.some(b =>
 //
 // 2. Two approvals required (backing + unbacking). Transferable is common but optional:
 //    - Backing (deposit): fromListId: "bb1backingaddr...", toListId: "!bb1backingaddr..."
-//      → mustPrioritize: true, allowBackedMinting: true, overridesFromOutgoingApprovals: true (recommended)
+//      → mustPrioritize: true, allowBackedMinting: true
 //    - Transferable (peer-to-peer) (OPTIONAL): fromListId: "!Mint:bb1backingaddr...", toListId: "!Mint:bb1backingaddr..."
-//      → overridesFromOutgoingApprovals: false
 //    - Unbacking (withdraw): fromListId: "!Mint:bb1backingaddr...", toListId: "bb1backingaddr..."
-//      → mustPrioritize: true, allowBackedMinting: true, overridesFromOutgoingApprovals: false
+//      → mustPrioritize: true, allowBackedMinting: true
 //
-// 3. Backing: overridesFromOutgoingApprovals: true is RECOMMENDED (backing addresses auto-set their approvals).
-//    Unbacking: overridesFromOutgoingApprovals: false (sender is a regular user)
+// 3. Backing addresses are protocol-controlled — overridesFromOutgoingApprovals is irrelevant (leave unset or false).
+//    noForcefulPostMintTransfers should be TRUE — smart tokens do NOT need forceful transfer overrides.
 // 4. Smart tokens mint from backing address, NOT from "Mint"
 // 5. invariants.cosmosCoinBackedPath must be set with the IBC denom conversion
 // 6. Need an alias path for liquidity pool / display integration
