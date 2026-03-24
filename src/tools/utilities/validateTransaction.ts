@@ -596,7 +596,59 @@ function validateApprovalCriteria(approvals: unknown[], path: string, issues: Va
         }
       }
     }
+
+    // 4a: predeterminedBalances + approvalAmounts — unusual combination warning
+    const predet = criteria.predeterminedBalances as Record<string, any> | undefined;
+    const amounts = criteria.approvalAmounts as Record<string, any> | undefined;
+    if (predet && amounts) {
+      const hasPredet = (Array.isArray(predet.incrementedBalances?.startBalances) && predet.incrementedBalances.startBalances.length > 0) ||
+        (Array.isArray(predet.manualBalances) && predet.manualBalances.length > 0);
+      const hasAmounts = ['overallApprovalAmount', 'perToAddressApprovalAmount', 'perFromAddressApprovalAmount', 'perInitiatedByAddressApprovalAmount']
+        .some(k => amounts[k] && String(amounts[k]) !== '0');
+      if (hasPredet && hasAmounts) {
+        issues.push({
+          severity: 'warning',
+          message: `Approval has both predeterminedBalances and approvalAmounts set. This is unusual — predeterminedBalances already constrains exact transfer amounts, making approvalAmounts redundant. Verify this is intentional.`,
+          path: `${approvalPath}.approvalCriteria`
+        });
+      }
+    }
+
+    // 4c: durationFromTimestamp + recurringOwnershipTimes — precedence warning
+    const incBalances = predet?.incrementedBalances as Record<string, any> | undefined;
+    if (incBalances) {
+      const hasDuration = incBalances.durationFromTimestamp && String(incBalances.durationFromTimestamp) !== '0';
+      const recTimes = incBalances.recurringOwnershipTimes as Record<string, any> | undefined;
+      const hasRecurring = recTimes && (
+        (recTimes.startTime && String(recTimes.startTime) !== '0') ||
+        (recTimes.intervalLength && String(recTimes.intervalLength) !== '0') ||
+        (recTimes.chargePeriodLength && String(recTimes.chargePeriodLength) !== '0')
+      );
+      if (hasDuration && hasRecurring) {
+        issues.push({
+          severity: 'warning',
+          message: `Approval has both durationFromTimestamp and recurringOwnershipTimes set. Only recurringOwnershipTimes will take effect (it takes precedence). Remove durationFromTimestamp to avoid confusion.`,
+          path: `${approvalPath}.approvalCriteria.predeterminedBalances.incrementedBalances`
+        });
+      }
+    }
   });
+
+  // 4b: Duplicate approvalId detection (across all approvals)
+  const allIds = (approvals as any[]).map((a: any) => a?.approvalId).filter(Boolean);
+  const seenIds = new Set<string>();
+  const dupeIds = new Set<string>();
+  for (const id of allIds) {
+    if (seenIds.has(id)) dupeIds.add(id);
+    seenIds.add(id);
+  }
+  if (dupeIds.size > 0) {
+    issues.push({
+      severity: 'error',
+      message: `Duplicate approval IDs found: ${[...dupeIds].join(', ')}. Each approval must have a unique ID.`,
+      path
+    });
+  }
 }
 
 /**

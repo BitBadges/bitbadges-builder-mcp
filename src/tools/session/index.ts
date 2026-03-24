@@ -7,6 +7,7 @@ export * from './setManager.js';
 export * from './setCollectionMetadata.js';
 export * from './setTokenMetadata.js';
 export * from './setCustomData.js';
+export * from './setIsArchived.js';
 export * from './setMintEscrowCoins.js';
 export * from './addApproval.js';
 export * from './removeApproval.js';

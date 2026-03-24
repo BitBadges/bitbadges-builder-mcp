@@ -57,6 +57,21 @@ export const addAliasPathTool = {
 };
 
 export function handleAddAliasPath(input: AddAliasPathInput) {
+  // Validate denom and symbol characters
+  const VALID_CHARS = /^[a-zA-Z_{}-]+$/;
+  const denom = input.aliasPath.denom;
+  const symbol = input.aliasPath.symbol;
+
+  if (denom.startsWith('ibc/')) {
+    return { success: false, error: `Denom "${denom}" is a raw IBC denom. Use a short symbol like "wuusdc" or "uvault" instead.` };
+  }
+  if (!VALID_CHARS.test(denom)) {
+    return { success: false, error: `Denom "${denom}" contains invalid characters. Only a-zA-Z, _, {, }, - are allowed.` };
+  }
+  if (symbol && !VALID_CHARS.test(symbol)) {
+    return { success: false, error: `Symbol "${symbol}" contains invalid characters. Only a-zA-Z, _, {, }, - are allowed.` };
+  }
+
   getOrCreateSession(input.sessionId, input.creatorAddress);
   addAliasPathToSession(input.sessionId, input.aliasPath);
   return { success: true, denom: input.aliasPath.denom };

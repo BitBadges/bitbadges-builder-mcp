@@ -23,8 +23,31 @@ export const setStandardsTool = {
   }
 };
 
+const KNOWN_STANDARDS = new Set([
+  'Subscriptions', 'Quests', 'Products', 'IBC Token Factory', 'Smart Token',
+  'Credit Token', 'Custom-2FA', 'Address List', 'Fungible Tokens', 'NFTs',
+  'NFTMarketplace', 'Tradable', 'Liquidity Pools', 'Non-Transferable',
+  'No User Ownership', 'AI Agent Vault', 'AI Agent Stablecoin',
+  'Leaderboard', 'Milestones', 'Invoices', '1 of 1', 'Issuer-Controlled Tokens'
+]);
+
 export function handleSetStandards(input: SetStandardsInput) {
   getOrCreateSession(input.sessionId, input.creatorAddress);
+
+  // Warn about unknown standards (non-blocking — custom standards are allowed)
+  const warnings: string[] = [];
+  for (const std of input.standards) {
+    // Skip dynamic standards like ListView:*, NFTPricingDenom:*, DefaultDisplayCurrency:*
+    if (std.includes(':')) continue;
+    if (!KNOWN_STANDARDS.has(std)) {
+      warnings.push(`"${std}" is not a recognized standard. Check for typos.`);
+    }
+  }
+
   setStandardsInSession(input.sessionId, input.standards);
-  return { success: true, standards: input.standards };
+  return {
+    success: true,
+    standards: input.standards,
+    ...(warnings.length > 0 ? { warnings } : {})
+  };
 }

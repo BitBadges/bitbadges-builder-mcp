@@ -32,6 +32,8 @@ export interface SessionTransaction {
     value: Record<string, any>;
   }>;
   metadataPlaceholders: Record<string, { name: string; description: string; image: string }>;
+  /** Approval IDs that existed when the session was initialized (for update flows) */
+  originalApprovalIds?: Set<string>;
 }
 
 // Per-session state keyed by sessionId
@@ -186,6 +188,12 @@ export function setCustomData(sessionId: string | undefined, customData: string)
   const value = getCollectionValue(sessionId);
   value.customData = customData;
   value.updateCustomData = true;
+}
+
+export function setIsArchived(sessionId: string | undefined, isArchived: boolean): void {
+  const value = getCollectionValue(sessionId);
+  value.isArchived = isArchived;
+  value.updateIsArchived = true;
 }
 
 export function setMintEscrowCoins(sessionId: string | undefined, coins: Array<{ denom: string; amount: string }>): void {

@@ -175,6 +175,36 @@ export const ERROR_PATTERNS: ErrorPattern[] = [
     triggers: ['wrong precompile', 'invalid address', 'not a precompile', 'call to non-contract'],
     explanation: 'Calling the wrong precompile address or a non-precompile address. Tokenization is 0x1001, GAMM is 0x1002, SendManager is 0x1003, Staking is 0x0800, Distribution is 0x0801.',
     fix: 'Use the correct precompile addresses: Tokenization (0x0000...1001), GAMM (0x0000...1002), SendManager (0x0000...1003). Import from ITokenizationPrecompile.sol / IGammPrecompile.sol / ISendManagerPrecompile.sol.',
+  },
+
+  // Mutual exclusivity errors
+  {
+    name: 'predeterminedBalances + approvalAmounts conflict',
+    category: 'approvals',
+    triggers: ['predetermined', 'approvalAmounts', 'mutually exclusive', 'incompatible'],
+    explanation: 'An approval has both predeterminedBalances and approvalAmounts set. These are mutually exclusive — use predeterminedBalances for sequential/incremented minting (subscriptions, NFTs) or approvalAmounts for flat supply caps (fungible tokens).',
+    fix: 'Remove either predeterminedBalances or approvalAmounts from the approval. For sequential minting use predeterminedBalances only. For flat supply caps use approvalAmounts only.',
+  },
+  {
+    name: 'durationFromTimestamp + recurringOwnershipTimes conflict',
+    category: 'approvals',
+    triggers: ['durationFromTimestamp', 'recurringOwnershipTimes', 'mutually exclusive'],
+    explanation: 'An approval has both durationFromTimestamp (non-zero) and recurringOwnershipTimes (non-zero fields). These are mutually exclusive time-bounding approaches.',
+    fix: 'Set recurringOwnershipTimes to all zeros ({ startTime: "0", intervalLength: "0", chargePeriodLength: "0" }) when using durationFromTimestamp, or set durationFromTimestamp to "0" when using recurringOwnershipTimes.',
+  },
+  {
+    name: 'SDK constructor crash',
+    category: 'validation',
+    triggers: ['Cannot read properties of undefined', 'Expected array', 'is not a function', 'map', 'constructor'],
+    explanation: 'The SDK MsgUniversalUpdateCollection constructor crashed because a required nested field is missing or has the wrong type. Common culprits: missing resetTimeIntervals, missing orderCalculationMethod, arrays expected but got undefined.',
+    fix: 'Ensure all nested objects have required sub-fields. Common fixes: add resetTimeIntervals: { startTime: "0", intervalLength: "0" } to maxNumTransfers/approvalAmounts, add orderCalculationMethod with exactly one true field to predeterminedBalances.',
+  },
+  {
+    name: 'Duplicate approvalId',
+    category: 'approvals',
+    triggers: ['duplicate', 'approvalId', 'already exists', 'unique'],
+    explanation: 'Two or more approvals share the same approvalId. Each approval must have a unique ID. Use the generate_unique_id tool to create collision-free IDs for new approvals.',
+    fix: 'Call generate_unique_id with a descriptive prefix for each new approval. For existing approvals being updated, preserve the original ID.',
   }
 ];
 

@@ -26,6 +26,8 @@ export function getApiKey(): string | undefined {
  * Get the base API URL
  */
 export function getApiUrl(testnet: boolean = false): string {
+  const envUrl = process.env.BITBADGES_API_URL;
+  if (envUrl) return envUrl;
   const base = 'https://api.bitbadges.io';
   return testnet ? `${base}/testnet` : base;
 }

@@ -163,10 +163,17 @@ Add "AI Agent Vault" to the standards array to enable an AI Prompt tab in the fr
 "standards": ["Smart Token", "AI Agent Vault"]
 \`\`\`
 
+### Optional: DEX Tradability (Liquidity Pools)
+
+Most smart tokens are NOT tradable on DEX — only add this if the user explicitly requests trading/DEX functionality:
+- Add "Liquidity Pools" to standards
+- Set invariants.disablePoolCreation to **false** (override the safe default)
+- MUST have at least one alias path configured
+- MUST have a transferable approval (peer-to-peer transfers required for trading)
+
 ### IBC Backed Minting Rules
 
-- **Backing approval** (FROM backing address → All): **USE overridesFromOutgoingApprovals: true** — the backing address is protocol-controlled and has no user-level outgoing approvals
-- **Unbacking approval** (FROM users → TO backing address): **DO NOT use overridesFromOutgoingApprovals: true** — the sender is a regular user whose outgoing approvals should be checked
+- **Backing/unbacking approvals**: Backing addresses are protocol-controlled with auto-set approvals — overridesFromOutgoingApprovals is **irrelevant** (leave unset or false). noForcefulPostMintTransfers should be TRUE.
 - **Unbacking fromListId**: Use \`!Mint:backingAddress\` syntax — colon-separated addresses with \`!\` prefix means "everyone except Mint and backing address" (only regular holders can unback)
 - **Use allowBackedMinting: true** for IBC backed operations
 - **Use mustPrioritize: true** (required, not compatible with auto-scan)
@@ -828,10 +835,14 @@ When creating a subscription collection, you MUST follow these EXACT requirement
 1. **Standards**: MUST include "Subscriptions"
    - "standards": ["Subscriptions"]
 
-2. **validTokenIds**: MUST be exactly one token ID
+2. **Invariants**: MUST set noCustomOwnershipTimes to FALSE
+   - Subscriptions use time-dependent ownership — this invariant MUST be false or subscriptions cannot function.
+   - "invariants": { "noCustomOwnershipTimes": false, ... }
+
+3. **validTokenIds**: MUST be exactly one token ID (per tier)
    - "validTokenIds": [{ "start": "1", "end": "1" }]
 
-3. **Subscription Faucet Approval Requirements**:
+4. **Subscription Faucet Approval Requirements**:
    - fromListId: MUST be "Mint"
    - tokenIds: MUST be exactly 1 token: [{ "start": "1", "end": "1" }]
    - coinTransfers: MUST have at least 1 entry, NO override flags (both false)
@@ -921,12 +932,14 @@ When creating a subscription collection, you MUST follow these EXACT requirement
     description: 'Lock collection permissions to make properties permanently immutable or permanently permitted',
     summary: `Controls whether collection properties can be changed after creation.
 
+- Two states: FROZEN (permanentlyForbiddenTimes: FOREVER) or NEUTRAL (empty [])
+- NEUTRAL [] = manager can update now AND can freeze it later. Use this for editable fields.
+- FROZEN = permanent and irreversible. Use for fields that should never change.
+- AVOID permanentlyPermittedTimes — it permanently prevents locking. Almost never needed.
 - canUpdateCollectionApprovals: controls transfer rule mutability
   - SECURITY: If manager can update Mint approvals, they can mint unlimited tokens
-  - Default to frozen (permanentlyForbiddenTimes: full range) unless user requests updatable
-- List IDs in permissions: ONLY use reserved IDs ("All", "Mint", "!Mint", direct "bb1..." addresses, "!bb1..." negation, colon-separated "bb1abc:bb1xyz") — NO custom list IDs
-- approvalId: "All" restricts all approvals, or use a specific approvalId string
-- Empty permission arrays: if both permanentlyPermittedTimes and permanentlyForbiddenTimes are [], the entry is redundant — replace with empty array []
+  - Default to frozen unless user requests updatable
+- List IDs in permissions: ONLY use reserved IDs ("All", "Mint", "!Mint", direct "bb1..." addresses)
 - permanentlyForbiddenTimes: [{ "start": "1", "end": "18446744073709551615" }] = frozen forever`,
     instructions: `## Transferability & Update Rules Configuration
 
@@ -1047,8 +1060,8 @@ Three common permission configurations:
 - Use when: the collection should never change
 
 **2. Manager Controlled** — Manager can change everything except delete.
-- canDeleteCollection: frozen (always)
-- Everything else: permanentlyPermittedTimes: FOREVER
+- canDeleteCollection: frozen
+- Everything else: NEUTRAL [] (editable now, can be frozen later)
 - Use when: the manager needs full control (issuer-controlled tokens, evolving collections)
 
 **3. Locked Approvals (recommended default)** — Approvals and supply frozen, metadata editable.
@@ -1057,16 +1070,18 @@ Three common permission configurations:
 - canUpdateManager: frozen
 - canUpdateValidTokenIds: frozen
 - canUpdateCollectionApprovals: frozen
-- canUpdateCollectionMetadata: allowed
-- canUpdateTokenMetadata: allowed
-- canArchiveCollection: allowed
-- canUpdateCustomData: allowed
+- canUpdateCollectionMetadata: NEUTRAL []
+- canUpdateTokenMetadata: NEUTRAL []
+- canArchiveCollection: NEUTRAL []
+- canUpdateCustomData: NEUTRAL []
 - Use when: supply and rules should be immutable but metadata needs updates
 
 **Understanding permission states:**
-- Empty array [] = neutral (neither forbidden nor permitted — can be set later)
-- permanentlyForbiddenTimes: FOREVER = frozen (can never be changed)
-- permanentlyPermittedTimes: FOREVER = permanently allowed (manager can always change this field)
+- Empty array [] = NEUTRAL (manager can update now AND can lock it later — preserves maximum flexibility)
+- permanentlyForbiddenTimes: FOREVER = FROZEN (can never be changed — permanent and irreversible)
+- permanentlyPermittedTimes: FOREVER = PERMANENTLY ALLOWED (can never be frozen — almost never needed)
+
+**IMPORTANT**: For editable fields, ALWAYS use NEUTRAL (empty []) instead of permanentlyPermittedTimes. Neutral gives the same current behavior (manager can update) but preserves the option to freeze it later. Only use permanentlyPermittedTimes if the user explicitly requests a guarantee that a field can never be locked.
 
 ### Security Considerations
 
@@ -1309,7 +1324,7 @@ Add this approval to \`collectionApprovals\`:
   "approvalId": "burnable-approval",
   "uri": "",
   "customData": "",
-  "version": 0,
+  "version": "0",
   "approvalCriteria": {
     "predeterminedBalances": {
       "manualBalances": [],

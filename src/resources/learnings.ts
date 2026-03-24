@@ -142,6 +142,60 @@ const LEARNINGS: LearningEntry[] = [
     title: 'executeMultiple batches tokenization precompile calls',
     content: 'Use ITokenizationPrecompile.executeMultiple(MessageInput[]) to batch multiple tokenization operations in one EVM transaction. Each MessageInput has messageType (e.g., "transferTokens") and msgJson. Only works for tokenization precompile — cannot batch cross-precompile.',
     severity: 'tip'
+  },
+
+  // Mutual exclusivity rules
+  {
+    topic: 'approvals',
+    title: 'predeterminedBalances and approvalAmounts are mutually exclusive',
+    content: 'An approval cannot have both predeterminedBalances (sequential/incremented minting) and approvalAmounts (flat amount limits). Use one or the other. The chain rejects transactions where both are set on the same approval.',
+    severity: 'critical'
+  },
+  {
+    topic: 'approvals',
+    title: 'durationFromTimestamp and recurringOwnershipTimes are mutually exclusive',
+    content: 'If durationFromTimestamp is non-zero, recurringOwnershipTimes must be all zeros (startTime, intervalLength, chargePeriodLength all "0"), and vice versa. These are two different time-bounding approaches — the chain rejects if both are active on the same approval.',
+    severity: 'critical'
+  },
+  {
+    topic: 'approvals',
+    title: 'mintEscrowCoinsToTransfer limited to 1 entry',
+    content: 'The chain only supports a single coin entry in mintEscrowCoinsToTransfer. If you need to escrow multiple denominations, use separate transactions or a single combined denomination.',
+    severity: 'critical'
+  },
+  {
+    topic: 'approvals',
+    title: 'amountTrackerId should be unique per approval unless intentionally shared',
+    content: 'Each approval should have its own amountTrackerId (defaults to the approvalId). Sharing tracker IDs across approvals means they share counters — usually a bug unless you explicitly want shared limits across multiple approval paths.',
+    severity: 'tip'
+  },
+
+  // Permissions
+  {
+    topic: 'permissions',
+    title: 'Permissions can only get MORE restrictive, never relaxed',
+    content: 'Once a permission is set to FORBIDDEN (permanentlyForbiddenTimes), it can never be changed back. Permissions can only move from NEUTRAL → FORBIDDEN, never FORBIDDEN → NEUTRAL or PERMITTED. Plan permission lockdown carefully — there is no undo.',
+    severity: 'critical'
+  },
+
+  // Post-creation transfers
+  {
+    topic: 'claims',
+    title: 'Pass _expectedVersion when completing claims via API',
+    content: 'When auto-completing claims via the BitBadges API, pass _expectedVersion to prevent race conditions. If the claim has been updated since you last read it, the call fails. Pass -1 to skip version checking (not recommended for production).',
+    severity: 'tip'
+  },
+  {
+    topic: 'approvals',
+    title: 'altTimeChecks for business-hours restrictions',
+    content: 'The altTimeChecks field on approval criteria allows denying transfers during specific UTC hours (offlineHours: 0-23) or days of week (offlineDays: 0=Sunday to 6=Saturday). Works in addition to transferTimes. Useful for compliance/RWA tokens that should only trade during business hours.',
+    severity: 'tip'
+  },
+  {
+    topic: 'transfers',
+    title: 'collectionId "0" in MsgTransferTokens auto-lookups latest collection',
+    content: 'When building post-creation transfer messages (e.g., auto-mint after collection creation), use collectionId "0" in MsgTransferTokens. The chain auto-resolves it to the latest collection ID created in the same transaction. This is required because the real collection ID is not known until the transaction is processed.',
+    severity: 'tip'
   }
 ];
 

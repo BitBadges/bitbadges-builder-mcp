@@ -44,6 +44,12 @@ export function handleSetMintEscrowCoins(input: SetMintEscrowCoinsInput) {
   if (typeof coins === 'string') {
     try { coins = JSON.parse(coins); } catch { return { success: false, error: 'coins must be an array of {denom, amount} objects' }; }
   }
+
+  // Chain only supports 1 escrow coin entry
+  if (Array.isArray(coins) && coins.length > 1) {
+    return { success: false, error: 'mintEscrowCoinsToTransfer supports at most 1 coin entry. Combine into a single denomination or use separate transactions.' };
+  }
+
   setMintEscrowCoinsInSession(input.sessionId, coins);
   return { success: true, coins };
 }

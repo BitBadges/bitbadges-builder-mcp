@@ -16,3 +16,4 @@ export * from './fetchDocs.js';
 // Knowledge base
 export * from './searchKnowledgeBase.js';
 export * from './diagnoseError.js';
+export * from './generateUniqueId.js';

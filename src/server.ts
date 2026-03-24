@@ -93,7 +93,11 @@ import {
   removeCosmosWrapperPathTool, handleRemoveCosmosWrapperPath,
   addTransferTool, handleAddTransfer,
   removeTransferTool, handleRemoveTransfer,
-  getTransactionTool, handleGetTransaction
+  getTransactionTool, handleGetTransaction,
+  // New tools
+  setIsArchivedTool, handleSetIsArchived,
+  generateUniqueIdTool, handleGenerateUniqueId,
+  generateWrapperAddressTool, handleGenerateWrapperAddress
 } from './tools/index.js';
 
 // Import resources
@@ -246,7 +250,10 @@ export function createServer(): Server {
         removeCosmosWrapperPathTool,
         addTransferTool,
         removeTransferTool,
-        getTransactionTool
+        getTransactionTool,
+        setIsArchivedTool,
+        generateUniqueIdTool,
+        generateWrapperAddressTool
       ]
     };
   });
@@ -564,6 +571,18 @@ export function createServer(): Server {
         }
         case 'get_transaction': {
           const result = handleGetTransaction(args as any);
+          return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+        }
+        case 'set_is_archived': {
+          const result = handleSetIsArchived(args as any);
+          return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+        }
+        case 'generate_unique_id': {
+          const result = handleGenerateUniqueId(args as any);
+          return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+        }
+        case 'generate_wrapper_address': {
+          const result = handleGenerateWrapperAddress(args as any);
           return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
         }
 

@@ -27,6 +27,22 @@ export const setValidTokenIdsTool = {
 };
 
 export function handleSetValidTokenIds(input: SetValidTokenIdsInput) {
+  // Validate ranges: start must be <= end
+  const MAX_UINT64 = BigInt('18446744073709551615');
+  for (const range of input.tokenIds) {
+    try {
+      const start = BigInt(range.start);
+      const end = BigInt(range.end);
+      if (start < 0n) return { success: false, error: `Invalid range: start (${range.start}) is negative. Token IDs must be positive.` };
+      if (end < 0n) return { success: false, error: `Invalid range: end (${range.end}) is negative. Token IDs must be positive.` };
+      if (start > MAX_UINT64) return { success: false, error: `Invalid range: start (${range.start}) exceeds max uint64.` };
+      if (end > MAX_UINT64) return { success: false, error: `Invalid range: end (${range.end}) exceeds max uint64.` };
+      if (start > end) return { success: false, error: `Invalid range: start (${range.start}) > end (${range.end}). Start must be <= end.` };
+    } catch {
+      return { success: false, error: `Invalid range values: start="${range.start}", end="${range.end}". Must be numeric strings.` };
+    }
+  }
+
   getOrCreateSession(input.sessionId, input.creatorAddress);
   setValidTokenIdsInSession(input.sessionId, input.tokenIds);
   return { success: true, tokenIds: input.tokenIds };

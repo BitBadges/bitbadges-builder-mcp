@@ -381,13 +381,15 @@ function verifyFungibleToken(value: any): StandardViolation[] {
 function verifyNFTCollection(value: any): StandardViolation[] {
   const violations: StandardViolation[] = [];
   const std = 'NFT Collection';
+  const invariants = getInvariants(value);
 
-  // Should have validTokenIds with a range > 1 token
-  if (isSingleToken(value.validTokenIds)) {
+  // maxSupplyPerId should be "1" for true NFTs
+  if (!invariants.maxSupplyPerId || String(invariants.maxSupplyPerId) !== '1') {
     violations.push({
       standard: std,
-      field: 'validTokenIds',
-      message: 'NFT collections typically have multiple token IDs (e.g., [{ start: "1", end: "100" }]). Single-token collections are usually fungible tokens or subscriptions, not NFTs.'
+      field: 'invariants.maxSupplyPerId',
+      message: 'NFT collections should have maxSupplyPerId: "1" to ensure each token ID is unique (true NFT). Current value: "' + (invariants.maxSupplyPerId || '0') + '".',
+      fix: 'Set invariants.maxSupplyPerId to "1".'
     });
   }
 
@@ -469,6 +471,7 @@ function verifyCustom2FA(value: any): StandardViolation[] {
   const violations: StandardViolation[] = [];
   const std = 'Custom-2FA';
   const approvals = getApprovals(value);
+  const invariants = getInvariants(value);
 
   // Must have at least one approval with autoDeletionOptions.allowPurgeIfExpired
   const has2FAApproval = approvals.some((a: any) =>
@@ -481,6 +484,16 @@ function verifyCustom2FA(value: any): StandardViolation[] {
       standard: std,
       field: 'collectionApprovals.approvalCriteria.autoDeletionOptions',
       message: 'Custom-2FA collections MUST have at least one approval with autoDeletionOptions.allowPurgeIfExpired: true so expired 2FA tokens can be cleaned up.'
+    });
+  }
+
+  // Pool creation should be disabled for 2FA tokens
+  if (invariants.disablePoolCreation !== true && invariants.disablePoolCreation !== 'true') {
+    violations.push({
+      standard: std,
+      field: 'invariants.disablePoolCreation',
+      message: 'Custom-2FA collections should have disablePoolCreation: true. 2FA tokens should not be tradable on DEX.',
+      fix: 'Set invariants.disablePoolCreation to true.'
     });
   }
 
@@ -510,6 +523,92 @@ function verifyLiquidityPools(value: any): StandardViolation[] {
       standard: std,
       field: 'aliasPathsToAdd',
       message: 'Liquidity pool collections MUST have at least one alias path configured for DEX trading.'
+    });
+  }
+
+  return violations;
+}
+
+function verifyCreditToken(value: any): StandardViolation[] {
+  const violations: StandardViolation[] = [];
+  const std = 'Credit Token';
+
+  // Must be single token ID
+  if (!isSingleToken(value.validTokenIds)) {
+    violations.push({
+      standard: std,
+      field: 'validTokenIds',
+      message: 'Credit token collections MUST have validTokenIds = [{ start: "1", end: "1" }].',
+      fix: 'Set validTokenIds to [{ "start": "1", "end": "1" }].'
+    });
+  }
+
+  // Should not have non-mint, non-wrapping transfer approvals (non-transferable)
+  const approvals = getApprovals(value);
+  const peerTransfers = approvals.filter((a: any) =>
+    a.fromListId !== 'Mint' &&
+    !a.approvalCriteria?.allowSpecialWrapping &&
+    !a.approvalCriteria?.allowBackedMinting
+  );
+  if (peerTransfers.length > 0) {
+    violations.push({
+      standard: std,
+      field: 'collectionApprovals',
+      message: 'Credit tokens are typically non-transferable (increment-only). Found peer-to-peer transfer approvals. Remove them if credits should not be tradable between users.'
+    });
+  }
+
+  return violations;
+}
+
+function verifyQuest(value: any): StandardViolation[] {
+  const violations: StandardViolation[] = [];
+  const std = 'Quest';
+  const mintApprovals = getMintApprovals(value);
+
+  // Should have at least one mint approval with coinTransfers (reward payout)
+  const hasRewardApproval = mintApprovals.some((a: any) =>
+    a.approvalCriteria?.coinTransfers && a.approvalCriteria.coinTransfers.length > 0
+  );
+
+  // Check escrow vs payout — warning only (user can fund later)
+  if (hasRewardApproval) {
+    const escrowCoins = value.mintEscrowCoinsToTransfer || [];
+    if (escrowCoins.length === 0) {
+      violations.push({
+        standard: std,
+        field: 'mintEscrowCoinsToTransfer',
+        message: 'Quest has reward payouts but no escrow funding configured. Users will not be able to claim rewards until the escrow is funded. You can fund it later by sending coins to the mint escrow address.'
+      });
+    }
+  }
+
+  return violations;
+}
+
+function verifyTradableNFT(value: any): StandardViolation[] {
+  const violations: StandardViolation[] = [];
+  const std = 'Tradable NFT';
+  const standards = getStandards(value);
+
+  // Must have NFTs standard
+  if (!standards.includes('NFTs')) {
+    violations.push({
+      standard: std,
+      field: 'standards',
+      message: 'Tradable NFT collections MUST include the "NFTs" standard alongside "NFTMarketplace".',
+      fix: 'Add "NFTs" to the standards array.'
+    });
+  }
+
+  // Must have NFTPricingDenom:* standard
+  const hasPricingDenom = standards.some(s => s.startsWith('NFTPricingDenom:'));
+  if (!hasPricingDenom) {
+    violations.push({
+      standard: std,
+      field: 'standards',
+      message: 'Tradable NFT collections MUST include an "NFTPricingDenom:{denom}" standard to set the pricing currency for the orderbook.',
+      fix: 'Add "NFTPricingDenom:ubadge" (or desired denom) to the standards array.'
     });
   }
 
@@ -618,6 +717,10 @@ const STANDARD_VALIDATORS: Record<string, (value: any) => StandardViolation[]> =
   'Address List': verifyAddressList,
   'Custom-2FA': verifyCustom2FA,
   'Liquidity Pools': verifyLiquidityPools,
+  'Credit Token': verifyCreditToken,
+  'Quests': verifyQuest,
+  'NFTMarketplace': verifyTradableNFT,
+  'Non-Transferable': verifyNonTransferable,
 };
 
 // Also match common alternative names
@@ -634,7 +737,12 @@ const STANDARD_ALIASES: Record<string, string> = {
   'Address List': 'Address List',
   'Custom-2FA': 'Custom-2FA',
   'Liquidity Pools': 'Liquidity Pools',
-  'Credit Token': 'Fungible Tokens', // Credit tokens are fungible
+  'Credit Token': 'Credit Token',
+  'Quests': 'Quests',
+  'Quest': 'Quests',
+  'NFTMarketplace': 'NFTMarketplace',
+  'Tradable': 'NFTMarketplace',
+  'Non-Transferable': 'Non-Transferable',
 };
 
 // ============================================================

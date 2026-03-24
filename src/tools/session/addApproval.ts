@@ -244,6 +244,35 @@ export function handleAddApproval(input: AddApprovalInput) {
     const existingApprovals: any[] = session.messages[0].value.collectionApprovals || [];
     const existingApproval = existingApprovals.find((a: any) => a.approvalId === input.approvalId);
 
+    // The LLM is responsible for generating unique IDs using the generate_unique_id tool.
+    // We do not auto-suffix — the LLM knows whether this is a new or existing approval.
+    const finalApprovalId = input.approvalId;
+
+    // Validate list IDs — reject hallucinated IDs early
+    function isValidListId(id: string): boolean {
+      if (!id) return false;
+      let check = id;
+      if (check.startsWith('!')) check = check.substring(1);
+      if (check.startsWith('(') && check.endsWith(')')) check = check.substring(1, check.length - 1);
+      if (['All', 'AllWithMint', 'Mint', 'None'].includes(check)) return true;
+      if (check.startsWith('AllWithout')) {
+        const rest = check.substring('AllWithout'.length);
+        return rest.length > 0 && rest.split(':').every((a: string) => a === 'Mint' || /^bb1[a-z0-9]+$/.test(a));
+      }
+      const parts = check.split(':');
+      return parts.length > 0 && parts.every((a: string) => a === 'Mint' || /^bb1[a-z0-9]+$/.test(a));
+    }
+    const listIds = {
+      fromListId: input.fromListId,
+      toListId: input.toListId || 'All',
+      initiatedByListId: input.initiatedByListId || 'All'
+    };
+    for (const [field, id] of Object.entries(listIds)) {
+      if (!isValidListId(id)) {
+        return { success: false, error: `Invalid ${field}: "${id}". Only reserved list IDs are allowed: "All", "Mint", "!Mint", "None", "AllWithout*", bb1... addresses, or colon-separated combinations.` };
+      }
+    }
+
     const approval: Record<string, any> = {
       fromListId: input.fromListId,
       toListId: input.toListId || 'All',
@@ -253,7 +282,7 @@ export function handleAddApproval(input: AddApprovalInput) {
       ownershipTimes: input.ownershipTimes || FOREVER_TIMES,
       uri: '',
       customData: '',
-      approvalId: input.approvalId,
+      approvalId: finalApprovalId,
       approvalCriteria: input.approvalCriteria || {},
       version: '0'
     };
@@ -261,16 +290,20 @@ export function handleAddApproval(input: AddApprovalInput) {
     // Normalize approvalCriteria — fill in missing sub-fields that cause SDK crashes
     const criteria = approval.approvalCriteria as Record<string, any>;
     const DEFAULT_RESET = { startTime: '0', intervalLength: '0' };
+    // For tracker IDs: preserve existing values when replacing an approval, otherwise default to approvalId
+    const existingTransferTracker = existingApproval?.approvalCriteria?.maxNumTransfers?.amountTrackerId;
+    const existingAmountTracker = existingApproval?.approvalCriteria?.approvalAmounts?.amountTrackerId;
+
     if (criteria.maxNumTransfers) {
       criteria.maxNumTransfers.resetTimeIntervals = criteria.maxNumTransfers.resetTimeIntervals || DEFAULT_RESET;
-      criteria.maxNumTransfers.amountTrackerId = criteria.maxNumTransfers.amountTrackerId || approval.approvalId || '';
+      criteria.maxNumTransfers.amountTrackerId = criteria.maxNumTransfers.amountTrackerId || existingTransferTracker || finalApprovalId || '';
       criteria.maxNumTransfers.perToAddressMaxNumTransfers = criteria.maxNumTransfers.perToAddressMaxNumTransfers || '0';
       criteria.maxNumTransfers.perFromAddressMaxNumTransfers = criteria.maxNumTransfers.perFromAddressMaxNumTransfers || '0';
       criteria.maxNumTransfers.perInitiatedByAddressMaxNumTransfers = criteria.maxNumTransfers.perInitiatedByAddressMaxNumTransfers || '0';
     }
     if (criteria.approvalAmounts) {
       criteria.approvalAmounts.resetTimeIntervals = criteria.approvalAmounts.resetTimeIntervals || DEFAULT_RESET;
-      criteria.approvalAmounts.amountTrackerId = criteria.approvalAmounts.amountTrackerId || approval.approvalId || '';
+      criteria.approvalAmounts.amountTrackerId = criteria.approvalAmounts.amountTrackerId || existingAmountTracker || finalApprovalId || '';
       criteria.approvalAmounts.perToAddressApprovalAmount = criteria.approvalAmounts.perToAddressApprovalAmount || '0';
       criteria.approvalAmounts.perFromAddressApprovalAmount = criteria.approvalAmounts.perFromAddressApprovalAmount || '0';
       criteria.approvalAmounts.perInitiatedByAddressApprovalAmount = criteria.approvalAmounts.perInitiatedByAddressApprovalAmount || '0';
@@ -283,7 +316,8 @@ export function handleAddApproval(input: AddApprovalInput) {
         ocm.usePerFromAddressNumTransfers = ocm.usePerFromAddressNumTransfers ?? false;
         ocm.usePerInitiatedByAddressNumTransfers = ocm.usePerInitiatedByAddressNumTransfers ?? false;
         ocm.useMerkleChallengeLeafIndex = ocm.useMerkleChallengeLeafIndex ?? false;
-        ocm.challengeTrackerId = ocm.challengeTrackerId ?? '';
+        const existingChallengeTracker = existingApproval?.approvalCriteria?.predeterminedBalances?.orderCalculationMethod?.challengeTrackerId;
+        ocm.challengeTrackerId = ocm.challengeTrackerId || existingChallengeTracker || '';
       }
       if (criteria.predeterminedBalances.incrementedBalances) {
         const ib = criteria.predeterminedBalances.incrementedBalances;
@@ -318,7 +352,7 @@ export function handleAddApproval(input: AddApprovalInput) {
       return {
         success: false,
         error: warnings.join('\n'),
-        approvalId: input.approvalId
+        approvalId: finalApprovalId
       };
     }
 
@@ -330,8 +364,8 @@ export function handleAddApproval(input: AddApprovalInput) {
 
     return {
       success: true,
-      approvalId: input.approvalId,
-      message: `Approval "${input.approvalId}" added to session.`,
+      approvalId: finalApprovalId,
+      message: `Approval "${finalApprovalId}" added to session.`,
       ...(claimSecrets.length > 0 ? { claimSecrets } : {})
     };
   } catch (error: any) {

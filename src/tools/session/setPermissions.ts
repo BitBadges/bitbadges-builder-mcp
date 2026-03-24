@@ -5,11 +5,11 @@ const MAX_UINT64 = '18446744073709551615';
 const FOREVER_TIMES = [{ start: '1', end: MAX_UINT64 }];
 
 const FORBIDDEN_ACTION = [{ permanentlyPermittedTimes: [], permanentlyForbiddenTimes: FOREVER_TIMES }];
-const ALLOWED_ACTION = [{ permanentlyPermittedTimes: FOREVER_TIMES, permanentlyForbiddenTimes: [] }];
+const NEUTRAL_ACTION: any[] = []; // Neutral — manager can update now, can lock later
 const FORBIDDEN_TOKEN_IDS = [{ tokenIds: FOREVER_TIMES, permanentlyPermittedTimes: [], permanentlyForbiddenTimes: FOREVER_TIMES }];
-const ALLOWED_TOKEN_IDS = [{ tokenIds: FOREVER_TIMES, permanentlyPermittedTimes: FOREVER_TIMES, permanentlyForbiddenTimes: [] }];
+const NEUTRAL_TOKEN_IDS: any[] = []; // Neutral — manager can update now, can lock later
 const FORBIDDEN_APPROVALS = [{ fromListId: 'All', toListId: 'All', initiatedByListId: 'All', transferTimes: FOREVER_TIMES, tokenIds: FOREVER_TIMES, ownershipTimes: FOREVER_TIMES, approvalId: 'All', permanentlyPermittedTimes: [], permanentlyForbiddenTimes: FOREVER_TIMES }];
-const ALLOWED_APPROVALS = [{ fromListId: 'All', toListId: 'All', initiatedByListId: 'All', transferTimes: FOREVER_TIMES, tokenIds: FOREVER_TIMES, ownershipTimes: FOREVER_TIMES, approvalId: 'All', permanentlyPermittedTimes: FOREVER_TIMES, permanentlyForbiddenTimes: [] }];
+const NEUTRAL_APPROVALS: any[] = []; // Neutral — manager can update now, can lock later
 
 const PRESETS: Record<string, Record<string, any>> = {
   'fully-immutable': {
@@ -27,26 +27,26 @@ const PRESETS: Record<string, Record<string, any>> = {
   },
   'manager-controlled': {
     canDeleteCollection: FORBIDDEN_ACTION,
-    canArchiveCollection: ALLOWED_ACTION,
-    canUpdateStandards: ALLOWED_ACTION,
-    canUpdateCustomData: ALLOWED_ACTION,
-    canUpdateManager: ALLOWED_ACTION,
-    canUpdateCollectionMetadata: ALLOWED_ACTION,
-    canUpdateValidTokenIds: ALLOWED_TOKEN_IDS,
-    canUpdateTokenMetadata: ALLOWED_TOKEN_IDS,
-    canUpdateCollectionApprovals: ALLOWED_APPROVALS,
-    canAddMoreAliasPaths: ALLOWED_ACTION,
-    canAddMoreCosmosCoinWrapperPaths: ALLOWED_ACTION
+    canArchiveCollection: NEUTRAL_ACTION,
+    canUpdateStandards: NEUTRAL_ACTION,
+    canUpdateCustomData: NEUTRAL_ACTION,
+    canUpdateManager: NEUTRAL_ACTION,
+    canUpdateCollectionMetadata: NEUTRAL_ACTION,
+    canUpdateValidTokenIds: NEUTRAL_TOKEN_IDS,
+    canUpdateTokenMetadata: NEUTRAL_TOKEN_IDS,
+    canUpdateCollectionApprovals: NEUTRAL_APPROVALS,
+    canAddMoreAliasPaths: NEUTRAL_ACTION,
+    canAddMoreCosmosCoinWrapperPaths: NEUTRAL_ACTION
   },
   'locked-approvals': {
     canDeleteCollection: FORBIDDEN_ACTION,
-    canArchiveCollection: ALLOWED_ACTION,
+    canArchiveCollection: NEUTRAL_ACTION,
     canUpdateStandards: FORBIDDEN_ACTION,
-    canUpdateCustomData: ALLOWED_ACTION,
+    canUpdateCustomData: NEUTRAL_ACTION,
     canUpdateManager: FORBIDDEN_ACTION,
-    canUpdateCollectionMetadata: ALLOWED_ACTION,
+    canUpdateCollectionMetadata: NEUTRAL_ACTION,
     canUpdateValidTokenIds: FORBIDDEN_TOKEN_IDS,
-    canUpdateTokenMetadata: ALLOWED_TOKEN_IDS,
+    canUpdateTokenMetadata: NEUTRAL_TOKEN_IDS,
     canUpdateCollectionApprovals: FORBIDDEN_APPROVALS,
     canAddMoreAliasPaths: FORBIDDEN_ACTION,
     canAddMoreCosmosCoinWrapperPaths: FORBIDDEN_ACTION
@@ -66,7 +66,7 @@ export type SetPermissionsInput = z.infer<typeof setPermissionsSchema>;
 
 export const setPermissionsTool = {
   name: 'set_permissions',
-  description: 'Set collection permissions. Use a preset ("locked-approvals" recommended) or provide custom permissions. Permissions control what the manager can change after creation. Security: freeze canUpdateCollectionApprovals by default — if open, manager can mint unlimited tokens. canDeleteCollection is always forbidden.',
+  description: 'Set collection permissions. Use a preset ("locked-approvals" recommended) or provide custom permissions. Fields are either FROZEN (permanentlyForbiddenTimes: FOREVER) or NEUTRAL (empty []). Use NEUTRAL for editable fields — this preserves flexibility to lock them later. Avoid permanentlyPermittedTimes unless absolutely necessary. Security: freeze canUpdateCollectionApprovals by default.',
   inputSchema: {
     type: 'object' as const,
     properties: {
@@ -100,6 +100,24 @@ export function handleSetPermissions(input: SetPermissionsInput) {
   } else {
     // Default to locked-approvals
     permissions = { ...PRESETS['locked-approvals'] };
+  }
+
+  // Ensure all 11 standard permission keys are present — fill missing with neutral []
+  const REQUIRED_KEYS = [
+    'canDeleteCollection', 'canArchiveCollection', 'canUpdateStandards', 'canUpdateCustomData',
+    'canUpdateManager', 'canUpdateCollectionMetadata', 'canUpdateValidTokenIds',
+    'canUpdateTokenMetadata', 'canUpdateCollectionApprovals', 'canAddMoreAliasPaths',
+    'canAddMoreCosmosCoinWrapperPaths'
+  ];
+  for (const key of REQUIRED_KEYS) {
+    if (!(key in permissions)) permissions[key] = [];
+  }
+
+  // Validate each value is an array
+  for (const [key, val] of Object.entries(permissions)) {
+    if (!Array.isArray(val)) {
+      return { success: false, error: `Permission "${key}" must be an array, got ${typeof val}.` };
+    }
   }
 
   setPermissionsInSession(input.sessionId, permissions);
