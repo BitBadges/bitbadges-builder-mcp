@@ -41,13 +41,66 @@ export const addAliasPathTool = {
       creatorAddress: { type: 'string' },
       aliasPath: {
         type: 'object',
-        description: 'Alias path configuration.',
+        description: 'Alias path configuration for ICS20-backed tokens.',
         properties: {
-          denom: { type: 'string', description: 'Base denom symbol. Not raw IBC denom.' },
-          symbol: { type: 'string' },
-          conversion: { type: 'object' },
-          denomUnits: { type: 'array' },
-          metadata: { type: 'object' }
+          denom: { type: 'string', description: 'Base denom symbol (e.g., "uvatom", "uwusdc"). Must only contain a-zA-Z, _, {, }. NEVER use raw IBC denom (ibc/...).' },
+          symbol: { type: 'string', description: 'Same as denom for the base unit.' },
+          conversion: {
+            type: 'object',
+            description: 'Conversion between IBC coin and token.',
+            properties: {
+              sideA: {
+                type: 'object',
+                description: 'IBC coin side.',
+                properties: { amount: { type: 'string', description: 'Amount of IBC coin per conversion unit. Usually "1".' } },
+                required: ['amount']
+              },
+              sideB: {
+                type: 'array',
+                description: 'Token side. Array of Balance objects.',
+                items: {
+                  type: 'object',
+                  properties: {
+                    amount: { type: 'string', description: 'Token amount per conversion. Usually "1".' },
+                    tokenIds: { type: 'array', items: { type: 'object', properties: { start: { type: 'string' }, end: { type: 'string' } }, required: ['start', 'end'] } },
+                    ownershipTimes: { type: 'array', items: { type: 'object', properties: { start: { type: 'string' }, end: { type: 'string' } }, required: ['start', 'end'] }, description: 'Usually FOREVER: [{"start":"1","end":"18446744073709551615"}]' }
+                  },
+                  required: ['amount', 'tokenIds', 'ownershipTimes']
+                }
+              }
+            },
+            required: ['sideA', 'sideB']
+          },
+          denomUnits: {
+            type: 'array',
+            description: 'Display units with decimals > 0 ONLY. Base decimals (0) is implicit.',
+            items: {
+              type: 'object',
+              properties: {
+                decimals: { type: 'string', description: 'Decimal places as string. Must match IBC denom decimals (e.g., "6" for ATOM/USDC).' },
+                symbol: { type: 'string', description: 'Display symbol (e.g., "vATOM", "wUSDC"). Do NOT reuse reserved symbols.' },
+                isDefaultDisplay: { type: 'boolean', description: 'Whether this is the default display unit.' },
+                metadata: {
+                  type: 'object',
+                  properties: {
+                    uri: { type: 'string' },
+                    customData: { type: 'string' },
+                    image: { type: 'string', description: 'Token logo URL. REQUIRED.' }
+                  }
+                }
+              },
+              required: ['decimals', 'symbol']
+            }
+          },
+          metadata: {
+            type: 'object',
+            description: 'Path-level metadata.',
+            properties: {
+              uri: { type: 'string' },
+              customData: { type: 'string' },
+              image: { type: 'string', description: 'Token logo URL. REQUIRED for alias paths.' }
+            }
+          }
         },
         required: ['denom', 'symbol', 'conversion', 'denomUnits']
       }

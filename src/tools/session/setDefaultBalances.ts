@@ -32,13 +32,13 @@ export const setDefaultBalancesTool = {
         type: 'object',
         description: 'Default balances config. Almost always: empty arrays + all auto-approve true.',
         properties: {
-          balances: { type: 'array' },
-          outgoingApprovals: { type: 'array' },
-          incomingApprovals: { type: 'array' },
-          autoApproveAllIncomingTransfers: { type: 'boolean', description: 'MUST be true for mintable collections.' },
-          autoApproveSelfInitiatedOutgoingTransfers: { type: 'boolean' },
-          autoApproveSelfInitiatedIncomingTransfers: { type: 'boolean' },
-          userPermissions: { type: 'object' }
+          balances: { type: 'array', description: 'Default token balances for new users. Almost always empty [].' },
+          outgoingApprovals: { type: 'array', description: 'Default outgoing transfer approvals. Almost always empty [].' },
+          incomingApprovals: { type: 'array', description: 'Default incoming transfer approvals. Almost always empty [].' },
+          autoApproveAllIncomingTransfers: { type: 'boolean', description: 'CRITICAL: MUST be true for any collection with mint approvals. Without this, recipients cannot receive tokens.' },
+          autoApproveSelfInitiatedOutgoingTransfers: { type: 'boolean', description: 'Allow users to send tokens they initiate. Almost always true.' },
+          autoApproveSelfInitiatedIncomingTransfers: { type: 'boolean', description: 'Allow users to receive tokens they initiate. Almost always true.' },
+          userPermissions: { type: 'object', description: 'Default user-level permissions. Almost always empty {}. Auto-filled by session state.' }
         }
       }
     },

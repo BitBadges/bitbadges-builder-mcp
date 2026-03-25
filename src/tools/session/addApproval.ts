@@ -187,12 +187,29 @@ export const addApprovalSchema = z.object({
       .describe('MUST be true for IBC backed/unbacking operations. Requires explicit prioritizedApprovals in transfers.'),
     allowBackedMinting: z.boolean().optional().default(false)
       .describe('MUST be true for IBC backed/unbacking operations (smart tokens).'),
+    allowSpecialWrapping: z.boolean().optional().default(false)
+      .describe('MUST be true for cosmos wrapper path approvals.'),
     requireToEqualsInitiatedBy: z.boolean().optional().default(false)
       .describe('Recipient must be the initiator. Used for self-mint patterns.'),
+    requireFromEqualsInitiatedBy: z.boolean().optional().default(false)
+      .describe('Sender must equal initiator.'),
+    requireToDoesNotEqualInitiatedBy: z.boolean().optional().default(false)
+      .describe('Recipient must NOT equal initiator.'),
+    requireFromDoesNotEqualInitiatedBy: z.boolean().optional().default(false)
+      .describe('Sender must NOT equal initiator.'),
     autoDeletionOptions: z.object({
       afterOneUse: z.boolean().optional().default(false),
       allowPurgeIfExpired: z.boolean().optional().default(false).describe('MUST be true for Custom-2FA tokens.')
-    }).optional()
+    }).optional(),
+    userRoyalties: z.any().optional().describe('Royalty requirements. Advanced — use search_knowledge_base for details.'),
+    dynamicStoreChallenges: z.array(z.any()).optional().describe('Dynamic store checks. Advanced — use search_knowledge_base for details.'),
+    evmQueryChallenges: z.array(z.any()).optional().describe('EVM contract query requirements. Advanced — use search_knowledge_base for details.'),
+    votingChallenges: z.array(z.any()).optional().describe('Multi-sig voting requirements. Advanced — use search_knowledge_base for details.'),
+    ethSignatureChallenges: z.array(z.any()).optional().describe('ETH signature requirements. Advanced — use search_knowledge_base for details.'),
+    altTimeChecks: z.any().optional().describe('Offline hours/days blocking. Advanced — use search_knowledge_base for details.'),
+    senderChecks: z.any().optional().describe('Sender address validation. Advanced — use search_knowledge_base for details.'),
+    recipientChecks: z.any().optional().describe('Recipient address validation. Advanced — use search_knowledge_base for details.'),
+    initiatorChecks: z.any().optional().describe('Initiator address validation. Advanced — use search_knowledge_base for details.')
   }).optional().describe('Conditions for this approval. Only include non-default fields — omit anything that is false, "0", or [].')
 });
 
@@ -217,18 +234,166 @@ export const addApprovalTool = {
         type: 'object',
         description: 'Conditions. Only include non-default fields. overridesFromOutgoingApprovals MUST be true for Mint approvals. predeterminedBalances and approvalAmounts are INCOMPATIBLE.',
         properties: {
-          overridesFromOutgoingApprovals: { type: 'boolean', description: 'MUST be true for Mint approvals.' },
-          overridesToIncomingApprovals: { type: 'boolean' },
-          coinTransfers: { type: 'array', description: 'Payment requirements.' },
-          maxNumTransfers: { type: 'object', description: 'Transfer count limits.' },
-          approvalAmounts: { type: 'object', description: 'Amount limits. INCOMPATIBLE with predeterminedBalances.' },
-          predeterminedBalances: { type: 'object', description: 'Pre-defined tokens per transfer. INCOMPATIBLE with approvalAmounts.' },
-          mustOwnTokens: { type: 'array', description: 'Token gating requirements.' },
-          merkleChallenges: { type: 'array', description: 'Merkle proof requirements.' },
-          mustPrioritize: { type: 'boolean', description: 'Required for IBC backing/unbacking.' },
-          allowBackedMinting: { type: 'boolean', description: 'Required for IBC backing/unbacking.' },
-          requireToEqualsInitiatedBy: { type: 'boolean' },
-          autoDeletionOptions: { type: 'object' }
+          overridesFromOutgoingApprovals: { type: 'boolean', description: 'MUST be true for Mint approvals (Mint has no outgoing approvals to check).' },
+          overridesToIncomingApprovals: { type: 'boolean', description: 'Bypass recipient incoming approvals. Almost always false. Only true for forced transfers.' },
+          coinTransfers: {
+            type: 'array',
+            description: 'Payment requirements per transfer.',
+            items: {
+              type: 'object',
+              properties: {
+                to: { type: 'string', description: 'Recipient address (bb1...). Who receives the payment.' },
+                coins: {
+                  type: 'array',
+                  description: 'Coins to transfer as payment.',
+                  items: {
+                    type: 'object',
+                    properties: {
+                      denom: { type: 'string', description: 'Token denomination. Use full IBC denom (e.g., "ibc/A4DB..." for ATOM). "ubadge" for BADGE. Use lookup_token_info to resolve symbols.' },
+                      amount: { type: 'string', description: 'Amount in base units as string (e.g., 5 ATOM = "5000000" with 6 decimals).' }
+                    },
+                    required: ['denom', 'amount']
+                  }
+                },
+                overrideFromWithApproverAddress: { type: 'boolean', description: 'If true, payment comes from the mint escrow address (escrow payout pattern). Default false.' },
+                overrideToWithInitiator: { type: 'boolean', description: 'If true, payment goes to the person initiating the transfer (escrow refund pattern). Default false.' }
+              },
+              required: ['to', 'coins']
+            }
+          },
+          maxNumTransfers: {
+            type: 'object',
+            description: 'Limit transfer count. Use for NFT minting caps, one-per-user limits.',
+            properties: {
+              overallMaxNumTransfers: { type: 'string', description: 'Total transfer count limit across all users. "0" = unlimited.' },
+              perInitiatedByAddressMaxNumTransfers: { type: 'string', description: 'Max transfers per initiator. "0" = unlimited. "1" for one-per-user mints.' },
+              perToAddressMaxNumTransfers: { type: 'string', description: 'Max transfers per recipient. "0" = unlimited.' },
+              perFromAddressMaxNumTransfers: { type: 'string', description: 'Max transfers per sender. "0" = unlimited. Used for restricted-transfer pattern.' },
+              amountTrackerId: { type: 'string', description: 'Unique ID for tracking. Required if any limit is non-zero. Must be unique per approval.' },
+              resetTimeIntervals: {
+                type: 'object',
+                description: 'Reset schedule for counters.',
+                properties: {
+                  startTime: { type: 'string', description: 'Start time in ms. "0" for genesis.' },
+                  intervalLength: { type: 'string', description: '"0" = no reset (permanent). "86400000" = daily reset (24h in ms).' }
+                }
+              }
+            }
+          },
+          approvalAmounts: {
+            type: 'object',
+            description: 'Limit total amount transferred. For fungible token supply caps. INCOMPATIBLE with predeterminedBalances — use one or the other.',
+            properties: {
+              overallApprovalAmount: { type: 'string', description: 'Total amount limit. "0" = unlimited.' },
+              perInitiatedByAddressApprovalAmount: { type: 'string', description: 'Amount limit per initiator. "0" = unlimited.' },
+              perToAddressApprovalAmount: { type: 'string', description: 'Amount limit per recipient. "0" = unlimited.' },
+              perFromAddressApprovalAmount: { type: 'string', description: 'Amount limit per sender. "0" = unlimited.' },
+              amountTrackerId: { type: 'string', description: 'Unique tracking ID. Required if any amount is non-zero.' },
+              resetTimeIntervals: {
+                type: 'object',
+                properties: {
+                  startTime: { type: 'string', description: '"0" for genesis.' },
+                  intervalLength: { type: 'string', description: '"0" = no reset. "86400000" = daily.' }
+                }
+              }
+            }
+          },
+          predeterminedBalances: {
+            type: 'object',
+            description: 'Pre-define exact tokens per transfer. For NFT sequential minting and subscriptions. INCOMPATIBLE with approvalAmounts — use one or the other.',
+            properties: {
+              manualBalances: { type: 'array', description: 'Fixed balance sets. Usually empty [].' },
+              incrementedBalances: {
+                type: 'object',
+                description: 'Sequential/incremented balance config.',
+                properties: {
+                  startBalances: {
+                    type: 'array',
+                    description: 'Starting balances for the first transfer.',
+                    items: {
+                      type: 'object',
+                      properties: {
+                        amount: { type: 'string' },
+                        tokenIds: { type: 'array', items: { type: 'object', properties: { start: { type: 'string' }, end: { type: 'string' } }, required: ['start', 'end'] } },
+                        ownershipTimes: { type: 'array', items: { type: 'object', properties: { start: { type: 'string' }, end: { type: 'string' } }, required: ['start', 'end'] } }
+                      },
+                      required: ['amount', 'tokenIds', 'ownershipTimes']
+                    }
+                  },
+                  incrementTokenIdsBy: { type: 'string', description: '"1" for NFTs (sequential IDs). "0" for subscriptions/fungible.' },
+                  incrementOwnershipTimesBy: { type: 'string', description: 'Usually "0". Non-zero is MUTUALLY EXCLUSIVE with durationFromTimestamp.' },
+                  durationFromTimestamp: { type: 'string', description: 'Subscription duration in ms. "0" = disabled. "2592000000" = 30 days. MUST be non-zero for subscriptions. MUTUALLY EXCLUSIVE with incrementOwnershipTimesBy and non-zero recurringOwnershipTimes.' },
+                  allowOverrideTimestamp: { type: 'boolean', description: 'MUST be true for subscriptions (each mint gets its own start time).' },
+                  recurringOwnershipTimes: {
+                    type: 'object',
+                    description: 'MUST be all zeros if using durationFromTimestamp. Mutually exclusive.',
+                    properties: {
+                      startTime: { type: 'string' },
+                      intervalLength: { type: 'string' },
+                      chargePeriodLength: { type: 'string' }
+                    }
+                  },
+                  allowOverrideWithAnyValidToken: { type: 'boolean', description: 'Allow any valid token ID. Default false.' }
+                }
+              },
+              orderCalculationMethod: {
+                type: 'object',
+                description: 'EXACTLY ONE method must be true. Default: useOverallNumTransfers.',
+                properties: {
+                  useOverallNumTransfers: { type: 'boolean', description: 'Most common. Sequential based on overall count.' },
+                  usePerToAddressNumTransfers: { type: 'boolean' },
+                  usePerFromAddressNumTransfers: { type: 'boolean' },
+                  usePerInitiatedByAddressNumTransfers: { type: 'boolean' },
+                  useMerkleChallengeLeafIndex: { type: 'boolean' },
+                  challengeTrackerId: { type: 'string' }
+                }
+              }
+            }
+          },
+          mustOwnTokens: {
+            type: 'array',
+            description: 'Token gating — require ownership of specific tokens. Used for 2FA on unbacking, whitelist badges, etc.',
+            items: {
+              type: 'object',
+              properties: {
+                collectionId: { type: 'string', description: 'Collection ID to check ownership of.' },
+                amountRange: {
+                  type: 'object',
+                  description: 'Required amount range. Usually {"start":"1","end":"18446744073709551615"}.',
+                  properties: { start: { type: 'string' }, end: { type: 'string' } },
+                  required: ['start', 'end']
+                },
+                ownershipTimes: { type: 'array', description: 'When ownership must be valid.', items: { type: 'object', properties: { start: { type: 'string' }, end: { type: 'string' } }, required: ['start', 'end'] } },
+                tokenIds: { type: 'array', description: 'Which token IDs to check.', items: { type: 'object', properties: { start: { type: 'string' }, end: { type: 'string' } }, required: ['start', 'end'] } },
+                overrideWithCurrentTime: { type: 'boolean', description: 'Use current block time for ownership check. true for expiring tokens (2FA).' },
+                mustSatisfyForAllAssets: { type: 'boolean', description: 'Must own all vs any. Default false.' },
+                ownershipCheckParty: { type: 'string', description: '"initiator" (most common for token gating), "sender", or "recipient".' }
+              },
+              required: ['collectionId', 'amountRange', 'ownershipTimes', 'tokenIds']
+            }
+          },
+          merkleChallenges: { type: 'array', description: 'Merkle proof requirements for claim-based distribution. Use lookup_claim_plugins for schema.' },
+          mustPrioritize: { type: 'boolean', description: 'MUST be true for IBC backed/unbacking and cosmos wrapper operations.' },
+          allowBackedMinting: { type: 'boolean', description: 'MUST be true for IBC backed/unbacking operations (smart tokens).' },
+          allowSpecialWrapping: { type: 'boolean', description: 'MUST be true for cosmos wrapper path approvals.' },
+          requireToEqualsInitiatedBy: { type: 'boolean', description: 'Recipient must equal initiator. Used for self-mint patterns.' },
+          requireFromEqualsInitiatedBy: { type: 'boolean', description: 'Sender must equal initiator.' },
+          requireToDoesNotEqualInitiatedBy: { type: 'boolean', description: 'Recipient must NOT equal initiator.' },
+          requireFromDoesNotEqualInitiatedBy: { type: 'boolean', description: 'Sender must NOT equal initiator.' },
+          autoDeletionOptions: {
+            type: 'object',
+            description: 'Auto-deletion rules.',
+            properties: {
+              afterOneUse: { type: 'boolean', description: 'Delete approval after one use.' },
+              allowPurgeIfExpired: { type: 'boolean', description: 'MUST be true for Custom-2FA tokens.' }
+            }
+          },
+          userRoyalties: { type: 'object', description: 'Royalty requirements. Advanced — use search_knowledge_base for details.' },
+          dynamicStoreChallenges: { type: 'array', description: 'Dynamic store checks. Advanced — use search_knowledge_base for details.' },
+          evmQueryChallenges: { type: 'array', description: 'EVM contract query requirements. Advanced — use search_knowledge_base for details.' },
+          votingChallenges: { type: 'array', description: 'Multi-sig voting requirements. Advanced — use search_knowledge_base for details.' },
+          ethSignatureChallenges: { type: 'array', description: 'ETH signature requirements. Advanced — use search_knowledge_base for details.' },
+          altTimeChecks: { type: 'object', description: 'Offline hours/days blocking. Advanced — use search_knowledge_base for details.' }
         }
       }
     },

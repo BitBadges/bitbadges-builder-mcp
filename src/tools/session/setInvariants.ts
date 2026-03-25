@@ -14,7 +14,9 @@ export const setInvariantsSchema = z.object({
     disablePoolCreation: z.boolean().optional()
       .describe('If true, cannot create liquidity pools for this token.'),
     cosmosCoinBackedPath: z.any().optional()
-      .describe('IBC backing configuration for Smart Tokens. REQUIRED for smart tokens. Contains conversion sideA/sideB.')
+      .describe('IBC backing configuration for Smart Tokens. REQUIRED for smart tokens. Contains conversion sideA/sideB.'),
+    evmQueryChallenges: z.array(z.any()).optional()
+      .describe('EVM query invariants. Advanced — use search_knowledge_base for details.')
   }).nullable().describe('Collection invariants. Cannot be removed after creation. Use null to explicitly clear. Skill instructions specify which invariants each standard requires.')
 });
 
@@ -33,11 +35,44 @@ export const setInvariantsTool = {
         nullable: true,
         description: 'Invariants object or null to clear.',
         properties: {
-          noCustomOwnershipTimes: { type: 'boolean', description: 'True for most tokens. False for subscriptions.' },
-          maxSupplyPerId: { type: 'string', description: '"0" = unlimited. "1" for unique NFTs.' },
-          noForcefulPostMintTransfers: { type: 'boolean' },
-          disablePoolCreation: { type: 'boolean' },
-          cosmosCoinBackedPath: { type: 'object', description: 'Required for smart tokens. Contains conversion sideA/sideB.' }
+          noCustomOwnershipTimes: { type: 'boolean', description: 'If true, all ownership times must be forever. MUST be false for subscriptions. True for most other token types.' },
+          maxSupplyPerId: { type: 'string', description: 'Maximum supply per token ID. "0" = unlimited. "1" for unique NFTs.' },
+          noForcefulPostMintTransfers: { type: 'boolean', description: 'If true, cannot use overridesFromOutgoingApprovals or overridesToIncomingApprovals on non-Mint approvals.' },
+          disablePoolCreation: { type: 'boolean', description: 'If true, cannot create liquidity pools for this token.' },
+          cosmosCoinBackedPath: {
+            type: 'object',
+            description: 'IBC backing configuration. REQUIRED for smart tokens. Use generate_backing_address to get the backing address.',
+            properties: {
+              conversion: {
+                type: 'object',
+                description: 'Conversion between IBC coin and token.',
+                properties: {
+                  sideA: {
+                    type: 'object',
+                    description: 'IBC coin side.',
+                    properties: { amount: { type: 'string', description: 'Usually "1".' } },
+                    required: ['amount']
+                  },
+                  sideB: {
+                    type: 'array',
+                    description: 'Token side.',
+                    items: {
+                      type: 'object',
+                      properties: {
+                        amount: { type: 'string' },
+                        tokenIds: { type: 'array', items: { type: 'object', properties: { start: { type: 'string' }, end: { type: 'string' } }, required: ['start', 'end'] } },
+                        ownershipTimes: { type: 'array', items: { type: 'object', properties: { start: { type: 'string' }, end: { type: 'string' } }, required: ['start', 'end'] } }
+                      },
+                      required: ['amount', 'tokenIds', 'ownershipTimes']
+                    }
+                  }
+                },
+                required: ['sideA', 'sideB']
+              }
+            },
+            required: ['conversion']
+          },
+          evmQueryChallenges: { type: 'array', description: 'EVM query invariants. Advanced — use search_knowledge_base for details.' }
         }
       }
     },

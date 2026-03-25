@@ -68,12 +68,65 @@ export const addCosmosWrapperPathTool = {
         type: 'object',
         description: 'Wrapper path config. Denom creates a NEW ICS20 coin. Wrapper address is auto-generated from denom.',
         properties: {
-          denom: { type: 'string', description: 'Custom denom (e.g., "utoken"). Creates NEW ICS20 coin — NOT an existing one.' },
-          symbol: { type: 'string', description: 'Base unit symbol.' },
-          conversion: { type: 'object', description: '{ sideA: { amount: "1" }, sideB: [{ amount: "1", tokenIds, ownershipTimes }] }' },
-          denomUnits: { type: 'array', description: 'Display units with decimals and symbols.' },
-          allowOverrideWithAnyValidToken: { type: 'boolean', description: 'Allow wrapping any valid token ID (default: false).' },
-          metadata: { type: 'object', description: '{ uri, customData, image }' }
+          denom: { type: 'string', description: 'Custom denom (e.g., "utoken"). Creates NEW ICS20 coin — NOT an existing one. Must only contain a-zA-Z, _, {, }, -.' },
+          symbol: { type: 'string', description: 'Base unit symbol. Usually same as denom.' },
+          conversion: {
+            type: 'object',
+            description: 'Conversion between wrapped ICS20 coin and token.',
+            properties: {
+              sideA: {
+                type: 'object',
+                description: 'Wrapped ICS20 coin side.',
+                properties: { amount: { type: 'string', description: 'Amount of wrapped coin per conversion unit. Usually "1".' } },
+                required: ['amount']
+              },
+              sideB: {
+                type: 'array',
+                description: 'Token side. Array of Balance objects defining which tokens participate.',
+                items: {
+                  type: 'object',
+                  properties: {
+                    amount: { type: 'string', description: 'Token amount. Usually "1".' },
+                    tokenIds: { type: 'array', items: { type: 'object', properties: { start: { type: 'string' }, end: { type: 'string' } }, required: ['start', 'end'] } },
+                    ownershipTimes: { type: 'array', items: { type: 'object', properties: { start: { type: 'string' }, end: { type: 'string' } }, required: ['start', 'end'] }, description: 'Usually FOREVER: [{"start":"1","end":"18446744073709551615"}]' }
+                  },
+                  required: ['amount', 'tokenIds', 'ownershipTimes']
+                }
+              }
+            },
+            required: ['sideA', 'sideB']
+          },
+          denomUnits: {
+            type: 'array',
+            description: 'Display units. At least one with isDefaultDisplay: true recommended.',
+            items: {
+              type: 'object',
+              properties: {
+                decimals: { type: 'string', description: 'Display decimals (e.g., "6"). Min 1, max 18.' },
+                symbol: { type: 'string', description: 'Display symbol (e.g., "TOKEN"). Must only contain a-zA-Z, _, {, }, -.' },
+                isDefaultDisplay: { type: 'boolean', description: 'Whether this is the default display unit.' },
+                metadata: {
+                  type: 'object',
+                  properties: {
+                    uri: { type: 'string' },
+                    customData: { type: 'string' },
+                    image: { type: 'string', description: 'Token logo URL. REQUIRED.' }
+                  }
+                }
+              },
+              required: ['symbol']
+            }
+          },
+          allowOverrideWithAnyValidToken: { type: 'boolean', description: 'If true, users can choose any valid token ID to wrap. Default false.' },
+          metadata: {
+            type: 'object',
+            description: 'Path-level metadata.',
+            properties: {
+              uri: { type: 'string' },
+              customData: { type: 'string' },
+              image: { type: 'string', description: 'Token logo URL. Recommended for display.' }
+            }
+          }
         },
         required: ['denom', 'symbol', 'conversion']
       }
