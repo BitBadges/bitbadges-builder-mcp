@@ -1,10 +1,13 @@
 /**
  * Tool: simulate_transaction
- * Dry-run a transaction to check validity and estimate gas
+ * Dry-run a transaction to check validity and estimate gas.
+ * Returns raw events plus parsed structured output (transfers, net changes).
  */
 
 import { z } from 'zod';
 import { simulateTx } from '../../sdk/apiClient.js';
+import { parseSimulationEvents, calculateNetChanges } from 'bitbadgesjs-sdk';
+import type { SimulationEvent, ParsedSimulationEvents, NetBalanceChanges } from 'bitbadgesjs-sdk';
 
 export const simulateTransactionSchema = z.object({
   transactionJson: z.string().optional().describe('The full transaction JSON to simulate (as a string). Either this or transaction must be provided.'),
@@ -20,13 +23,15 @@ export interface SimulateTransactionResult {
   valid?: boolean;
   gasUsed?: string;
   events?: unknown[];
+  parsedEvents?: unknown;
+  netChanges?: unknown;
   simulationError?: string;
   error?: string;
 }
 
 export const simulateTransactionTool = {
   name: 'simulate_transaction',
-  description: 'Dry-run a transaction to check validity and estimate gas. Requires BITBADGES_API_KEY environment variable.',
+  description: 'Dry-run a transaction to check validity and estimate gas. Returns raw events, parsed transfer events (coin, badge, IBC), and per-address net balance changes. Requires BITBADGES_API_KEY environment variable.',
   inputSchema: {
     type: 'object' as const,
     properties: {
@@ -41,6 +46,23 @@ export const simulateTransactionTool = {
     }
   }
 };
+
+/**
+ * Recursively converts all bigint values to strings for JSON serialization.
+ */
+function bigintToString(obj: unknown): unknown {
+  if (obj === null || obj === undefined) return obj;
+  if (typeof obj === 'bigint') return obj.toString();
+  if (Array.isArray(obj)) return obj.map(bigintToString);
+  if (typeof obj === 'object') {
+    const result: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(obj as Record<string, unknown>)) {
+      result[key] = bigintToString(value);
+    }
+    return result;
+  }
+  return obj;
+}
 
 export async function handleSimulateTransaction(input: SimulateTransactionInput): Promise<SimulateTransactionResult> {
   try {
@@ -109,11 +131,29 @@ export async function handleSimulateTransaction(input: SimulateTransactionInput)
       };
     }
 
+    // Parse events into structured output
+    const events = (result?.events || []) as SimulationEvent[];
+    let parsedEvents: unknown = undefined;
+    let netChanges: unknown = undefined;
+
+    try {
+      const parsed: ParsedSimulationEvents = parseSimulationEvents(events, []);
+      const net: NetBalanceChanges = calculateNetChanges(parsed);
+
+      // Convert bigint to string for JSON serialization
+      parsedEvents = bigintToString(parsed);
+      netChanges = bigintToString(net);
+    } catch {
+      // If parsing fails, still return raw events — don't break the tool
+    }
+
     return {
       success: true,
       valid: true,
       gasUsed: result?.gasUsed,
-      events: result?.events
+      events: result?.events,
+      parsedEvents,
+      netChanges
     };
   } catch (error) {
     return {
