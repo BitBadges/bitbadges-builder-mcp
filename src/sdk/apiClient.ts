@@ -157,6 +157,24 @@ export async function getBalance(
   );
 }
 
+export interface TokenBalanceResponse {
+  balance: string;
+}
+
+export async function getBalanceForToken(
+  collectionId: string,
+  tokenId: string,
+  address: string,
+  config?: ApiClientConfig
+): Promise<ApiResponse<TokenBalanceResponse>> {
+  return apiRequest<TokenBalanceResponse>(
+    `/api/v0/collection/${collectionId}/${tokenId}/balance/${address}`,
+    'GET',
+    undefined,
+    config
+  );
+}
+
 // ============================================
 // Simulation APIs
 // ============================================
