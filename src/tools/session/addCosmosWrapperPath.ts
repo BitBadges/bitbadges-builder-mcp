@@ -38,7 +38,12 @@ export const addCosmosWrapperPathSchema = z.object({
     denomUnits: z.array(z.object({
       decimals: z.string().optional().describe('Display decimals for this unit (e.g., "6"). Min 1, max 18.'),
       symbol: z.string().describe('Display symbol (e.g., "TOKEN"). Must only contain a-zA-Z, _, {, }, -.'),
-      isDefaultDisplay: z.boolean().optional().describe('Whether this is the default display unit.')
+      isDefaultDisplay: z.boolean().optional().describe('Whether this is the default display unit.'),
+      metadata: z.object({
+        uri: z.string().optional().default(''),
+        customData: z.string().optional().default(''),
+        image: z.string().describe('Token logo URL. REQUIRED.')
+      }).optional()
     })).optional().describe('Denomination units for display. At least one with isDefaultDisplay: true recommended.'),
     allowOverrideWithAnyValidToken: z.boolean().optional().default(false).describe('If true, users can choose any valid token ID to wrap. If false (default), must match exact tokenIds in conversion.'),
     metadata: z.object({
@@ -90,6 +95,19 @@ export function handleAddCosmosWrapperPath(input: AddCosmosWrapperPathInput) {
   }
   if (symbol && !VALID_CHARS.test(symbol)) {
     return { success: false, error: `Symbol "${symbol}" contains invalid characters. Only a-zA-Z, _, {, }, - are allowed.` };
+  }
+
+  // Propagate path-level image to denomUnits that are missing metadata/image
+  const pathImage = input.wrapperPath.metadata?.image || '';
+  if (input.wrapperPath.denomUnits && Array.isArray(input.wrapperPath.denomUnits)) {
+    input.wrapperPath.denomUnits = input.wrapperPath.denomUnits.map((unit: any) => {
+      if (!unit.metadata) {
+        unit.metadata = { uri: '', customData: '', image: pathImage };
+      } else if (!unit.metadata.image) {
+        unit.metadata.image = pathImage;
+      }
+      return unit;
+    });
   }
 
   getOrCreateSession(input.sessionId, input.creatorAddress);

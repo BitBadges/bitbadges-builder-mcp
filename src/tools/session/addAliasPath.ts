@@ -72,6 +72,19 @@ export function handleAddAliasPath(input: AddAliasPathInput) {
     return { success: false, error: `Symbol "${symbol}" contains invalid characters. Only a-zA-Z, _, {, }, - are allowed.` };
   }
 
+  // Propagate path-level image to denomUnits that are missing metadata/image
+  const pathImage = input.aliasPath.metadata?.image || '';
+  if (input.aliasPath.denomUnits && Array.isArray(input.aliasPath.denomUnits)) {
+    input.aliasPath.denomUnits = input.aliasPath.denomUnits.map((unit: any) => {
+      if (!unit.metadata) {
+        unit.metadata = { uri: '', customData: '', image: pathImage };
+      } else if (!unit.metadata.image) {
+        unit.metadata.image = pathImage;
+      }
+      return unit;
+    });
+  }
+
   getOrCreateSession(input.sessionId, input.creatorAddress);
   addAliasPathToSession(input.sessionId, input.aliasPath);
   return { success: true, denom: input.aliasPath.denom };
