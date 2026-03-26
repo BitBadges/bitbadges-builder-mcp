@@ -383,6 +383,68 @@ export function handleAuditCollection(input: { collection: Record<string, unknow
         }
       }
 
+      // --- Wrapper address checks (allowSpecialWrapping) ---
+      if (criteria.allowSpecialWrapping) {
+        if (criteria.overridesFromOutgoingApprovals) {
+          findings.push({
+            severity: 'warning',
+            category: 'approval-bug',
+            title: `Wrapping approval "${approvalId}" has overridesFromOutgoingApprovals`,
+            detail: 'Smart token wrapping/unwrapping approvals should NOT set overridesFromOutgoingApprovals: true. The wrapper address is a special system address.',
+            recommendation: 'Remove overridesFromOutgoingApprovals from wrapping/unwrapping approval criteria.'
+          });
+        }
+        if (!criteria.mustPrioritize) {
+          findings.push({
+            severity: 'critical',
+            category: 'approval-bug',
+            title: `Wrapping approval "${approvalId}" missing mustPrioritize`,
+            detail: 'Smart token wrapping/unwrapping approvals MUST have mustPrioritize: true. Without this, the approval cannot be matched by transfers.',
+            recommendation: 'Add mustPrioritize: true to approvalCriteria.'
+          });
+        }
+
+        // Check that the collection actually has cosmosCoinWrapperPaths
+        const wrapperPaths = col.cosmosCoinWrapperPathsToAdd as { address?: string }[] | undefined;
+        if (!wrapperPaths || wrapperPaths.length === 0) {
+          findings.push({
+            severity: 'warning',
+            category: 'approval-bug',
+            title: `Wrapping approval "${approvalId}" but collection has no cosmosCoinWrapperPaths`,
+            detail: 'allowSpecialWrapping: true is set but the collection has no cosmosCoinWrapperPathsToAdd. The wrapping approval has no wrapper path to target.',
+            recommendation: 'Add a cosmosCoinWrapperPathsToAdd entry, or remove allowSpecialWrapping if wrapping is not intended.'
+          });
+        }
+
+        // Exact wrapper address guardrail (mirrors backing address rule):
+        // Exactly one side (fromListId XOR toListId) must equal the wrapper address string exactly.
+        if (wrapperPaths && wrapperPaths.length > 0) {
+          const wrapperAddr = wrapperPaths[0]?.address;
+          if (wrapperAddr) {
+            const fromIsExact = fromId === wrapperAddr;
+            const toIsExact = toId === wrapperAddr;
+
+            if (fromIsExact && toIsExact) {
+              findings.push({
+                severity: 'critical',
+                category: 'approval-bug',
+                title: `Wrapping approval "${approvalId}" has BOTH sides set to the wrapper address`,
+                detail: `Both fromListId ("${fromId}") and toListId ("${toId}") are the wrapper address. The chain requires exactly one side to be the wrapper address (isExactlyAddress). Broad lists ("All", multi-address, inverted) do NOT satisfy this rule — and having both sides set is also rejected.`,
+                recommendation: 'For a wrap approval set fromListId to the wrapper address and toListId to the recipient list. For an unwrap approval set toListId to the wrapper address and fromListId to the sender list.'
+              });
+            } else if (!fromIsExact && !toIsExact) {
+              findings.push({
+                severity: 'critical',
+                category: 'approval-bug',
+                title: `Wrapping approval "${approvalId}" has NEITHER side set to the wrapper address exactly`,
+                detail: `fromListId is "${fromId}" and toListId is "${toId}". Neither is the bare wrapper address string ("${wrapperAddr}"). The chain enforces that exactly one of fromListId or toListId must equal the wrapper address exactly — broad lists such as "All", inverted lists, or compound lists do NOT satisfy this rule and the chain will reject the approval.`,
+                recommendation: 'Set exactly one side to the bare wrapper address string. For a wrap approval use fromListId: "<wrapperAddr>". For an unwrap approval use toListId: "<wrapperAddr>".'
+              });
+            }
+          }
+        }
+      }
+
       // --- Dangerous sender/recipient combos ---
       // Mint -> Mint (tokens going nowhere useful)
       if (fromId === 'Mint' && toId === 'Mint') {
