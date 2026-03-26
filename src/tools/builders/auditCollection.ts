@@ -416,33 +416,9 @@ export function handleAuditCollection(input: { collection: Record<string, unknow
           });
         }
 
-        // Exact wrapper address guardrail (mirrors backing address rule):
-        // Exactly one side (fromListId XOR toListId) must equal the wrapper address string exactly.
-        if (wrapperPaths && wrapperPaths.length > 0) {
-          const wrapperAddr = wrapperPaths[0]?.address;
-          if (wrapperAddr) {
-            const fromIsExact = fromId === wrapperAddr;
-            const toIsExact = toId === wrapperAddr;
-
-            if (fromIsExact && toIsExact) {
-              findings.push({
-                severity: 'critical',
-                category: 'approval-bug',
-                title: `Wrapping approval "${approvalId}" has BOTH sides set to the wrapper address`,
-                detail: `Both fromListId ("${fromId}") and toListId ("${toId}") are the wrapper address. The chain requires exactly one side to be the wrapper address (isExactlyAddress). Broad lists ("All", multi-address, inverted) do NOT satisfy this rule — and having both sides set is also rejected.`,
-                recommendation: 'For a wrap approval set fromListId to the wrapper address and toListId to the recipient list. For an unwrap approval set toListId to the wrapper address and fromListId to the sender list.'
-              });
-            } else if (!fromIsExact && !toIsExact) {
-              findings.push({
-                severity: 'critical',
-                category: 'approval-bug',
-                title: `Wrapping approval "${approvalId}" has NEITHER side set to the wrapper address exactly`,
-                detail: `fromListId is "${fromId}" and toListId is "${toId}". Neither is the bare wrapper address string ("${wrapperAddr}"). The chain enforces that exactly one of fromListId or toListId must equal the wrapper address exactly — broad lists such as "All", inverted lists, or compound lists do NOT satisfy this rule and the chain will reject the approval.`,
-                recommendation: 'Set exactly one side to the bare wrapper address string. For a wrap approval use fromListId: "<wrapperAddr>". For an unwrap approval use toListId: "<wrapperAddr>".'
-              });
-            }
-          }
-        }
+        // Note: wrapper address validation is skipped here because the address is auto-derived
+        // on-chain from the denom — it's not present in cosmosCoinWrapperPathsToAdd.
+        // Chain simulation will catch any from/to list mismatches at deploy time.
       }
 
       // --- Dangerous sender/recipient combos ---
