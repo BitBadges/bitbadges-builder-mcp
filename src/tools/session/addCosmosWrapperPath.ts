@@ -36,7 +36,7 @@ export const addCosmosWrapperPathSchema = z.object({
       sideB: z.array(z.any()).describe('Balances[] defining which tokens participate. Each: { amount: "1", tokenIds: [{start,end}], ownershipTimes: [{start,end}] }.')
     }),
     denomUnits: z.array(z.object({
-      decimals: z.string().optional().describe('Display decimals for this unit (e.g., "6"). Min 1, max 18.'),
+      decimals: z.string().describe('Display decimals for this unit (e.g., "6"). Min 1, max 18.'),
       symbol: z.string().describe('Display symbol (e.g., "TOKEN"). Must only contain a-zA-Z, _, {, }, -.'),
       isDefaultDisplay: z.boolean().optional().describe('Whether this is the default display unit.'),
       metadata: z.object({
@@ -44,7 +44,7 @@ export const addCosmosWrapperPathSchema = z.object({
         customData: z.string().optional().default(''),
         image: z.string().describe('Token logo URL. REQUIRED.')
       }).optional()
-    })).optional().describe('Denomination units for display. At least one with isDefaultDisplay: true recommended.'),
+    })).describe('Denomination units for display. At least one with isDefaultDisplay: true required.'),
     allowOverrideWithAnyValidToken: z.boolean().optional().default(false).describe('If true, users can choose any valid token ID to wrap. If false (default), must match exact tokenIds in conversion.'),
     metadata: z.object({
       uri: z.string().optional().default(''),
@@ -114,7 +114,7 @@ export const addCosmosWrapperPathTool = {
                   }
                 }
               },
-              required: ['symbol']
+              required: ['decimals', 'symbol']
             }
           },
           allowOverrideWithAnyValidToken: { type: 'boolean', description: 'If true, users can choose any valid token ID to wrap. Default false.' },
@@ -128,7 +128,7 @@ export const addCosmosWrapperPathTool = {
             }
           }
         },
-        required: ['denom', 'symbol', 'conversion']
+        required: ['denom', 'symbol', 'conversion', 'denomUnits']
       }
     },
     required: ['wrapperPath']

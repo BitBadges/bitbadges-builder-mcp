@@ -67,8 +67,8 @@ export const addTransferTool = {
                 type: 'object',
                 properties: {
                   amount: { type: 'string' },
-                  tokenIds: { type: 'array', items: { type: 'object', properties: { start: { type: 'string' }, end: { type: 'string' } } } },
-                  ownershipTimes: { type: 'array', items: { type: 'object', properties: { start: { type: 'string' }, end: { type: 'string' } } } }
+                  tokenIds: { type: 'array', items: { type: 'object', properties: { start: { type: 'string' }, end: { type: 'string' } }, required: ['start', 'end'] } },
+                  ownershipTimes: { type: 'array', items: { type: 'object', properties: { start: { type: 'string' }, end: { type: 'string' } }, required: ['start', 'end'] } }
                 },
                 required: ['amount', 'tokenIds']
               }

@@ -13,7 +13,19 @@ export const setInvariantsSchema = z.object({
       .describe('If true, cannot use overridesFromOutgoingApprovals or overridesToIncomingApprovals on non-Mint approvals.'),
     disablePoolCreation: z.boolean().optional()
       .describe('If true, cannot create liquidity pools for this token.'),
-    cosmosCoinBackedPath: z.any().optional()
+    cosmosCoinBackedPath: z.object({
+      conversion: z.object({
+        sideA: z.object({
+          amount: z.string().describe('Usually "1".'),
+          denom: z.string().describe('The IBC denom from generate_backing_address (e.g., "ibc/...").')
+        }),
+        sideB: z.array(z.object({
+          amount: z.string(),
+          tokenIds: z.array(z.object({ start: z.string(), end: z.string() })),
+          ownershipTimes: z.array(z.object({ start: z.string(), end: z.string() }))
+        }))
+      })
+    }).optional()
       .describe('IBC backing configuration for Smart Tokens. REQUIRED for smart tokens. Contains conversion sideA/sideB.'),
     evmQueryChallenges: z.array(z.any()).optional()
       .describe('EVM query invariants. Advanced — use search_knowledge_base for details.')
@@ -50,8 +62,11 @@ export const setInvariantsTool = {
                   sideA: {
                     type: 'object',
                     description: 'IBC coin side.',
-                    properties: { amount: { type: 'string', description: 'Usually "1".' } },
-                    required: ['amount']
+                    properties: {
+                      amount: { type: 'string', description: 'Usually "1".' },
+                      denom: { type: 'string', description: 'The IBC denom from generate_backing_address (e.g., "ibc/F082B65C88E4B6D5EF1DB243CDA1D331D002759E938A0F5CD3FFDC5D53B3E349").' }
+                    },
+                    required: ['amount', 'denom']
                   },
                   sideB: {
                     type: 'array',

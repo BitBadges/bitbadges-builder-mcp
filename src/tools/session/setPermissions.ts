@@ -58,7 +58,17 @@ export const setPermissionsSchema = z.object({
   creatorAddress: z.string().optional(),
   preset: z.enum(['fully-immutable', 'manager-controlled', 'locked-approvals']).optional()
     .describe('Use a preset instead of specifying individual permissions. "locked-approvals" (recommended default): supply and approvals frozen, metadata editable. "fully-immutable": everything frozen. "manager-controlled": everything allowed except delete.'),
-  permissions: z.record(z.any()).optional()
+  permissions: z.record(z.array(z.object({
+    permanentlyPermittedTimes: z.array(z.object({ start: z.string(), end: z.string() })).optional().default([]),
+    permanentlyForbiddenTimes: z.array(z.object({ start: z.string(), end: z.string() })).optional().default([]),
+    tokenIds: z.array(z.object({ start: z.string(), end: z.string() })).optional(),
+    fromListId: z.string().optional(),
+    toListId: z.string().optional(),
+    initiatedByListId: z.string().optional(),
+    transferTimes: z.array(z.object({ start: z.string(), end: z.string() })).optional(),
+    ownershipTimes: z.array(z.object({ start: z.string(), end: z.string() })).optional(),
+    approvalId: z.string().optional()
+  }).passthrough())).optional()
     .describe('Custom permissions object. Overrides preset if both provided. Keys: canDeleteCollection, canArchiveCollection, canUpdateStandards, canUpdateCustomData, canUpdateManager, canUpdateCollectionMetadata, canUpdateValidTokenIds, canUpdateTokenMetadata, canUpdateCollectionApprovals, canAddMoreAliasPaths, canAddMoreCosmosCoinWrapperPaths. Values: permission arrays. Empty array [] = neutral (unlocked). Missing keys auto-filled as [] (neutral).')
 });
 
@@ -79,7 +89,20 @@ export const setPermissionsTool = {
       },
       permissions: {
         type: 'object',
-        description: 'Custom permissions. Overrides preset. Empty array [] = neutral. permanentlyForbiddenTimes: FOREVER = frozen.'
+        description: 'Custom permissions. Overrides preset. Each value is an array: [] = neutral (unlocked), or [{permanentlyPermittedTimes: [], permanentlyForbiddenTimes: [{start:"1",end:"18446744073709551615"}]}] = frozen.',
+        properties: {
+          canDeleteCollection: { type: 'array', description: 'ActionPermission[]. Items: {permanentlyPermittedTimes, permanentlyForbiddenTimes}. [] = neutral.' },
+          canArchiveCollection: { type: 'array', description: 'ActionPermission[]. Items: {permanentlyPermittedTimes, permanentlyForbiddenTimes}. [] = neutral.' },
+          canUpdateStandards: { type: 'array', description: 'ActionPermission[]. Items: {permanentlyPermittedTimes, permanentlyForbiddenTimes}. [] = neutral.' },
+          canUpdateCustomData: { type: 'array', description: 'ActionPermission[]. Items: {permanentlyPermittedTimes, permanentlyForbiddenTimes}. [] = neutral.' },
+          canUpdateManager: { type: 'array', description: 'ActionPermission[]. Items: {permanentlyPermittedTimes, permanentlyForbiddenTimes}. [] = neutral.' },
+          canUpdateCollectionMetadata: { type: 'array', description: 'ActionPermission[]. Items: {permanentlyPermittedTimes, permanentlyForbiddenTimes}. [] = neutral.' },
+          canUpdateValidTokenIds: { type: 'array', description: 'TokenIdsActionPermission[]. Items: {tokenIds, permanentlyPermittedTimes, permanentlyForbiddenTimes}. [] = neutral.' },
+          canUpdateTokenMetadata: { type: 'array', description: 'TokenIdsActionPermission[]. Items: {tokenIds, permanentlyPermittedTimes, permanentlyForbiddenTimes}. [] = neutral.' },
+          canUpdateCollectionApprovals: { type: 'array', description: 'CollectionApprovalPermission[]. Items: {fromListId, toListId, initiatedByListId, transferTimes, tokenIds, ownershipTimes, approvalId, permanentlyPermittedTimes, permanentlyForbiddenTimes}. [] = neutral.' },
+          canAddMoreAliasPaths: { type: 'array', description: 'ActionPermission[]. Items: {permanentlyPermittedTimes, permanentlyForbiddenTimes}. [] = neutral.' },
+          canAddMoreCosmosCoinWrapperPaths: { type: 'array', description: 'ActionPermission[]. Items: {permanentlyPermittedTimes, permanentlyForbiddenTimes}. [] = neutral.' }
+        }
       }
     }
   }
