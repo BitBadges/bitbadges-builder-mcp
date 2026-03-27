@@ -142,6 +142,69 @@ export function toBitBadgesAddress(address: string): string {
 }
 
 /**
+ * Ensure address is in bb1... format, passing through special values.
+ * - If already bb1..., returns as-is
+ * - If 0x..., converts to bb1...
+ * - Special values (Mint, All, None, Total, !, AllWithout*) pass through unchanged
+ * - Empty/falsy values pass through unchanged
+ */
+export function ensureBb1(address: string): string {
+  if (!address) return address;
+
+  // Pass through special/reserved list values
+  if (['Mint', 'All', 'None', 'Total', 'AllWithMint'].includes(address) ||
+      address.startsWith('!') ||
+      address.startsWith('AllWithout') ||
+      address.startsWith(BITBADGES_PREFIX + '1')) {
+    return address;
+  }
+
+  // Convert 0x to bb1
+  if (address.startsWith('0x') && address.length === 42) {
+    return ethToCosmos(address);
+  }
+
+  // Unknown format — return as-is, let downstream validation catch it
+  return address;
+}
+
+/**
+ * Convert 0x addresses within a compound list ID string.
+ * Handles formats like "0x742d...", "!Mint:0x742d...", "AllWithout:0x742d...:bb1abc..."
+ * Splits on ":", converts each part that looks like an address, reassembles.
+ */
+export function ensureBb1ListId(listId: string): string {
+  if (!listId) return listId;
+
+  // Handle ! prefix
+  let prefix = '';
+  let rest = listId;
+  if (rest.startsWith('!')) {
+    prefix = '!';
+    rest = rest.substring(1);
+  }
+
+  // Handle parentheses
+  let parenPrefix = '';
+  let parenSuffix = '';
+  if (rest.startsWith('(') && rest.endsWith(')')) {
+    parenPrefix = '(';
+    parenSuffix = ')';
+    rest = rest.substring(1, rest.length - 1);
+  }
+
+  // Split on : and convert each part
+  const parts = rest.split(':').map(part => {
+    if (part.startsWith('0x') && part.length === 42) {
+      return ensureBb1(part);
+    }
+    return part;
+  });
+
+  return prefix + parenPrefix + parts.join(':') + parenSuffix;
+}
+
+/**
  * Convert any standard address to ETH format
  * If already 0x, returns as-is
  * If bb1 (20-byte), converts to 0x

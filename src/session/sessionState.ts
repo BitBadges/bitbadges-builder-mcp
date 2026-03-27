@@ -12,6 +12,8 @@
  * - Metadata placeholders are managed alongside their fields
  */
 
+import { ensureBb1 } from '../sdk/addressUtils.js';
+
 const MAX_UINT64 = '18446744073709551615';
 const DEFAULT_IMAGE = 'ipfs://QmNTpizCkY5tcMpPMf1kkn7Y5YxFQo3oT54A9oKP5ijP9E';
 
@@ -51,13 +53,14 @@ function resolveSessionId(sessionId?: string): string {
  */
 export function getOrCreateSession(sessionId?: string, creatorAddress?: string): SessionTransaction {
   const sid = resolveSessionId(sessionId);
+  const resolvedCreator = creatorAddress ? ensureBb1(creatorAddress) : creatorAddress;
   let session = sessions.get(sid);
   if (!session) {
     session = {
       messages: [{
         typeUrl: '/tokenization.MsgUniversalUpdateCollection',
         value: {
-          creator: creatorAddress || '',
+          creator: resolvedCreator || '',
           collectionId: '0',
           updateCollectionApprovals: true,
           collectionApprovals: [],

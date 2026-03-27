@@ -8,7 +8,7 @@ import { z } from 'zod';
 import { handleBuildToken } from './buildToken.js';
 
 export const buildFungibleTokenSchema = z.object({
-  creatorAddress: z.string().describe('Creator/manager address (bb1...)'),
+  creatorAddress: z.string().describe('Creator/manager address (bb1... or 0x...)'),
   name: z.string().describe('Token name'),
   symbol: z.string().describe('Token symbol'),
   description: z.string().optional().describe('Token description'),

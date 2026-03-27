@@ -5,6 +5,7 @@
 
 import { z } from 'zod';
 import { searchPlugins, type SearchPluginsResponse } from '../../sdk/apiClient.js';
+import { ensureBb1 } from '../../sdk/addressUtils.js';
 
 export const searchPluginsSchema = z.object({
   searchValue: z.string().optional().describe('Search query to find plugins by name or description'),
@@ -60,7 +61,7 @@ export async function handleSearchPlugins(input: SearchPluginsInput): Promise<Se
     const response = await searchPlugins({
       searchValue: input.searchValue,
       pluginIds: input.pluginIds,
-      creatorAddress: input.creatorAddress,
+      creatorAddress: input.creatorAddress ? ensureBb1(input.creatorAddress) : input.creatorAddress,
       bookmark: input.bookmark
     });
 

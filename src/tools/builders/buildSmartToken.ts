@@ -9,7 +9,7 @@ import { handleBuildToken } from './buildToken.js';
 
 export const buildSmartTokenSchema = z.object({
   ibcDenom: z.string().describe('IBC denom (e.g., "USDC" or "ibc/F082B65...")'),
-  creatorAddress: z.string().describe('Creator/manager address (bb1...)'),
+  creatorAddress: z.string().describe('Creator/manager address (bb1... or 0x...)'),
   name: z.string().describe('Collection name (e.g., "Wrapped USDC")'),
   symbol: z.string().describe('Token symbol (e.g., "wUSDC")'),
   description: z.string().optional().describe('Collection description (1-2 sentences, end with period)'),

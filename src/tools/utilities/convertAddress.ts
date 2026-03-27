@@ -8,7 +8,7 @@ import { bech32 } from 'bech32';
 
 export const convertAddressSchema = z.object({
   address: z.string().describe('The address to convert (0x... or bb1...)'),
-  targetFormat: z.enum(['eth', 'bitbadges']).describe('Target format: "eth" for 0x or "bitbadges" for bb1')
+  targetFormat: z.enum(['eth', 'bitbadges']).optional().describe('Target format: "eth" for 0x or "bitbadges" for bb1. Auto-detected if omitted.')
 });
 
 export type ConvertAddressInput = z.infer<typeof convertAddressSchema>;
@@ -38,7 +38,7 @@ export const convertAddressTool = {
         description: 'Target format: "eth" for 0x or "bitbadges" for bb1'
       }
     },
-    required: ['address', 'targetFormat']
+    required: ['address']
   }
 };
 
@@ -86,8 +86,11 @@ function detectFormat(address: string): 'eth' | 'cosmos' | 'unknown' {
 
 export function handleConvertAddress(input: ConvertAddressInput): ConvertAddressResult {
   try {
-    const { address, targetFormat } = input;
+    const { address } = input;
     const sourceFormat = detectFormat(address);
+
+    // Auto-detect target format if not specified
+    const targetFormat = input.targetFormat || (sourceFormat === 'eth' ? 'bitbadges' : 'eth');
 
     if (sourceFormat === 'unknown') {
       return {

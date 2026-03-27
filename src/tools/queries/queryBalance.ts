@@ -8,6 +8,7 @@
 
 import { z } from 'zod';
 import { getBalance, getBalanceForToken, type BalanceResponse } from '../../sdk/apiClient.js';
+import { ensureBb1 } from '../../sdk/addressUtils.js';
 
 export const queryBalanceSchema = z.object({
   collectionId: z.string().describe('The collection ID'),
@@ -51,7 +52,8 @@ export const queryBalanceTool = {
 
 export async function handleQueryBalance(input: QueryBalanceInput): Promise<QueryBalanceResult> {
   try {
-    const { collectionId, address, tokenId } = input;
+    const { collectionId, tokenId } = input;
+    const address = ensureBb1(input.address);
 
     // If tokenId is provided, use the specific-token endpoint for a single balance amount
     if (tokenId) {

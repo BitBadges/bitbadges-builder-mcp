@@ -9,6 +9,7 @@
  */
 import { z } from 'zod';
 import { addTransfer } from '../../session/sessionState.js';
+import { ensureBb1 } from '../../sdk/addressUtils.js';
 
 const MAX_UINT64 = '18446744073709551615';
 
@@ -26,8 +27,8 @@ const BalanceSchema = z.object({
 });
 
 const TransferSchema = z.object({
-  from: z.string().describe('Sender address (bb1...). Use "Mint" to mint new tokens.'),
-  toAddresses: z.array(z.string()).describe('Recipient addresses (bb1...).'),
+  from: z.string().describe('Sender address (bb1... or 0x...). Use "Mint" to mint new tokens.'),
+  toAddresses: z.array(z.string()).describe('Recipient addresses (bb1... or 0x...).'),
   balances: z.array(BalanceSchema).describe('What to transfer: amount × tokenIds × ownershipTimes.'),
   prioritizedApprovals: z.array(z.object({
     approvalId: z.string().describe('The approvalId from the collection that authorizes this transfer.'),
@@ -101,8 +102,8 @@ export function handleAddTransfer(input: Record<string, any>): Record<string, an
 
     const transferValue = {
       transfers: parsed.transfers.map((t) => ({
-        from: t.from,
-        toAddresses: t.toAddresses,
+        from: t.from === 'Mint' ? 'Mint' : ensureBb1(t.from),
+        toAddresses: t.toAddresses.map((a: string) => ensureBb1(a)),
         balances: t.balances,
         prioritizedApprovals: t.prioritizedApprovals || [],
         merkleProofs: t.merkleProofs || [],
