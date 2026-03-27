@@ -9,11 +9,12 @@
 
 import { z } from 'zod';
 import { getCollections } from '../../sdk/apiClient.js';
+import { ensureBb1 } from '../../sdk/addressUtils.js';
 
 export const buildTransferSchema = z.object({
   collectionId: z.string().describe('The collection ID'),
-  fromAddress: z.string().describe('Sender address (bb1...) — use "Mint" for minting'),
-  toAddress: z.string().describe('Recipient address (bb1...) — for unbacking, use the backing address'),
+  fromAddress: z.string().describe('Sender address (bb1... or 0x...) — use "Mint" for minting'),
+  toAddress: z.string().describe('Recipient address (bb1... or 0x...) — for unbacking, use the backing address'),
   tokenIds: z.array(z.object({
     start: z.string(),
     end: z.string()
@@ -149,7 +150,9 @@ function findMatchingApproval(
 
 export async function handleBuildTransfer(input: BuildTransferInput): Promise<BuildTransferResult> {
   try {
-    const { collectionId, fromAddress, toAddress, amount = '1' } = input;
+    const { collectionId, amount = '1' } = input;
+    const fromAddress = input.fromAddress === 'Mint' ? 'Mint' : ensureBb1(input.fromAddress);
+    const toAddress = ensureBb1(input.toAddress);
 
     // Query collection
     const response = await getCollections({

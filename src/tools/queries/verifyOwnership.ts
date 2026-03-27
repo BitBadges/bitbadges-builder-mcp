@@ -5,6 +5,7 @@
 
 import { z } from 'zod';
 import { verifyOwnership } from '../../sdk/apiClient.js';
+import { ensureBb1 } from '../../sdk/addressUtils.js';
 
 export const verifyOwnershipSchema = z.object({
   address: z.string().describe('The address to verify (bb1... or 0x...)'),
@@ -41,7 +42,8 @@ export const verifyOwnershipTool = {
 
 export async function handleVerifyOwnership(input: VerifyOwnershipInput): Promise<VerifyOwnershipResult> {
   try {
-    const { address, requirements } = input;
+    const address = ensureBb1(input.address);
+    const { requirements } = input;
 
     // Parse requirements JSON
     let parsedRequirements: unknown;

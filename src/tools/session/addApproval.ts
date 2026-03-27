@@ -10,6 +10,7 @@
 import { z } from 'zod';
 import { randomBytes } from 'crypto';
 import { addApproval as addApprovalToSession, getOrCreateSession } from '../../session/sessionState.js';
+import { ensureBb1, ensureBb1ListId } from '../../sdk/addressUtils.js';
 import { getCoinDetails } from '../../sdk/coinRegistry.js';
 
 const MAX_UINT64 = '18446744073709551615';
@@ -403,6 +404,18 @@ export const addApprovalTool = {
 
 export function handleAddApproval(input: AddApprovalInput) {
   try {
+    // Auto-convert 0x addresses to bb1
+    if (input.creatorAddress) input.creatorAddress = ensureBb1(input.creatorAddress);
+    input.fromListId = ensureBb1ListId(input.fromListId);
+    if (input.toListId) input.toListId = ensureBb1ListId(input.toListId);
+    if (input.initiatedByListId) input.initiatedByListId = ensureBb1ListId(input.initiatedByListId);
+    if (input.approvalCriteria?.coinTransfers) {
+      input.approvalCriteria.coinTransfers = input.approvalCriteria.coinTransfers.map((ct: any) => ({
+        ...ct,
+        to: ct.to ? ensureBb1(ct.to) : ct.to
+      }));
+    }
+
     const session = getOrCreateSession(input.sessionId, input.creatorAddress);
 
     // Capture existing approval's claim secrets before replacement (for seedCode stability on refine)

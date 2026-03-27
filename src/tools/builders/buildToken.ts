@@ -7,6 +7,7 @@
 import { z } from 'zod';
 import { generateAliasAddressForIBCBackedDenom } from '../../sdk/addressGenerator.js';
 import { lookupTokenInfo, resolveIbcDenom, getDecimals } from '../../sdk/coinRegistry.js';
+import { ensureBb1 } from '../../sdk/addressUtils.js';
 
 const MAX_UINT64 = '18446744073709551615';
 const FOREVER_TIMES = [{ start: '1', end: MAX_UINT64 }];
@@ -45,7 +46,7 @@ const timeBehaviorSchema = z.union([
 ]).default('permanent');
 
 export const buildTokenSchema = z.object({
-  creatorAddress: z.string().describe('Creator/manager address (bb1...)'),
+  creatorAddress: z.string().describe('Creator/manager address (bb1... or 0x...)'),
   name: z.string().describe('Collection/token name'),
 
   // Token type preset
@@ -905,8 +906,9 @@ export function handleBuildToken(rawInput: BuildTokenRawInput): BuildTokenResult
     const input = resolveTokenTypePreset(parsed);
 
     // Phase 1: Resolve
+    input.creatorAddress = ensureBb1(input.creatorAddress);
     if (!input.creatorAddress.startsWith('bb1')) {
-      return { success: false, error: 'Creator address must start with "bb1"' };
+      return { success: false, error: 'Creator address must be a valid bb1... or 0x... address' };
     }
 
     const resolvedSupply = resolveSupply(input.supply);

@@ -6,6 +6,7 @@
 
 import { z } from 'zod';
 import crypto from 'crypto';
+import { ensureBb1 } from '../../sdk/addressUtils.js';
 
 export const buildClaimSchema = z.object({
   claimType: z.enum(['code-gated', 'password-gated', 'whitelist-gated', 'open']).describe('Type of claim gating'),
@@ -20,7 +21,7 @@ export const buildClaimSchema = z.object({
   password: z.string().optional().describe('Shared password for password-gated claims'),
 
   // whitelist-gated
-  whitelist: z.array(z.string()).optional().describe('Array of bb1... addresses for whitelist-gated claims'),
+  whitelist: z.array(z.string()).optional().describe('Array of addresses (bb1... or 0x...) for whitelist-gated claims'),
   maxUsesPerAddress: z.number().optional().describe('Max claims per address (default 1)'),
 
   // optional action (links claim to a collection approval)
@@ -107,6 +108,11 @@ function generateCodesFromSeed(seedCode: string, count: number): string[] {
 }
 
 export function handleBuildClaim(input: BuildClaimInput): BuildClaimResult {
+  // Auto-convert 0x addresses in whitelist
+  if (input.whitelist) {
+    input.whitelist = input.whitelist.map(addr => ensureBb1(addr));
+  }
+
   // Validate type-specific required fields
   if (input.claimType === 'password-gated' && !input.password) {
     return { success: false, error: 'password is required for password-gated claims' };

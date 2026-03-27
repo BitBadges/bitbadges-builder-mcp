@@ -9,6 +9,7 @@
  */
 
 import { z } from 'zod';
+import { ensureBb1 } from '../../sdk/addressUtils.js';
 
 export const buildDynamicStoreSchema = z.object({
   action: z.enum(['create', 'update', 'delete', 'set_value', 'batch_set_values'])
@@ -264,6 +265,9 @@ function buildBatchSetValuesMsg(input: BuildDynamicStoreInput): BuildDynamicStor
 }
 
 export function handleBuildDynamicStore(input: BuildDynamicStoreInput): BuildDynamicStoreResult {
+  input.creator = ensureBb1(input.creator);
+  if (input.address) input.address = ensureBb1(input.address);
+  if (input.entries) input.entries = input.entries.map(e => ({ ...e, address: ensureBb1(e.address) }));
   switch (input.action) {
     case 'create': return buildCreateMsg(input);
     case 'update': return buildUpdateMsg(input);

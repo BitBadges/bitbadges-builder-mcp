@@ -4,6 +4,7 @@
  */
 
 import { z } from 'zod';
+import { ensureBb1, ensureBb1ListId } from '../../sdk/addressUtils.js';
 
 const MAX_UINT64 = '18446744073709551615';
 const FOREVER_TIMES = [{ start: '1', end: MAX_UINT64 }];
@@ -308,6 +309,13 @@ function buildRestrictedTransferApproval(input: GenerateApprovalInput): Approval
 
 export function handleGenerateApproval(input: GenerateApprovalInput): GenerateApprovalResult {
   try {
+    // Auto-convert 0x addresses to bb1
+    if (input.backingAddress) input.backingAddress = ensureBb1(input.backingAddress);
+    if (input.paymentRecipient) input.paymentRecipient = ensureBb1(input.paymentRecipient);
+    if (input.fromListId) input.fromListId = ensureBb1ListId(input.fromListId);
+    if (input.toListId) input.toListId = ensureBb1ListId(input.toListId);
+    if (input.initiatedByListId) input.initiatedByListId = ensureBb1ListId(input.initiatedByListId);
+
     let approval: ApprovalStructure;
 
     switch (input.approvalType) {

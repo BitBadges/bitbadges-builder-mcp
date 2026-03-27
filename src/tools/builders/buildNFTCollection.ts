@@ -8,7 +8,7 @@ import { z } from 'zod';
 import { handleBuildToken } from './buildToken.js';
 
 export const buildNFTCollectionSchema = z.object({
-  creatorAddress: z.string().describe('Creator/manager address (bb1...)'),
+  creatorAddress: z.string().describe('Creator/manager address (bb1... or 0x...)'),
   name: z.string().describe('Collection name'),
   description: z.string().optional().describe('Collection description'),
   totalSupply: z.string().describe('Total number of NFTs in collection'),

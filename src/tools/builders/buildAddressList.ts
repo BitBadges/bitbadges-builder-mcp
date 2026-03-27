@@ -5,9 +5,10 @@
  */
 
 import { z } from 'zod';
+import { ensureBb1 } from '../../sdk/addressUtils.js';
 
 export const buildAddressListSchema = z.object({
-  creatorAddress: z.string().describe('Creator/manager address (bb1...)'),
+  creatorAddress: z.string().describe('Creator/manager address (bb1... or 0x...)'),
   name: z.string().describe('Collection name (e.g., "VIP Members List")'),
   description: z.string().optional().describe('Collection description (1-2 sentences)'),
   imageUrl: z.string().optional().describe('Image URL for collection and token metadata (IPFS or HTTP)'),
@@ -51,10 +52,11 @@ export const buildAddressListTool = {
 };
 
 export function handleBuildAddressList(input: BuildAddressListInput): BuildAddressListResult {
-  const { creatorAddress, name, description, imageUrl, immutable } = input;
+  const { name, description, imageUrl, immutable } = input;
+  const creatorAddress = ensureBb1(input.creatorAddress);
 
   if (!creatorAddress || !creatorAddress.startsWith('bb1')) {
-    return { success: false, error: 'creatorAddress must be a valid bb1... address' };
+    return { success: false, error: 'creatorAddress must be a valid bb1... or 0x... address' };
   }
 
   if (!name) {
