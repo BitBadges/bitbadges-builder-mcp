@@ -5,6 +5,11 @@ import { handleGenerateUniqueId } from '../src/tools/utilities/generateUniqueId.
 import { handleGetCurrentTimestamp } from '../src/tools/utilities/getCurrentTimestamp.js';
 import { handleLookupTokenInfo } from '../src/tools/utilities/lookupTokenInfo.js';
 import { handleDiagnoseError } from '../src/tools/utilities/diagnoseError.js';
+import { handleBuildToken } from '../src/tools/builders/buildToken.js';
+import { handleBuildAddressList } from '../src/tools/builders/buildAddressList.js';
+import { handleSetManager } from '../src/tools/session/setManager.js';
+import { handleBuildDynamicStore } from '../src/tools/queries/buildDynamicStore.js';
+import { ethToCosmos } from '../src/sdk/addressUtils.js';
 
 // ============================================================
 // handleValidateAddress
@@ -374,5 +379,149 @@ describe('handleDiagnoseError', () => {
   it('tip suggests simulate_transaction when diagnosis exists', () => {
     const result = handleDiagnoseError({ error: 'auto-scan failed' });
     expect(result.tip).toContain('simulate_transaction');
+  });
+});
+
+// ============================================================
+// Auto-convert 0x addresses in tool handlers
+// ============================================================
+const TEST_ETH = '0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045';
+const TEST_BB1 = ethToCosmos(TEST_ETH);
+
+describe('handleConvertAddress — auto-detect targetFormat', () => {
+  it('auto-detects eth->bitbadges when targetFormat omitted', () => {
+    const result = handleConvertAddress({ address: TEST_ETH } as any);
+    expect(result.success).toBe(true);
+    expect(result.convertedAddress).toBe(TEST_BB1);
+    expect(result.targetFormat).toBe('bitbadges');
+  });
+
+  it('auto-detects bitbadges->eth when targetFormat omitted', () => {
+    const result = handleConvertAddress({ address: TEST_BB1 } as any);
+    expect(result.success).toBe(true);
+    expect(result.convertedAddress).toMatch(/^0x/);
+    expect(result.targetFormat).toBe('eth');
+  });
+
+  it('still works with explicit targetFormat', () => {
+    const result = handleConvertAddress({ address: TEST_ETH, targetFormat: 'bitbadges' });
+    expect(result.success).toBe(true);
+    expect(result.convertedAddress).toBe(TEST_BB1);
+  });
+});
+
+describe('handleBuildToken — accepts 0x creatorAddress', () => {
+  it('succeeds with 0x address (auto-converts to bb1)', () => {
+    const result = handleBuildToken({
+      creatorAddress: TEST_ETH,
+      name: 'Test Token',
+      supply: 'single-fungible'
+    });
+    expect(result.success).toBe(true);
+    expect(result.transaction).toBeDefined();
+    // Verify the creator in the transaction is bb1 format
+    const creator = (result.transaction as any)?.messages?.[0]?.value?.creator;
+    expect(creator).toBe(TEST_BB1);
+  });
+
+  it('still works with bb1 address', () => {
+    const result = handleBuildToken({
+      creatorAddress: TEST_BB1,
+      name: 'Test Token',
+      supply: 'single-fungible'
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('rejects invalid address format', () => {
+    const result = handleBuildToken({
+      creatorAddress: 'invalidaddress',
+      name: 'Test Token',
+      supply: 'single-fungible'
+    });
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('bb1');
+  });
+});
+
+describe('handleBuildAddressList — accepts 0x creatorAddress', () => {
+  it('succeeds with 0x address', () => {
+    const result = handleBuildAddressList({
+      creatorAddress: TEST_ETH,
+      name: 'Test List'
+    });
+    expect(result.success).toBe(true);
+    const creator = (result as any).transaction?.messages?.[0]?.value?.creator;
+    expect(creator).toBe(TEST_BB1);
+  });
+
+  it('rejects empty creatorAddress', () => {
+    const result = handleBuildAddressList({
+      creatorAddress: '',
+      name: 'Test List'
+    });
+    expect(result.success).toBe(false);
+  });
+});
+
+describe('handleSetManager — accepts 0x addresses', () => {
+  it('converts 0x manager address to bb1', () => {
+    const result = handleSetManager({
+      manager: TEST_ETH
+    });
+    expect(result.success).toBe(true);
+    expect(result.manager).toBe(TEST_BB1);
+  });
+
+  it('bb1 manager passes through unchanged', () => {
+    const result = handleSetManager({
+      manager: TEST_BB1
+    });
+    expect(result.success).toBe(true);
+    expect(result.manager).toBe(TEST_BB1);
+  });
+});
+
+describe('handleBuildDynamicStore — accepts 0x addresses', () => {
+  it('converts 0x creator in create action', () => {
+    const result = handleBuildDynamicStore({
+      action: 'create',
+      creator: TEST_ETH,
+      defaultValue: false
+    });
+    expect(result.success).toBe(true);
+    const creator = (result.transaction as any)?.messages?.[0]?.creator;
+    expect(creator).toBe(TEST_BB1);
+  });
+
+  it('converts 0x address in set_value action', () => {
+    const result = handleBuildDynamicStore({
+      action: 'set_value',
+      creator: TEST_ETH,
+      storeId: '1',
+      address: TEST_ETH,
+      value: true
+    });
+    expect(result.success).toBe(true);
+    const msg = (result.transaction as any)?.messages?.[0];
+    expect(msg?.creator).toBe(TEST_BB1);
+    expect(msg?.address).toBe(TEST_BB1);
+  });
+
+  it('converts 0x addresses in batch_set_values entries', () => {
+    const result = handleBuildDynamicStore({
+      action: 'batch_set_values',
+      creator: TEST_ETH,
+      storeId: '1',
+      entries: [
+        { address: TEST_ETH, value: true },
+        { address: TEST_BB1, value: false }
+      ]
+    });
+    expect(result.success).toBe(true);
+    const msgs = (result.transaction as any)?.messages;
+    // Each entry becomes a separate message
+    expect(msgs?.[0]?.address).toBe(TEST_BB1);
+    expect(msgs?.[1]?.address).toBe(TEST_BB1);
   });
 });
