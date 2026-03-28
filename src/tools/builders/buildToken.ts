@@ -8,6 +8,8 @@ import { z } from 'zod';
 import { generateAliasAddressForIBCBackedDenom } from '../../sdk/addressGenerator.js';
 import { lookupTokenInfo, resolveIbcDenom, getDecimals } from '../../sdk/coinRegistry.js';
 import { ensureBb1 } from '../../sdk/addressUtils.js';
+import { handleAuditCollection } from './auditCollection.js';
+import { handleValidateTransaction } from '../utilities/validateTransaction.js';
 
 const MAX_UINT64 = '18446744073709551615';
 const FOREVER_TIMES = [{ start: '1', end: MAX_UINT64 }];
@@ -108,7 +110,8 @@ export const buildTokenSchema = z.object({
   // Advanced overrides
   customApprovals: z.array(z.unknown()).optional().describe('Additional custom approvals to append'),
   customPermissions: z.record(z.enum(['allowed', 'forbidden', 'neutral'])).optional().describe('Per-key permission overrides'),
-  customData: z.string().optional().describe('Custom data string (JSON)')
+  customData: z.string().optional().describe('Custom data string (JSON)'),
+  autoCheck: z.boolean().default(true).describe('Run inline audit + validate on the generated transaction (default true)')
 });
 
 /** Output type after Zod defaults are applied */
@@ -133,6 +136,14 @@ export interface BuildTokenResult {
   };
   warnings?: string[];
   nextSteps?: string;
+  audit?: {
+    findings: { severity: string; category: string; title: string; detail: string; recommendation: string }[];
+    summary: { critical: number; warning: number; info: number; verdict: string };
+  };
+  validation?: {
+    valid: boolean;
+    issues: { severity: string; message: string; path?: string }[];
+  };
   error?: string;
 }
 
@@ -202,7 +213,8 @@ export const buildTokenTool = {
       decimals: { type: 'string', description: 'Token decimals (default "9")' },
       customApprovals: { type: 'array', description: 'Additional custom approvals to append' },
       customPermissions: { type: 'object', description: 'Per-key permission overrides: {canDeleteCollection: "allowed"|"forbidden"|"neutral", ...}' },
-      customData: { type: 'string', description: 'Custom data string (JSON)' }
+      customData: { type: 'string', description: 'Custom data string (JSON)' },
+      autoCheck: { type: 'boolean', description: 'Run inline audit + validate on the generated transaction (default true)' }
     },
     required: ['creatorAddress', 'name']
   }
@@ -1210,7 +1222,43 @@ export function handleBuildToken(rawInput: BuildTokenRawInput): BuildTokenResult
     }
     if (input.permissions === 'immutable') features.push('Fully immutable');
 
-    const questNextSteps = 'IMPORTANT: Run audit_collection on this transaction before deploying. Then validate_transaction -> return transaction for user review to deploy.';
+    // Phase 5: Inline audit + validate (if autoCheck enabled)
+    let auditResult: BuildTokenResult['audit'];
+    let validationResult: BuildTokenResult['validation'];
+
+    if (input.autoCheck !== false) {
+      try {
+        const auditOutput = handleAuditCollection({ collection: message as Record<string, unknown> });
+        auditResult = {
+          findings: auditOutput.findings,
+          summary: auditOutput.summary
+        };
+      } catch {
+        // Audit failure should not block the build
+      }
+
+      try {
+        const validateOutput = handleValidateTransaction({ transaction: { messages: [message] } });
+        validationResult = {
+          valid: validateOutput.valid,
+          issues: validateOutput.issues
+        };
+      } catch {
+        // Validation failure should not block the build
+      }
+    }
+
+    // Context-aware next steps
+    const hasCritical = (auditResult?.summary?.critical ?? 0) > 0;
+    const hasValidationErrors = validationResult?.issues?.some(i => i.severity === 'error') ?? false;
+    let nextSteps: string;
+    if (input.autoCheck !== false && (hasCritical || hasValidationErrors)) {
+      nextSteps = 'CRITICAL: Fix the issues found by the inline audit/validation before deploying. Review the audit findings and validation errors above.';
+    } else if (input.autoCheck !== false) {
+      nextSteps = 'No critical issues found. Review the transaction and deploy when ready.';
+    } else {
+      nextSteps = 'IMPORTANT: Run audit_collection on this transaction before deploying. Then validate_transaction -> return transaction for user review to deploy.';
+    }
 
     return {
       success: true,
@@ -1227,7 +1275,9 @@ export function handleBuildToken(rawInput: BuildTokenRawInput): BuildTokenResult
         features
       },
       warnings: warnings.length ? warnings : undefined,
-      nextSteps: isQuest ? questNextSteps : 'IMPORTANT: Run audit_collection on this transaction before deploying. Then validate_transaction -> return transaction for user review to deploy.'
+      nextSteps,
+      audit: auditResult,
+      validation: validationResult
     };
   } catch (error) {
     return {
