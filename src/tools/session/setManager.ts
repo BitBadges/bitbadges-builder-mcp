@@ -18,7 +18,7 @@ export const setManagerTool = {
     properties: {
       sessionId: { type: 'string', description: 'Session ID.' },
       creatorAddress: { type: 'string' },
-      manager: { type: 'string', description: 'Manager bb1... address.' }
+      manager: { type: 'string', description: 'Manager address (bb1... or 0x...).' }
     },
     required: ['manager']
   }

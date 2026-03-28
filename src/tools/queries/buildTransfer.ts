@@ -57,11 +57,11 @@ export const buildTransferTool = {
       },
       fromAddress: {
         type: 'string',
-        description: 'Sender address (bb1...) — use "Mint" for minting'
+        description: 'Sender address (bb1... or 0x...) — use "Mint" for minting'
       },
       toAddress: {
         type: 'string',
-        description: 'Recipient address (bb1...) — for unbacking, use the backing address'
+        description: 'Recipient address (bb1... or 0x...) — for unbacking, use the backing address'
       },
       tokenIds: {
         type: 'array',

@@ -15,7 +15,7 @@ export const getTransactionTool = {
     type: 'object' as const,
     properties: {
       sessionId: { type: 'string', description: 'Session ID.' },
-      creatorAddress: { type: 'string', description: 'Creator bb1... address.' }
+      creatorAddress: { type: 'string', description: 'Creator address (bb1... or 0x...).' }
     }
   }
 };

@@ -223,11 +223,11 @@ export const addApprovalTool = {
     type: 'object' as const,
     properties: {
       sessionId: { type: 'string', description: 'Session ID.' },
-      creatorAddress: { type: 'string', description: 'Creator bb1... address.' },
+      creatorAddress: { type: 'string', description: 'Creator address (bb1... or 0x...).' },
       approvalId: { type: 'string', description: 'Unique approval ID. Use descriptive names: "public-mint", "manager-mint", "subscription-mint", "transferable", "smart-token-backing", "smart-token-unbacking".' },
-      fromListId: { type: 'string', description: 'Who can send. "Mint" for minting. "!Mint" for post-mint transfers. bb1... for specific address.' },
+      fromListId: { type: 'string', description: 'Who can send. "Mint" for minting. "!Mint" for post-mint transfers. bb1... or 0x... for specific address.' },
       toListId: { type: 'string', description: 'Who can receive. Default "All".' },
-      initiatedByListId: { type: 'string', description: 'Who can initiate. "All" for public, bb1... for manager-only.' },
+      initiatedByListId: { type: 'string', description: 'Who can initiate. "All" for public, bb1... or 0x... for manager-only.' },
       tokenIds: { type: 'array', items: { type: 'object', properties: { start: { type: 'string' }, end: { type: 'string' } }, required: ['start', 'end'] }, description: 'Token ID ranges.' },
       transferTimes: { type: 'array', items: { type: 'object', properties: { start: { type: 'string' }, end: { type: 'string' } }, required: ['start', 'end'] } },
       ownershipTimes: { type: 'array', items: { type: 'object', properties: { start: { type: 'string' }, end: { type: 'string' } }, required: ['start', 'end'] } },
@@ -243,7 +243,7 @@ export const addApprovalTool = {
             items: {
               type: 'object',
               properties: {
-                to: { type: 'string', description: 'Recipient address (bb1...). Who receives the payment.' },
+                to: { type: 'string', description: 'Recipient address (bb1... or 0x...). Who receives the payment.' },
                 coins: {
                   type: 'array',
                   description: 'Coins to transfer as payment.',

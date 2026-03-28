@@ -142,7 +142,7 @@ export const buildTokenTool = {
   inputSchema: {
     type: 'object' as const,
     properties: {
-      creatorAddress: { type: 'string', description: 'Creator/manager address (bb1...)' },
+      creatorAddress: { type: 'string', description: 'Creator/manager address (bb1... or 0x...)' },
       name: { type: 'string', description: 'Collection/token name' },
       tokenType: {
         type: 'string',

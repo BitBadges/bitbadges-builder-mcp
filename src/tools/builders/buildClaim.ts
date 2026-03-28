@@ -67,7 +67,7 @@ export const buildClaimTool = {
       whitelist: {
         type: 'array',
         items: { type: 'string' },
-        description: 'Array of bb1... addresses (whitelist-gated only)'
+        description: 'Array of addresses (bb1... or 0x..., whitelist-gated only)'
       },
       maxUsesPerAddress: { type: 'number', description: 'Max claims per address (default 1, whitelist-gated only)' },
       action: {
