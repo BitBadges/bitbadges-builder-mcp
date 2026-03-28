@@ -93,7 +93,7 @@ export const generateApprovalTool = {
       },
       backingAddress: {
         type: 'string',
-        description: 'For Smart Token approvals: the IBC backing address (bb1...)'
+        description: 'For Smart Token approvals: the IBC backing address (bb1... or 0x...)'
       },
       paymentAmount: {
         type: 'string',
@@ -105,7 +105,7 @@ export const generateApprovalTool = {
       },
       paymentRecipient: {
         type: 'string',
-        description: 'Address to receive payment (bb1...)'
+        description: 'Address to receive payment (bb1... or 0x...)'
       },
       maxPerUser: {
         type: 'string',

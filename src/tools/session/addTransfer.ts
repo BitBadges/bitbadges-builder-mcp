@@ -60,7 +60,7 @@ export const addTransferTool = {
           type: 'object',
           properties: {
             from: { type: 'string', description: 'Sender. Use "Mint" to mint new tokens.' },
-            toAddresses: { type: 'array', items: { type: 'string' }, description: 'Recipient addresses (bb1...).' },
+            toAddresses: { type: 'array', items: { type: 'string' }, description: 'Recipient addresses (bb1... or 0x...).' },
             balances: {
               type: 'array',
               description: 'What to transfer: amount × tokenIds × ownershipTimes.',

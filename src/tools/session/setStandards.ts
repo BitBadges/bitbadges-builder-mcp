@@ -16,7 +16,7 @@ export const setStandardsTool = {
     type: 'object' as const,
     properties: {
       sessionId: { type: 'string', description: 'Session ID.' },
-      creatorAddress: { type: 'string', description: 'Creator bb1... address.' },
+      creatorAddress: { type: 'string', description: 'Creator address (bb1... or 0x...).' },
       standards: { type: 'array', items: { type: 'string' }, description: 'Standards array. E.g., ["Subscriptions"], ["NFTs"], ["Smart Token"].' }
     },
     required: ['standards']
