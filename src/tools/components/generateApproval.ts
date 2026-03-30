@@ -346,7 +346,7 @@ function buildIntentFillApproval(input: GenerateApprovalInput): ApprovalStructur
       manualBalances: [],
       incrementedBalances: {
         startBalances: [{ amount: '1', tokenIds: [{ start: '1', end: '1' }], ownershipTimes: [{ start: '1', end: MAX_UINT64 }] }],
-        incrementTokenIdsBy: '1',
+        incrementTokenIdsBy: '0',
         incrementOwnershipTimesBy: '0',
         durationFromTimestamp: '0',
         allowOverrideTimestamp: false,
