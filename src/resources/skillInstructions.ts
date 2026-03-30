@@ -2366,87 +2366,84 @@ Without this, the escrow has no funds and claims will fail.
     id: 'intent',
     name: 'Intent / OTC Offer',
     category: 'token-type',
-    description: 'Standing offer to swap asset X for asset Y, fillable in partitions by any taker',
-    summary: `Required standards: ["Intent"]
+    description: 'Standing offer to swap asset X for asset Y using user-level outgoing approvals on the shared Intent Exchange collection',
+    summary: `No collection creation needed. Uses shared Intent Exchange collection (INTENT_EXCHANGE_COLLECTION_ID).
 
-- SINGLE token ID 1 (NOT multiple IDs) — partitions are tracked via overallMaxNumTransfers
-- THREE collection-level approvals:
-  1. intent-fill: TWO coinTransfers (payment + payout from escrow), overallMaxNumTransfers = N
-  2. intent-reclaim: manager-only, reclaims escrowed coins (no payment), for cancellation
-  3. intent-burn: fromListId "!Mint", toListId "bb1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqs7gvmv" (burn/zero address, 41 chars), requireFromEqualsInitiatedBy true
-- Creator escrows the offered asset upfront via set_mint_escrow_coins (total offered amount)
-- Each fill = mint 1x token ID 1, triggering both coin transfers on the fill approval
-- predeterminedBalances with incrementedBalances: amount 1, incrementTokenIdsBy "0" (same token ID each time)
-- canDeleteCollection: [] (neutral/open — do NOT use [{}] which forbids it)
-- invariants.noCustomOwnershipTimes: true
-- Permissions: use "locked-approvals" preset (recommended)
-- Default balances: empty balances, all auto-approve flags true`,
-    instructions: `## Intent / OTC Offer Configuration
+- User sets an OUTGOING approval on the Intent Exchange collection via MsgUpdateUserApprovals
+- The outgoing approval has TWO coinTransfers:
+  1. Payment: from filler to creator (overrideFromWithApproverAddress: false)
+  2. Payout: from creator to filler (overrideFromWithApproverAddress: true, overrideToWithInitiator: true)
+- tokenIds: [{"start":"1","end":"1"}] with predeterminedBalances for token ID 1
+- maxNumTransfers.overallMaxNumTransfers controls partition count
+- autoDeletionOptions: { afterOverallMaxNumTransfers: true, allowPurgeIfExpired: true }
+- Fill = MsgTransferTokens from creator, prioritizing their outgoing approval
+- Cancel = MsgUpdateUserApprovals removing the approval
+- User may need to mint/own token ID 1 first (free mint on the collection)`,
+    instructions: `## Intent / OTC Offer Configuration (User-Level Outgoing Approval Approach)
 
 ### Mental Model
 
-An intent collection is a standing offer: "I will sell X of asset A for Y of asset B." The offer is split into N partitions tracked via overallMaxNumTransfers on a SINGLE token ID 1. When a filler mints a partition, two coin transfers fire simultaneously:
+An intent is a standing offer: "I will sell X of asset A for Y of asset B." Instead of creating a new collection per intent, the creator sets an **outgoing approval** on the shared Intent Exchange collection (INTENT_EXCHANGE_COLLECTION_ID). When a filler triggers the approval, two coin transfers fire simultaneously:
 1. The filler pays the asking price (e.g. 10 USDC) to the creator
-2. The filler receives the offered asset (e.g. 0.1 ATOM) from the creator's escrow
+2. The filler receives the offered asset (e.g. 0.1 ATOM) from the creator
 
-The collection also has an admin reclaim approval (creator can cancel and reclaim escrow) and a burn approval (fillers can burn their receipt token).
+No \`build_token\`, \`set_standards\`, \`set_mint_escrow_coins\`, or any collection creation tools are needed.
 
-Example: "Selling 1 ATOM for 100 USDC in 10 chunks" creates 1 token ID with overallMaxNumTransfers=10. Each fill costs 10 USDC and pays out 0.1 ATOM. The creator escrows 1 ATOM upfront.
+Example: "Selling 1 ATOM for 100 USDC in 10 fills" — creator sets an outgoing approval with overallMaxNumTransfers=10. Each fill costs 10 USDC and pays out 0.1 ATOM.
 
-### Build Steps (call ALL in parallel in one round)
+### Steps
 
-1. \`build_token\` with supply type "fixed"
-2. \`set_standards\` → \`["Intent"]\`
-3. \`set_valid_token_ids\` → \`[{ "start": "1", "end": "1" }]\` (ALWAYS single token ID)
-4. \`set_invariants\` → \`{ "noCustomOwnershipTimes": true }\`
-5. \`set_permissions\` → \`{ "preset": "locked-approvals", "permissions": { "canDeleteCollection": [] } }\` (override preset to keep delete open)
-6. \`set_default_balances\` → empty balances, all auto-approve true
-7. \`set_collection_metadata\` / \`set_token_metadata\` — describe the offer
-8. \`add_approval\` x3 — intent-fill, intent-reclaim, intent-burn (see below)
-9. \`set_mint_escrow_coins\` — REQUIRED: escrow the total offered asset (payoutAmountPerPartition × N)
+1. **Ensure token ownership**: The creator may need to mint/own token ID 1 on the Intent Exchange collection first (free mint available on the collection).
 
-### Approval 1: Intent Fill (add_approval)
+2. **Set outgoing approval** via \`MsgUpdateUserApprovals\` on the Intent Exchange collection:
+   - \`toListId: "All"\`
+   - \`initiatedByListId: "All"\`
+   - \`tokenIds: [{"start":"1","end":"1"}]\`
+   - \`transferTimes\`: Full ranges \`[{"start":"1","end":"18446744073709551615"}]\` or set an expiry window (UNIX milliseconds)
+   - \`approvalCriteria.maxNumTransfers.overallMaxNumTransfers: "1"\` (or \`"<N>"\` for N partitions)
+   - \`approvalCriteria.autoDeletionOptions: { "afterOverallMaxNumTransfers": true, "allowPurgeIfExpired": true }\`
+   - \`approvalCriteria.predeterminedBalances\` with token ID 1:
+     \`\`\`json
+     {
+       "incrementedBalances": {
+         "startBalances": [{ "amount": "1", "badgeIds": [{"start":"1","end":"1"}], "ownershipTimes": [{"start":"1","end":"18446744073709551615"}] }],
+         "incrementBadgeIdsBy": "0",
+         "incrementOwnershipTimesBy": "0"
+       },
+       "manualBalances": [],
+       "orderCalculationMethod": {
+         "useOverallNumTransfers": true,
+         "usePerToAddressNumTransfers": false,
+         "usePerFromAddressNumTransfers": false,
+         "usePerInitiatedByAddressNumTransfers": false,
+         "useMerkleChallengeLeafIndex": false
+       }
+     }
+     \`\`\`
+   - TWO \`coinTransfers\`:
+     1. **Payment** (filler pays creator):
+        \`\`\`json
+        { "to": "<creatorAddress>", "overrideFromWithApproverAddress": false, "overrideToWithInitiator": false, "coins": [{ "denom": "<paymentDenom>", "amount": "<paymentAmountPerFill>" }] }
+        \`\`\`
+     2. **Payout** (creator pays filler):
+        \`\`\`json
+        { "to": "", "overrideFromWithApproverAddress": true, "overrideToWithInitiator": true, "coins": [{ "denom": "<payoutDenom>", "amount": "<payoutAmountPerFill>" }] }
+        \`\`\`
 
-approvalId: "intent-fill", fromListId: "Mint", toListId: "All", initiatedByListId: "All"
-- tokenIds: [{"start":"1","end":"1"}]
-- overallMaxNumTransfers: "<N>" (number of partitions)
-- incrementTokenIdsBy: "0" (same token ID each time)
-- transferTimes: FullRanges by default [{"start":"1","end":"18446744073709551615"}]. If the user requests an expiry (e.g., "expires in 1 day"), set transferTimes to [{"start":"<now>","end":"<now + duration>"}] where times are UNIX milliseconds. Only apply expiry to the fill approval — reclaim and burn should always use FullRanges.
-- TWO coinTransfers:
-  1. Payment: to=creatorAddress, overrideFromWithApproverAddress: false, overrideToWithInitiator: false
-  2. Payout: to="", overrideFromWithApproverAddress: true, overrideToWithInitiator: true
+3. **Fill**: Filler sends \`MsgTransferTokens\` from the creator's address, which prioritizes the creator's outgoing approval. The two coinTransfers execute atomically.
 
-### Approval 2: Intent Reclaim (add_approval)
-
-approvalId: "intent-reclaim", fromListId: "Mint", toListId: <creatorAddress>, initiatedByListId: <creatorAddress>
-- Manager-only approval for cancellation — mints remaining tokens to creator, triggering payout from escrow back to creator
-- ONE coinTransfer: payout only (overrideFromWithApproverAddress: true, overrideToWithInitiator: true)
-- No payment coinTransfer (creator reclaims for free)
-- overallMaxNumTransfers: "<N>"
-- MUST have predeterminedBalances with startBalances (amount "1", tokenIds [1,1]) and orderCalculationMethod.useOverallNumTransfers: true — SAME structure as the fill approval. Without this, the chain returns "no order calculation method found".
-- MUST have incrementTokenIdsBy: "0" (same token each reclaim)
-
-### Approval 3: Intent Burn (add_approval)
-
-approvalId: "intent-burn", fromListId: "!Mint", toListId: "bb1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqs7gvmv", initiatedByListId: "All"
-- IMPORTANT: fromListId is "!Mint" (any non-mint holder), NOT "All"
-- IMPORTANT: toListId is the zero/burn address "bb1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqs7gvmv" (exactly 41 characters, 34 q's). Do NOT use "Mint" as toListId — that is invalid.
-- requireFromEqualsInitiatedBy: true (only the holder can burn their own tokens)
-- No coinTransfers, no predeterminedBalances needed
-- No approvalCriteria.overridesFromOutgoingApprovals or overridesToIncomingApprovals needed
-
-### Escrow Funding (REQUIRED)
-
-Call \`set_mint_escrow_coins\` in the SAME round. Escrow amount = payoutAmountPerPartition × N.
+4. **Cancel**: Creator sends \`MsgUpdateUserApprovals\` removing the approval from their outgoing approvals list.
 
 ### Common Mistakes
 
-- DON'T use multiple token IDs — use single token ID 1 with overallMaxNumTransfers = N
-- DON'T set incrementTokenIdsBy to "1" — it must be "0" (same token minted each time)
-- DON'T forget the reclaim approval — without it, the creator cannot cancel
-- DON'T use "Mint" as toListId for burn — use "bb1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqs7gvmv" (zero address) with fromListId "!Mint"
-- DON'T forget \`set_mint_escrow_coins\` — without escrow, payouts fail
-- DON'T use canDeleteCollection: [{}] — this FORBIDS deletion. Use [] (empty array = neutral/open) to keep it deletable`
+- DON'T create a new collection — use the shared Intent Exchange collection (INTENT_EXCHANGE_COLLECTION_ID)
+- DON'T call \`build_token\`, \`set_standards\`, \`set_mint_escrow_coins\`, or other collection creation tools
+- DON'T forget \`autoDeletionOptions\` — without it, the approval persists after all fills are used
+- DON'T forget \`predeterminedBalances\` with \`orderCalculationMethod.useOverallNumTransfers: true\` — the chain requires an order calculation method
+- DON'T omit \`manualBalances: []\` in predeterminedBalances — SDK crashes without it
+- DON'T add extra fields to coinTransfers — the ONLY fields are: to, overrideFromWithApproverAddress, overrideToWithInitiator, coins
+- DON'T forget the payout coinTransfer must have \`overrideFromWithApproverAddress: true\` and \`overrideToWithInitiator: true\`
+- DON'T set both coinTransfers to the same \`overrideFromWithApproverAddress\` value — one must be true (payout) and one must be false (payment)`
   },
 ];
 
