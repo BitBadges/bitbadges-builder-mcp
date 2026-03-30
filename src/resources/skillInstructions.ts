@@ -2370,10 +2370,10 @@ Without this, the escrow has no funds and claims will fail.
     summary: `Required standards: ["Intent"]
 
 - SINGLE token ID 1 (NOT multiple IDs) — partitions are tracked via overallMaxNumTransfers
-- TWO collection-level approvals:
+- THREE collection-level approvals:
   1. intent-fill: TWO coinTransfers (payment + payout from escrow), overallMaxNumTransfers = N
   2. intent-reclaim: manager-only, reclaims escrowed coins (no payment), for cancellation
-- NO burn approval needed — use canDeleteCollection for cleanup instead (burning via approvals is not supported)
+  3. intent-burn: fromListId "!Mint", toListId "bb1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqs7gvmv" (burn/zero address, 41 chars), requireFromEqualsInitiatedBy true
 - Creator escrows the offered asset upfront via set_mint_escrow_coins (total offered amount)
 - Each fill = mint 1x token ID 1, triggering both coin transfers on the fill approval
 - predeterminedBalances with incrementedBalances: amount 1, incrementTokenIdsBy "0" (same token ID each time)
@@ -2402,7 +2402,7 @@ Example: "Selling 1 ATOM for 100 USDC in 10 chunks" creates 1 token ID with over
 5. \`set_permissions\` → \`{ "preset": "locked-approvals" }\` with canDeleteCollection: [{}] (always deletable)
 6. \`set_default_balances\` → empty balances, all auto-approve true
 7. \`set_collection_metadata\` / \`set_token_metadata\` — describe the offer
-8. \`add_approval\` x2 — intent-fill and intent-reclaim (see below). Do NOT add a burn approval.
+8. \`add_approval\` x3 — intent-fill, intent-reclaim, intent-burn (see below)
 9. \`set_mint_escrow_coins\` — REQUIRED: escrow the total offered asset (payoutAmountPerPartition × N)
 
 ### Approval 1: Intent Fill (add_approval)
@@ -2423,9 +2423,14 @@ approvalId: "intent-reclaim", fromListId: "Mint", toListId: <creatorOnly>, initi
 - No payment coinTransfer (creator reclaims for free)
 - overallMaxNumTransfers: "<N>"
 
-### NO Burn Approval
+### Approval 3: Intent Burn (add_approval)
 
-Do NOT add a burn approval. Burning tokens via approvals (toListId pointing to Mint or a burn address) is not supported. Instead, the creator can delete the entire collection via canDeleteCollection when the intent is complete or cancelled.
+approvalId: "intent-burn", fromListId: "!Mint", toListId: "bb1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqs7gvmv", initiatedByListId: "All"
+- IMPORTANT: fromListId is "!Mint" (any non-mint holder), NOT "All"
+- IMPORTANT: toListId is the zero/burn address "bb1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqs7gvmv" (exactly 41 characters, 34 q's). Do NOT use "Mint" as toListId — that is invalid.
+- requireFromEqualsInitiatedBy: true (only the holder can burn their own tokens)
+- No coinTransfers, no predeterminedBalances needed
+- No approvalCriteria.overridesFromOutgoingApprovals or overridesToIncomingApprovals needed
 
 ### Escrow Funding (REQUIRED)
 
@@ -2436,7 +2441,7 @@ Call \`set_mint_escrow_coins\` in the SAME round. Escrow amount = payoutAmountPe
 - DON'T use multiple token IDs — use single token ID 1 with overallMaxNumTransfers = N
 - DON'T set incrementTokenIdsBy to "1" — it must be "0" (same token minted each time)
 - DON'T forget the reclaim approval — without it, the creator cannot cancel
-- DON'T add a burn approval — burning via toListId is not supported on-chain
+- DON'T use "Mint" as toListId for burn — use "bb1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqs7gvmv" (zero address) with fromListId "!Mint"
 - DON'T forget \`set_mint_escrow_coins\` — without escrow, payouts fail
 - DON'T forget canDeleteCollection: [{}] — creator must be able to delete after cancellation`
   },

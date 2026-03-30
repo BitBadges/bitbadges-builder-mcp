@@ -291,18 +291,17 @@ function validateApprovals(approvals: unknown[], path: string, issues: Validatio
     });
 
     // "Mint" must only appear in fromListId — it is the minting source, not a destination or initiator.
-    // Burning is not done via a burn toListId — instead, use canDeleteCollection to clean up, or skip the burn approval.
     if (typeof a.toListId === 'string' && (a.toListId === 'Mint' || a.toListId.includes('Mint'))) {
       issues.push({
         severity: 'error',
-        message: `toListId cannot be "Mint" or contain "Mint". "Mint" is only valid as a fromListId (minting source). Burning tokens is not supported via approvals — use canDeleteCollection for cleanup instead, or simply omit the burn approval.`,
+        message: `toListId cannot be "Mint". "Mint" is only valid as a fromListId (minting source). To burn tokens, use fromListId: "!Mint" and toListId: "bb1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqs7gvmv" (the zero/burn address, 41 chars).`,
         path: `${approvalPath}.toListId`
       });
     }
     if (typeof a.initiatedByListId === 'string' && (a.initiatedByListId === 'Mint' || a.initiatedByListId.includes('Mint'))) {
       issues.push({
         severity: 'error',
-        message: `initiatedByListId cannot be "Mint" or contain "Mint". "Mint" is only valid as a fromListId (minting source).`,
+        message: `initiatedByListId cannot be "Mint". "Mint" is only valid as a fromListId (minting source).`,
         path: `${approvalPath}.initiatedByListId`
       });
     }
@@ -773,14 +772,14 @@ function validateMsgConstructorFields(value: Record<string, unknown>, basePath: 
           if (typeof a.toListId === 'string' && (a.toListId === 'Mint' || a.toListId.includes('Mint'))) {
             issues.push({
               severity: 'error',
-              message: `defaultBalances.${field}[${index}].toListId cannot be "Mint". To burn tokens, use: bb1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqs7gvmv`,
+              message: `defaultBalances.${field}[${index}].toListId cannot be "Mint". To burn tokens, use: bb1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqs7gvmv`,
               path: `${basePath}.defaultBalances.${field}[${index}].toListId`
             });
           }
           if (typeof a.initiatedByListId === 'string' && (a.initiatedByListId === 'Mint' || a.initiatedByListId.includes('Mint'))) {
             issues.push({
               severity: 'error',
-              message: `defaultBalances.${field}[${index}].initiatedByListId cannot be "Mint". To burn tokens, use: bb1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqs7gvmv`,
+              message: `defaultBalances.${field}[${index}].initiatedByListId cannot be "Mint". To burn tokens, use: bb1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqs7gvmv`,
               path: `${basePath}.defaultBalances.${field}[${index}].initiatedByListId`
             });
           }
