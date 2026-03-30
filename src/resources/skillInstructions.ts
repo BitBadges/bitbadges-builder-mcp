@@ -2377,7 +2377,7 @@ Without this, the escrow has no funds and claims will fail.
 - Creator escrows the offered asset upfront via set_mint_escrow_coins (total offered amount)
 - Each fill = mint 1x token ID 1, triggering both coin transfers on the fill approval
 - predeterminedBalances with incrementedBalances: amount 1, incrementTokenIdsBy "0" (same token ID each time)
-- canDeleteCollection: always allowed [{}]
+- canDeleteCollection: [] (neutral/open — do NOT use [{}] which forbids it)
 - invariants.noCustomOwnershipTimes: true
 - Permissions: use "locked-approvals" preset (recommended)
 - Default balances: empty balances, all auto-approve flags true`,
@@ -2399,7 +2399,7 @@ Example: "Selling 1 ATOM for 100 USDC in 10 chunks" creates 1 token ID with over
 2. \`set_standards\` → \`["Intent"]\`
 3. \`set_valid_token_ids\` → \`[{ "start": "1", "end": "1" }]\` (ALWAYS single token ID)
 4. \`set_invariants\` → \`{ "noCustomOwnershipTimes": true }\`
-5. \`set_permissions\` → \`{ "preset": "locked-approvals" }\` with canDeleteCollection: [{}] (always deletable)
+5. \`set_permissions\` → \`{ "preset": "locked-approvals", "permissions": { "canDeleteCollection": [] } }\` (override preset to keep delete open)
 6. \`set_default_balances\` → empty balances, all auto-approve true
 7. \`set_collection_metadata\` / \`set_token_metadata\` — describe the offer
 8. \`add_approval\` x3 — intent-fill, intent-reclaim, intent-burn (see below)
@@ -2443,7 +2443,7 @@ Call \`set_mint_escrow_coins\` in the SAME round. Escrow amount = payoutAmountPe
 - DON'T forget the reclaim approval — without it, the creator cannot cancel
 - DON'T use "Mint" as toListId for burn — use "bb1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqs7gvmv" (zero address) with fromListId "!Mint"
 - DON'T forget \`set_mint_escrow_coins\` — without escrow, payouts fail
-- DON'T forget canDeleteCollection: [{}] — creator must be able to delete after cancellation`
+- DON'T use canDeleteCollection: [{}] — this FORBIDS deletion. Use [] (empty array = neutral/open) to keep it deletable`
   },
 ];
 
