@@ -136,10 +136,22 @@ export function handleSetPermissions(input: SetPermissionsInput) {
     if (!(key in permissions)) permissions[key] = [];
   }
 
-  // Validate each value is an array
+  // Validate each value is an array with properly structured entries
   for (const [key, val] of Object.entries(permissions)) {
     if (!Array.isArray(val)) {
       return { success: false, error: `Permission "${key}" must be an array, got ${typeof val}.` };
+    }
+    for (let i = 0; i < val.length; i++) {
+      const entry = val[i];
+      if (typeof entry !== 'object' || entry === null) {
+        return { success: false, error: `Permission "${key}[${i}]" must be an object, got ${typeof entry}.` };
+      }
+      if (Object.keys(entry).length === 0) {
+        return { success: false, error: `Permission "${key}[${i}]" is an empty object. Each entry must have permanentlyPermittedTimes and/or permanentlyForbiddenTimes.` };
+      }
+      if (!entry.permanentlyPermittedTimes && !entry.permanentlyForbiddenTimes) {
+        return { success: false, error: `Permission "${key}[${i}]" is missing permanentlyPermittedTimes and permanentlyForbiddenTimes. At least one must be provided.` };
+      }
     }
   }
 
