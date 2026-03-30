@@ -2362,6 +2362,384 @@ Without this, the escrow has no funds and claims will fail.
 - DON'T set allowOverrideTimestamp: true — quests require false
 - DON'T set useCreatorAddressAsLeaf: true — quests require false`
   },
+  {
+    id: 'prediction-market',
+    name: 'Prediction Market',
+    category: 'token-type',
+    description: 'Binary prediction market with YES/NO outcome tokens, liquidity pool trading, and vote-based settlement',
+    summary: `Required standards: ["prediction-market"]
+
+- Binary prediction market: "Will X happen by Y?" Users deposit USDC to mint paired YES+NO tokens. Trade YES↔NO on a liquidity pool. Verifier settles by voting. Winner redeems 1:1.
+- Token ID 1 = YES, Token ID 2 = NO (via alias paths with 6 decimals)
+- mintEscrowAddress holds all deposited USDC
+- All permissions frozen after creation
+- 6 approvals: paired mint, pre-settlement redeem, yes-wins, no-wins, push-yes, push-no
+- Alias paths for YES (token 1) and NO (token 2) with 6 decimals
+- Settlement via votingChallenges with 1-of-1 multisig verifier
+- Liquidity pool: MsgCreateBalancerPool with badgeslp:collectionId:YES and badgeslp:collectionId:NO, equal weights
+- DON'T use Smart Token standard — this uses mintEscrowAddress, not invariant paths
+- DON'T forget votingChallenges on settlement approvals
+- DON'T set maxNumTransfers on mint/redeem (should be unlimited = 0)
+- DON'T forget to freeze all permissions
+- DON'T forget predeterminedBalances with BOTH token IDs in paired mint/redeem
+- DON'T set overrideFromWithApproverAddress on the deposit coinTransfer (filler pays, not escrow)`,
+    instructions: `## Prediction Market Configuration
+
+### Mental Model
+
+Binary prediction market: "Will X happen by Y?" Users deposit USDC to mint paired YES+NO tokens. Trade YES↔NO on a liquidity pool. Verifier settles by voting. Winner redeems 1:1.
+
+### Collection Structure
+
+- Token ID 1 = YES, Token ID 2 = NO (via alias paths with 6 decimals)
+- Standard: 'prediction-market'
+- mintEscrowAddress holds all deposited USDC
+- All permissions frozen after creation
+
+### Alias Paths
+
+Two alias paths are REQUIRED — one for YES (token 1) and one for NO (token 2):
+
+\`\`\`json
+[
+  {
+    "denom": "YES",
+    "symbol": "YES",
+    "conversion": {
+      "sideA": { "amount": "1" },
+      "sideB": [{ "amount": "1", "tokenIds": [{ "start": "1", "end": "1" }], "ownershipTimes": [{ "start": "1", "end": "18446744073709551615" }] }]
+    },
+    "denomUnits": [{ "symbol": "YES", "decimals": "6", "isDefaultDisplay": true }]
+  },
+  {
+    "denom": "NO",
+    "symbol": "NO",
+    "conversion": {
+      "sideA": { "amount": "1" },
+      "sideB": [{ "amount": "1", "tokenIds": [{ "start": "2", "end": "2" }], "ownershipTimes": [{ "start": "1", "end": "18446744073709551615" }] }]
+    },
+    "denomUnits": [{ "symbol": "NO", "decimals": "6", "isDefaultDisplay": true }]
+  }
+]
+\`\`\`
+
+### 6 Approvals
+
+#### 1. Paired Mint (deposit 1 USDC → receive 1 YES + 1 NO)
+
+\`\`\`json
+{
+  "approvalId": "paired-mint",
+  "fromListId": "Mint",
+  "toListId": "All",
+  "initiatedByListId": "All",
+  "tokenIds": [{ "start": "1", "end": "2" }],
+  "approvalCriteria": {
+    "overridesFromOutgoingApprovals": true,
+    "predeterminedBalances": {
+      "manualBalances": [],
+      "incrementedBalances": {
+        "startBalances": [
+          { "amount": "1", "tokenIds": [{ "start": "1", "end": "1" }], "ownershipTimes": [{ "start": "1", "end": "18446744073709551615" }] },
+          { "amount": "1", "tokenIds": [{ "start": "2", "end": "2" }], "ownershipTimes": [{ "start": "1", "end": "18446744073709551615" }] }
+        ],
+        "incrementTokenIdsBy": "0",
+        "incrementOwnershipTimesBy": "0",
+        "durationFromTimestamp": "0",
+        "allowOverrideTimestamp": false,
+        "recurringOwnershipTimes": { "startTime": "0", "intervalLength": "0", "chargePeriodLength": "0" }
+      },
+      "orderCalculationMethod": {
+        "useOverallNumTransfers": true,
+        "usePerToAddressNumTransfers": false,
+        "usePerFromAddressNumTransfers": false,
+        "usePerInitiatedByAddressNumTransfers": false,
+        "useMerkleChallengeLeafIndex": false,
+        "challengeTrackerId": ""
+      }
+    },
+    "coinTransfers": [{
+      "to": "",
+      "overrideFromWithApproverAddress": false,
+      "overrideToWithInitiator": false,
+      "coins": [{ "amount": "1000000", "denom": "<USDC_IBC_DENOM>" }]
+    }]
+  }
+}
+\`\`\`
+
+Note: coinTransfer does NOT use override flags — the filler (initiator) pays USDC directly, not the escrow.
+
+#### 2. Pre-Settlement Redeem (burn 1 YES + 1 NO → 1 USDC from escrow)
+
+\`\`\`json
+{
+  "approvalId": "pre-settlement-redeem",
+  "fromListId": "!Mint",
+  "toListId": "<BURN_ADDRESS>",
+  "initiatedByListId": "All",
+  "tokenIds": [{ "start": "1", "end": "2" }],
+  "approvalCriteria": {
+    "predeterminedBalances": {
+      "manualBalances": [],
+      "incrementedBalances": {
+        "startBalances": [
+          { "amount": "1", "tokenIds": [{ "start": "1", "end": "1" }], "ownershipTimes": [{ "start": "1", "end": "18446744073709551615" }] },
+          { "amount": "1", "tokenIds": [{ "start": "2", "end": "2" }], "ownershipTimes": [{ "start": "1", "end": "18446744073709551615" }] }
+        ],
+        "incrementTokenIdsBy": "0",
+        "incrementOwnershipTimesBy": "0",
+        "durationFromTimestamp": "0",
+        "allowOverrideTimestamp": false,
+        "recurringOwnershipTimes": { "startTime": "0", "intervalLength": "0", "chargePeriodLength": "0" }
+      },
+      "orderCalculationMethod": {
+        "useOverallNumTransfers": true,
+        "usePerToAddressNumTransfers": false,
+        "usePerFromAddressNumTransfers": false,
+        "usePerInitiatedByAddressNumTransfers": false,
+        "useMerkleChallengeLeafIndex": false,
+        "challengeTrackerId": ""
+      }
+    },
+    "coinTransfers": [{
+      "to": "",
+      "overrideFromWithApproverAddress": true,
+      "overrideToWithInitiator": true,
+      "coins": [{ "amount": "1000000", "denom": "<USDC_IBC_DENOM>" }]
+    }]
+  }
+}
+\`\`\`
+
+#### 3. YES Wins (burn YES → 1 USDC)
+
+\`\`\`json
+{
+  "approvalId": "yes-wins",
+  "fromListId": "!Mint",
+  "toListId": "<BURN_ADDRESS>",
+  "initiatedByListId": "All",
+  "tokenIds": [{ "start": "1", "end": "1" }],
+  "approvalCriteria": {
+    "predeterminedBalances": {
+      "manualBalances": [],
+      "incrementedBalances": {
+        "startBalances": [
+          { "amount": "1", "tokenIds": [{ "start": "1", "end": "1" }], "ownershipTimes": [{ "start": "1", "end": "18446744073709551615" }] }
+        ],
+        "incrementTokenIdsBy": "0",
+        "incrementOwnershipTimesBy": "0",
+        "durationFromTimestamp": "0",
+        "allowOverrideTimestamp": false,
+        "recurringOwnershipTimes": { "startTime": "0", "intervalLength": "0", "chargePeriodLength": "0" }
+      },
+      "orderCalculationMethod": {
+        "useOverallNumTransfers": true,
+        "usePerToAddressNumTransfers": false,
+        "usePerFromAddressNumTransfers": false,
+        "usePerInitiatedByAddressNumTransfers": false,
+        "useMerkleChallengeLeafIndex": false,
+        "challengeTrackerId": ""
+      }
+    },
+    "coinTransfers": [{
+      "to": "",
+      "overrideFromWithApproverAddress": true,
+      "overrideToWithInitiator": true,
+      "coins": [{ "amount": "1000000", "denom": "<USDC_IBC_DENOM>" }]
+    }],
+    "votingChallenges": [{
+      "proposalId": "yes-wins-proposal",
+      "optionId": "yes",
+      "quorumThreshold": "1",
+      "passThreshold": "1",
+      "voterAddresses": ["<VERIFIER_ADDRESS>"]
+    }]
+  }
+}
+\`\`\`
+
+#### 4. NO Wins (burn NO → 1 USDC)
+
+Same as YES Wins but with token ID 2 and a separate proposalId:
+
+\`\`\`json
+{
+  "approvalId": "no-wins",
+  "fromListId": "!Mint",
+  "toListId": "<BURN_ADDRESS>",
+  "initiatedByListId": "All",
+  "tokenIds": [{ "start": "2", "end": "2" }],
+  "approvalCriteria": {
+    "predeterminedBalances": {
+      "manualBalances": [],
+      "incrementedBalances": {
+        "startBalances": [
+          { "amount": "1", "tokenIds": [{ "start": "2", "end": "2" }], "ownershipTimes": [{ "start": "1", "end": "18446744073709551615" }] }
+        ],
+        "incrementTokenIdsBy": "0",
+        "incrementOwnershipTimesBy": "0",
+        "durationFromTimestamp": "0",
+        "allowOverrideTimestamp": false,
+        "recurringOwnershipTimes": { "startTime": "0", "intervalLength": "0", "chargePeriodLength": "0" }
+      },
+      "orderCalculationMethod": {
+        "useOverallNumTransfers": true,
+        "usePerToAddressNumTransfers": false,
+        "usePerFromAddressNumTransfers": false,
+        "usePerInitiatedByAddressNumTransfers": false,
+        "useMerkleChallengeLeafIndex": false,
+        "challengeTrackerId": ""
+      }
+    },
+    "coinTransfers": [{
+      "to": "",
+      "overrideFromWithApproverAddress": true,
+      "overrideToWithInitiator": true,
+      "coins": [{ "amount": "1000000", "denom": "<USDC_IBC_DENOM>" }]
+    }],
+    "votingChallenges": [{
+      "proposalId": "no-wins-proposal",
+      "optionId": "yes",
+      "quorumThreshold": "1",
+      "passThreshold": "1",
+      "voterAddresses": ["<VERIFIER_ADDRESS>"]
+    }]
+  }
+}
+\`\`\`
+
+#### 5. Push YES (burn YES → 0.5 USDC — fallback if market is indeterminate)
+
+\`\`\`json
+{
+  "approvalId": "push-yes",
+  "fromListId": "!Mint",
+  "toListId": "<BURN_ADDRESS>",
+  "initiatedByListId": "All",
+  "tokenIds": [{ "start": "1", "end": "1" }],
+  "approvalCriteria": {
+    "predeterminedBalances": {
+      "manualBalances": [],
+      "incrementedBalances": {
+        "startBalances": [
+          { "amount": "1", "tokenIds": [{ "start": "1", "end": "1" }], "ownershipTimes": [{ "start": "1", "end": "18446744073709551615" }] }
+        ],
+        "incrementTokenIdsBy": "0",
+        "incrementOwnershipTimesBy": "0",
+        "durationFromTimestamp": "0",
+        "allowOverrideTimestamp": false,
+        "recurringOwnershipTimes": { "startTime": "0", "intervalLength": "0", "chargePeriodLength": "0" }
+      },
+      "orderCalculationMethod": {
+        "useOverallNumTransfers": true,
+        "usePerToAddressNumTransfers": false,
+        "usePerFromAddressNumTransfers": false,
+        "usePerInitiatedByAddressNumTransfers": false,
+        "useMerkleChallengeLeafIndex": false,
+        "challengeTrackerId": ""
+      }
+    },
+    "coinTransfers": [{
+      "to": "",
+      "overrideFromWithApproverAddress": true,
+      "overrideToWithInitiator": true,
+      "coins": [{ "amount": "500000", "denom": "<USDC_IBC_DENOM>" }]
+    }],
+    "votingChallenges": [{
+      "proposalId": "push-yes-proposal",
+      "optionId": "yes",
+      "quorumThreshold": "1",
+      "passThreshold": "1",
+      "voterAddresses": ["<VERIFIER_ADDRESS>"]
+    }]
+  }
+}
+\`\`\`
+
+#### 6. Push NO (burn NO → 0.5 USDC — fallback if market is indeterminate)
+
+Same as Push YES but with token ID 2 and a separate proposalId:
+
+\`\`\`json
+{
+  "approvalId": "push-no",
+  "fromListId": "!Mint",
+  "toListId": "<BURN_ADDRESS>",
+  "initiatedByListId": "All",
+  "tokenIds": [{ "start": "2", "end": "2" }],
+  "approvalCriteria": {
+    "predeterminedBalances": {
+      "manualBalances": [],
+      "incrementedBalances": {
+        "startBalances": [
+          { "amount": "1", "tokenIds": [{ "start": "2", "end": "2" }], "ownershipTimes": [{ "start": "1", "end": "18446744073709551615" }] }
+        ],
+        "incrementTokenIdsBy": "0",
+        "incrementOwnershipTimesBy": "0",
+        "durationFromTimestamp": "0",
+        "allowOverrideTimestamp": false,
+        "recurringOwnershipTimes": { "startTime": "0", "intervalLength": "0", "chargePeriodLength": "0" }
+      },
+      "orderCalculationMethod": {
+        "useOverallNumTransfers": true,
+        "usePerToAddressNumTransfers": false,
+        "usePerFromAddressNumTransfers": false,
+        "usePerInitiatedByAddressNumTransfers": false,
+        "useMerkleChallengeLeafIndex": false,
+        "challengeTrackerId": ""
+      }
+    },
+    "coinTransfers": [{
+      "to": "",
+      "overrideFromWithApproverAddress": true,
+      "overrideToWithInitiator": true,
+      "coins": [{ "amount": "500000", "denom": "<USDC_IBC_DENOM>" }]
+    }],
+    "votingChallenges": [{
+      "proposalId": "push-no-proposal",
+      "optionId": "yes",
+      "quorumThreshold": "1",
+      "passThreshold": "1",
+      "voterAddresses": ["<VERIFIER_ADDRESS>"]
+    }]
+  }
+}
+\`\`\`
+
+### Settlement Flow
+
+1. Verifier sends MsgCastVote with 100% yes on the proposalId of the winning approval
+2. Once quorum reached, that approval becomes active for transfers
+3. Holders burn winning token to receive USDC from escrow
+
+### Liquidity Pool
+
+After creating the collection and minting initial pairs:
+- Create pool: MsgCreateBalancerPool with badgeslp:collectionId:YES and badgeslp:collectionId:NO, equal weights
+- Market price discovery: YES_price = NO_reserve / (YES_reserve + NO_reserve)
+
+### Steps for AI Builder
+
+1. \`build_token\` with 2 token IDs, standard 'prediction-market'
+2. \`set_token_metadata\` for YES (token 1) and NO (token 2)
+3. Add 6 approvals via \`add_approval\` (paired-mint, pre-settlement-redeem, yes-wins, no-wins, push-yes, push-no)
+4. \`set_mint_escrow_coins\` — NOT needed upfront (coins come from deposits)
+5. Add alias paths via \`add_alias_path\` for YES and NO
+6. \`set_permissions\` to freeze everything
+7. After collection creation: mint initial pairs + create pool
+
+### Common Mistakes
+
+- DON'T forget both alias paths (YES and NO)
+- DON'T use Smart Token standard — this uses mintEscrowAddress, not invariant paths
+- DON'T forget votingChallenges on settlement approvals
+- DON'T set maxNumTransfers on mint/redeem (should be unlimited = 0)
+- DON'T forget to freeze all permissions
+- DON'T forget predeterminedBalances with BOTH token IDs in paired mint/redeem
+- DON'T set overrideFromWithApproverAddress on the deposit coinTransfer (filler pays, not escrow)`
+  },
 ];
 
 
