@@ -136,11 +136,24 @@ export function handleSetPermissions(input: SetPermissionsInput) {
     if (!(key in permissions)) permissions[key] = [];
   }
 
-  // Validate each value is an array
+  // Validate each value is an array and normalize entries
   for (const [key, val] of Object.entries(permissions)) {
     if (!Array.isArray(val)) {
       return { success: false, error: `Permission "${key}" must be an array, got ${typeof val}.` };
     }
+    // Normalize: empty objects like [{}] → treat as neutral []
+    // Also ensure each entry has permanentlyPermittedTimes and permanentlyForbiddenTimes
+    permissions[key] = val.filter((entry: any) => {
+      if (typeof entry !== 'object' || entry === null) return false;
+      // An empty object {} with no meaningful fields → drop it (neutral)
+      const hasTimeFields = entry.permanentlyPermittedTimes || entry.permanentlyForbiddenTimes;
+      if (!hasTimeFields && Object.keys(entry).length === 0) return false;
+      return true;
+    }).map((entry: any) => ({
+      ...entry,
+      permanentlyPermittedTimes: entry.permanentlyPermittedTimes || [],
+      permanentlyForbiddenTimes: entry.permanentlyForbiddenTimes || []
+    }));
   }
 
   setPermissionsInSession(input.sessionId, permissions);
