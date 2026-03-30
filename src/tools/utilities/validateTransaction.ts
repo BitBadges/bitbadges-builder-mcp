@@ -291,18 +291,18 @@ function validateApprovals(approvals: unknown[], path: string, issues: Validatio
     });
 
     // "Mint" must only appear in fromListId — it is the minting source, not a destination or initiator.
-    // If the intent is to burn tokens, use the burn address bb1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqs7gvmv instead.
+    // Burning is not done via a burn toListId — instead, use canDeleteCollection to clean up, or skip the burn approval.
     if (typeof a.toListId === 'string' && (a.toListId === 'Mint' || a.toListId.includes('Mint'))) {
       issues.push({
         severity: 'error',
-        message: `toListId cannot be "Mint". "Mint" is only valid as a fromListId (minting source). To burn tokens, use the burn address: bb1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqs7gvmv`,
+        message: `toListId cannot be "Mint" or contain "Mint". "Mint" is only valid as a fromListId (minting source). Burning tokens is not supported via approvals — use canDeleteCollection for cleanup instead, or simply omit the burn approval.`,
         path: `${approvalPath}.toListId`
       });
     }
     if (typeof a.initiatedByListId === 'string' && (a.initiatedByListId === 'Mint' || a.initiatedByListId.includes('Mint'))) {
       issues.push({
         severity: 'error',
-        message: `initiatedByListId cannot be "Mint". "Mint" is only valid as a fromListId (minting source). To burn tokens, use the burn address: bb1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqs7gvmv`,
+        message: `initiatedByListId cannot be "Mint" or contain "Mint". "Mint" is only valid as a fromListId (minting source).`,
         path: `${approvalPath}.initiatedByListId`
       });
     }

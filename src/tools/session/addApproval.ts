@@ -488,6 +488,11 @@ export function handleAddApproval(input: AddApprovalInput) {
     }
     if (criteria.predeterminedBalances) {
       criteria.predeterminedBalances.manualBalances = criteria.predeterminedBalances.manualBalances || [];
+      // Auto-hoist orderCalculationMethod if AI nested it inside incrementedBalances (common mistake)
+      if (criteria.predeterminedBalances.incrementedBalances?.orderCalculationMethod && !criteria.predeterminedBalances.orderCalculationMethod) {
+        criteria.predeterminedBalances.orderCalculationMethod = criteria.predeterminedBalances.incrementedBalances.orderCalculationMethod;
+        delete criteria.predeterminedBalances.incrementedBalances.orderCalculationMethod;
+      }
       if (criteria.predeterminedBalances.orderCalculationMethod) {
         const ocm = criteria.predeterminedBalances.orderCalculationMethod;
         ocm.usePerToAddressNumTransfers = ocm.usePerToAddressNumTransfers ?? false;
