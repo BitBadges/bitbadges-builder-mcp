@@ -17,7 +17,8 @@ export const generateApprovalSchema = z.object({
     'smart-token-unbacking',
     'subscription',
     'free-transfer',
-    'restricted-transfer'
+    'restricted-transfer',
+    'intent-fill'
   ]).describe('The type of approval to generate'),
   approvalId: z.string().describe('Unique identifier for this approval'),
   tokenIds: z.array(z.object({
@@ -28,6 +29,8 @@ export const generateApprovalSchema = z.object({
   paymentAmount: z.string().optional().describe('Payment amount in base units'),
   paymentDenom: z.string().optional().describe('Payment denomination'),
   paymentRecipient: z.string().optional().describe('Address to receive payment'),
+  payoutAmount: z.string().optional().describe('For intent-fill: payout amount per partition in base units'),
+  payoutDenom: z.string().optional().describe('For intent-fill: payout denomination (the escrowed asset)'),
   maxPerUser: z.string().optional().describe('Maximum mints per user'),
   totalMax: z.string().optional().describe('Total maximum transfers'),
   fromListId: z.string().optional().describe('Override from list ID'),
@@ -59,7 +62,7 @@ export interface GenerateApprovalResult {
 
 export const generateApprovalTool = {
   name: 'generate_approval',
-  description: 'Build approval structures by type. Generates properly formatted approvals for common use cases like minting, Smart Tokens, and transfers.',
+  description: 'Build approval structures by type. Generates properly formatted approvals for common use cases like minting, Smart Tokens, transfers, and intent fills.',
   inputSchema: {
     type: 'object' as const,
     properties: {
@@ -72,7 +75,8 @@ export const generateApprovalTool = {
           'smart-token-unbacking',
           'subscription',
           'free-transfer',
-          'restricted-transfer'
+          'restricted-transfer',
+          'intent-fill'
         ],
         description: 'The type of approval to generate'
       },
@@ -106,6 +110,14 @@ export const generateApprovalTool = {
       paymentRecipient: {
         type: 'string',
         description: 'Address to receive payment (bb1... or 0x...)'
+      },
+      payoutAmount: {
+        type: 'string',
+        description: 'For intent-fill: payout amount per partition in base units'
+      },
+      payoutDenom: {
+        type: 'string',
+        description: 'For intent-fill: payout denomination (the escrowed asset)'
       },
       maxPerUser: {
         type: 'string',
@@ -307,6 +319,67 @@ function buildRestrictedTransferApproval(input: GenerateApprovalInput): Approval
   return approval;
 }
 
+function buildIntentFillApproval(input: GenerateApprovalInput): ApprovalStructure {
+  if (!input.paymentAmount || !input.paymentDenom || !input.paymentRecipient) {
+    throw new Error('paymentAmount, paymentDenom, and paymentRecipient are required for intent-fill approval');
+  }
+  if (!input.payoutAmount || !input.payoutDenom) {
+    throw new Error('payoutAmount and payoutDenom are required for intent-fill approval');
+  }
+
+  const approval = createBaseApproval(input);
+  approval.fromListId = 'Mint';
+
+  const totalMax = input.totalMax || '0';
+
+  approval.approvalCriteria = {
+    overridesFromOutgoingApprovals: true,
+    maxNumTransfers: {
+      overallMaxNumTransfers: totalMax,
+      perInitiatedByAddressMaxNumTransfers: input.maxPerUser || '0',
+      perToAddressMaxNumTransfers: '0',
+      perFromAddressMaxNumTransfers: '0',
+      amountTrackerId: input.approvalId,
+      resetTimeIntervals: { startTime: '0', intervalLength: '0' }
+    },
+    predeterminedBalances: {
+      manualBalances: [],
+      incrementedBalances: {
+        startBalances: [{ amount: '1', tokenIds: [{ start: '1', end: '1' }], ownershipTimes: [{ start: '1', end: MAX_UINT64 }] }],
+        incrementTokenIdsBy: '1',
+        incrementOwnershipTimesBy: '0',
+        durationFromTimestamp: '0',
+        allowOverrideTimestamp: false,
+        recurringOwnershipTimes: { startTime: '0', intervalLength: '0', chargePeriodLength: '0' }
+      },
+      orderCalculationMethod: {
+        useOverallNumTransfers: true,
+        usePerToAddressNumTransfers: false,
+        usePerFromAddressNumTransfers: false,
+        usePerInitiatedByAddressNumTransfers: false,
+        useMerkleChallengeLeafIndex: false,
+        challengeTrackerId: ''
+      }
+    },
+    coinTransfers: [
+      {
+        to: input.paymentRecipient,
+        overrideFromWithApproverAddress: false,
+        overrideToWithInitiator: false,
+        coins: [{ denom: input.paymentDenom, amount: input.paymentAmount }]
+      },
+      {
+        to: '',
+        overrideFromWithApproverAddress: true,
+        overrideToWithInitiator: true,
+        coins: [{ denom: input.payoutDenom, amount: input.payoutAmount }]
+      }
+    ]
+  };
+
+  return approval;
+}
+
 export function handleGenerateApproval(input: GenerateApprovalInput): GenerateApprovalResult {
   try {
     // Auto-convert 0x addresses to bb1
@@ -339,6 +412,9 @@ export function handleGenerateApproval(input: GenerateApprovalInput): GenerateAp
         break;
       case 'restricted-transfer':
         approval = buildRestrictedTransferApproval(input);
+        break;
+      case 'intent-fill':
+        approval = buildIntentFillApproval(input);
         break;
       default:
         return {

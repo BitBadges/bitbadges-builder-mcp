@@ -2362,6 +2362,140 @@ Without this, the escrow has no funds and claims will fail.
 - DON'T set allowOverrideTimestamp: true — quests require false
 - DON'T set useCreatorAddressAsLeaf: true — quests require false`
   },
+  {
+    id: 'intent',
+    name: 'Intent / OTC Offer',
+    category: 'token-type',
+    description: 'Standing offer to swap asset X for asset Y, fillable in partitions by any taker',
+    summary: `Required standards: ["Intent"]
+
+- N token IDs (one per partition) where N = total offered amount / amount per partition
+- ONE collection-level approval with TWO coinTransfers:
+  1. Payment (filler pays): overrideFromWithApproverAddress: false, overrideToWithInitiator: false — filler sends payment coin to creator
+  2. Payout (filler receives): overrideFromWithApproverAddress: true, overrideToWithInitiator: true — creator's escrowed coins are sent to filler
+- Creator escrows the offered asset upfront via set_mint_escrow_coins (total offered amount)
+- Each fill = mint 1 token ID to filler, triggering both coin transfers
+- predeterminedBalances with incrementedBalances: amount 1, incrementTokenIdsBy "1" (each fill gets next token ID)
+- maxNumTransfers: perInitiatedByAddressMaxNumTransfers "1" per partition (or "0" for unlimited per user)
+- invariants.noCustomOwnershipTimes: true
+- Permissions: use "locked-approvals" preset (recommended)
+- Default balances: empty balances, all auto-approve flags true`,
+    instructions: `## Intent / OTC Offer Configuration
+
+### Mental Model
+
+An intent collection is a standing offer: "I will sell X of asset A for Y of asset B." The offer is split into N partitions so it can be partially filled. Each partition is one token ID. When a filler mints a partition token, two coin transfers fire simultaneously:
+1. The filler pays the asking price (e.g. 10 USDC) to the creator
+2. The filler receives the offered asset (e.g. 0.1 ATOM) from the creator's escrow
+
+Example: "Selling 1 ATOM for 100 USDC in 10 chunks" creates 10 token IDs. Each fill costs 10 USDC and pays out 0.1 ATOM (100000 uatom). The creator escrows 1 ATOM (1000000 uatom) upfront.
+
+### Build Steps (call ALL in parallel in one round)
+
+1. \`build_token\` with supply type "fixed"
+2. \`set_standards\` → \`["Intent"]\`
+3. \`set_valid_token_ids\` → \`[{ "start": "1", "end": "<N>" }]\` where N = number of partitions
+4. \`set_invariants\` → \`{ "noCustomOwnershipTimes": true }\`
+5. \`set_permissions\` → \`{ "preset": "locked-approvals" }\`
+6. \`set_default_balances\` → empty balances, all auto-approve true
+7. \`set_collection_metadata\` / \`set_token_metadata\` — describe the offer (what is being sold, price per partition, total partitions)
+8. \`add_approval\` — the intent fill approval (see exact structure below)
+9. \`set_mint_escrow_coins\` — REQUIRED: escrow the total offered asset (payoutAmountPerPartition × N)
+
+### Intent Fill Approval (add_approval)
+
+Use approvalId \`"intent-fill"\`. The EXACT approvalCriteria structure:
+
+\`\`\`json
+{
+  "approvalId": "intent-fill",
+  "fromListId": "Mint",
+  "toListId": "All",
+  "initiatedByListId": "All",
+  "tokenIds": [{"start":"1","end":"<N>"}],
+  "transferTimes": [{"start":"1","end":"18446744073709551615"}],
+  "ownershipTimes": [{"start":"1","end":"18446744073709551615"}],
+  "approvalCriteria": {
+    "overridesFromOutgoingApprovals": true,
+    "maxNumTransfers": {
+      "overallMaxNumTransfers": "<N>",
+      "perInitiatedByAddressMaxNumTransfers": "0",
+      "perToAddressMaxNumTransfers": "0",
+      "perFromAddressMaxNumTransfers": "0",
+      "amountTrackerId": "intent-fill",
+      "resetTimeIntervals": { "startTime": "0", "intervalLength": "0" }
+    },
+    "predeterminedBalances": {
+      "manualBalances": [],
+      "incrementedBalances": {
+        "startBalances": [{ "amount": "1", "tokenIds": [{"start":"1","end":"1"}], "ownershipTimes": [{"start":"1","end":"18446744073709551615"}] }],
+        "incrementTokenIdsBy": "1",
+        "incrementOwnershipTimesBy": "0",
+        "durationFromTimestamp": "0",
+        "allowOverrideTimestamp": false,
+        "recurringOwnershipTimes": { "startTime": "0", "intervalLength": "0", "chargePeriodLength": "0" }
+      },
+      "orderCalculationMethod": {
+        "useOverallNumTransfers": true,
+        "usePerToAddressNumTransfers": false,
+        "usePerFromAddressNumTransfers": false,
+        "usePerInitiatedByAddressNumTransfers": false,
+        "useMerkleChallengeLeafIndex": false,
+        "challengeTrackerId": ""
+      }
+    },
+    "coinTransfers": [
+      {
+        "to": "<creatorAddress>",
+        "overrideFromWithApproverAddress": false,
+        "overrideToWithInitiator": false,
+        "coins": [{ "amount": "<paymentAmountPerPartition>", "denom": "<paymentDenom>" }]
+      },
+      {
+        "to": "",
+        "overrideFromWithApproverAddress": true,
+        "overrideToWithInitiator": true,
+        "coins": [{ "amount": "<payoutAmountPerPartition>", "denom": "<payoutDenom>" }]
+      }
+    ]
+  }
+}
+\`\`\`
+
+Key points about the two coinTransfers:
+- **Payment (index 0)**: Filler pays the creator. \`to\` = creator address. Both override flags false — the filler is charged directly and the payment goes to the explicit \`to\` address.
+- **Payout (index 1)**: Creator's escrow pays the filler. \`overrideFromWithApproverAddress: true\` means the coins come from the collection's escrow (funded by the creator). \`overrideToWithInitiator: true\` means the coins go to whoever initiated the fill.
+
+### Escrow Funding (REQUIRED)
+
+Call \`set_mint_escrow_coins\` in the SAME round as the other tools. The escrow amount = payoutAmountPerPartition × N.
+
+Example for selling 1 ATOM (1000000 uatom) in 10 partitions:
+\`\`\`
+set_mint_escrow_coins({ coins: [{ denom: "ibc/A4DB...", amount: "1000000" }] })
+\`\`\`
+Without this, the escrow has no funds and fills will fail.
+
+### Transferability
+
+Intent tokens are typically **non-transferable** after mint (the token just proves you filled that partition). Do NOT add a transferable approval unless the user explicitly requests resellable fill receipts.
+
+### Validation
+
+After building, ALWAYS run:
+1. \`validate_transaction\` — ensures the transaction is well-formed
+2. \`audit_collection\` — checks for common configuration errors
+
+### Common Mistakes
+
+- DON'T forget the second coinTransfer (payout) — without it, fillers pay but receive nothing
+- DON'T swap the override flags — payment (index 0) must have both false, payout (index 1) must have overrideFromWithApproverAddress: true and overrideToWithInitiator: true
+- DON'T forget \`set_mint_escrow_coins\` — without it, the escrow is empty and payouts fail
+- DON'T set incrementTokenIdsBy to "0" — it must be "1" so each fill gets the next partition token
+- DON'T omit \`manualBalances: []\` in predeterminedBalances — SDK crashes without it
+- DON'T add extra fields to coinTransfers — the ONLY fields are: to, overrideFromWithApproverAddress, overrideToWithInitiator, coins
+- DON'T forget overallMaxNumTransfers should equal N (the number of partitions) to cap total fills`
+  },
 ];
 
 
