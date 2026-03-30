@@ -2417,11 +2417,13 @@ approvalId: "intent-fill", fromListId: "Mint", toListId: "All", initiatedByListI
 
 ### Approval 2: Intent Reclaim (add_approval)
 
-approvalId: "intent-reclaim", fromListId: "Mint", toListId: <creatorOnly>, initiatedByListId: <creatorOnly>
+approvalId: "intent-reclaim", fromListId: "Mint", toListId: <creatorAddress>, initiatedByListId: <creatorAddress>
 - Manager-only approval for cancellation — mints remaining tokens to creator, triggering payout from escrow back to creator
 - ONE coinTransfer: payout only (overrideFromWithApproverAddress: true, overrideToWithInitiator: true)
 - No payment coinTransfer (creator reclaims for free)
 - overallMaxNumTransfers: "<N>"
+- MUST have predeterminedBalances with startBalances (amount "1", tokenIds [1,1]) and orderCalculationMethod.useOverallNumTransfers: true — SAME structure as the fill approval. Without this, the chain returns "no order calculation method found".
+- MUST have incrementTokenIdsBy: "0" (same token each reclaim)
 
 ### Approval 3: Intent Burn (add_approval)
 
