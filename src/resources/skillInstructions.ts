@@ -2376,7 +2376,7 @@ Without this, the escrow has no funds and claims will fail.
 - 6 approvals: paired mint, pre-settlement redeem, yes-wins, no-wins, push-yes, push-no
 - Alias paths for YES (token 1) and NO (token 2) with 6 decimals
 - Settlement via votingChallenges with 1-of-1 multisig verifier
-- Liquidity pool: MsgCreateBalancerPool with badgeslp:collectionId:YES and badgeslp:collectionId:NO, equal weights
+- Liquidity pool: MsgCreateBalancerPool with badgeslp:collectionId:uyes and badgeslp:collectionId:uno, equal weights
 - DON'T use Smart Token standard — this uses mintEscrowAddress, not invariant paths
 - DON'T forget votingChallenges on settlement approvals
 - DON'T set maxNumTransfers on mint/redeem (should be unlimited = 0)
@@ -2403,8 +2403,8 @@ Two alias paths are REQUIRED — one for YES (token 1) and one for NO (token 2):
 \`\`\`json
 [
   {
-    "denom": "YES",
-    "symbol": "YES",
+    "denom": "uyes",
+    "symbol": "uyes",
     "conversion": {
       "sideA": { "amount": "1" },
       "sideB": [{ "amount": "1", "tokenIds": [{ "start": "1", "end": "1" }], "ownershipTimes": [{ "start": "1", "end": "18446744073709551615" }] }]
@@ -2412,8 +2412,8 @@ Two alias paths are REQUIRED — one for YES (token 1) and one for NO (token 2):
     "denomUnits": [{ "symbol": "YES", "decimals": "6", "isDefaultDisplay": true }]
   },
   {
-    "denom": "NO",
-    "symbol": "NO",
+    "denom": "uno",
+    "symbol": "uno",
     "conversion": {
       "sideA": { "amount": "1" },
       "sideB": [{ "amount": "1", "tokenIds": [{ "start": "2", "end": "2" }], "ownershipTimes": [{ "start": "1", "end": "18446744073709551615" }] }]
@@ -2717,7 +2717,7 @@ Same as Push YES but with token ID 2 and a separate proposalId:
 ### Liquidity Pool
 
 After creating the collection and minting initial pairs:
-- Create pool: MsgCreateBalancerPool with badgeslp:collectionId:YES and badgeslp:collectionId:NO, equal weights
+- Create pool: MsgCreateBalancerPool with badgeslp:collectionId:uyes and badgeslp:collectionId:uno, equal weights
 - Market price discovery: YES_price = NO_reserve / (YES_reserve + NO_reserve)
 
 ### Steps for AI Builder
@@ -2732,7 +2732,8 @@ After creating the collection and minting initial pairs:
 
 ### Common Mistakes
 
-- DON'T forget both alias paths (YES and NO)
+- DON'T forget both alias paths (uyes and uno)
+- DON'T set the alias denom/symbol the same as the denomUnit symbol — the chain rejects duplicate denom unit symbols. Use base denoms like "uyes"/"uno" with display denomUnits "YES"/"NO" (6 decimals)
 - DON'T use Smart Token standard — this uses mintEscrowAddress, not invariant paths
 - DON'T forget votingChallenges on settlement approvals
 - DON'T set maxNumTransfers on mint/redeem (should be unlimited = 0)
