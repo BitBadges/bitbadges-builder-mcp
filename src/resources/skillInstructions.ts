@@ -2507,7 +2507,15 @@ Note: coinTransfer does NOT use override flags — the filler (initiator) pays U
       "overrideFromWithApproverAddress": true,
       "overrideToWithInitiator": true,
       "coins": [{ "amount": "1000000", "denom": "<USDC_IBC_DENOM>" }]
-    }]
+    }],
+    "maxNumTransfers": {
+      "overallMaxNumTransfers": "18446744073709551615",
+      "perFromAddressMaxNumTransfers": "0",
+      "perToAddressMaxNumTransfers": "0",
+      "perInitiatedByAddressMaxNumTransfers": "0",
+      "amountTrackerId": "pre-settlement-redeem",
+      "resetTimeIntervals": { "startTime": "0", "intervalLength": "0" }
+    }
   }
 }
 \`\`\`
@@ -2549,12 +2557,18 @@ Note: coinTransfer does NOT use override flags — the filler (initiator) pays U
       "overrideToWithInitiator": true,
       "coins": [{ "amount": "1000000", "denom": "<USDC_IBC_DENOM>" }]
     }],
+    "maxNumTransfers": {
+      "overallMaxNumTransfers": "18446744073709551615",
+      "perFromAddressMaxNumTransfers": "0",
+      "perToAddressMaxNumTransfers": "0",
+      "perInitiatedByAddressMaxNumTransfers": "0",
+      "amountTrackerId": "yes-wins",
+      "resetTimeIntervals": { "startTime": "0", "intervalLength": "0" }
+    },
     "votingChallenges": [{
       "proposalId": "yes-wins-proposal",
-      "optionId": "yes",
       "quorumThreshold": "1",
-      "passThreshold": "1",
-      "voterAddresses": ["<VERIFIER_ADDRESS>"]
+      "voters": [{ "address": "<VERIFIER_ADDRESS>", "weight": "1" }]
     }]
   }
 }
@@ -2562,7 +2576,7 @@ Note: coinTransfer does NOT use override flags — the filler (initiator) pays U
 
 #### 4. NO Wins (burn NO → 1 USDC)
 
-Same as YES Wins but with token ID 2 and a separate proposalId:
+Same as YES Wins but with token ID 2, separate proposalId, and separate amountTrackerId:
 
 \`\`\`json
 {
@@ -2599,12 +2613,18 @@ Same as YES Wins but with token ID 2 and a separate proposalId:
       "overrideToWithInitiator": true,
       "coins": [{ "amount": "1000000", "denom": "<USDC_IBC_DENOM>" }]
     }],
+    "maxNumTransfers": {
+      "overallMaxNumTransfers": "18446744073709551615",
+      "perFromAddressMaxNumTransfers": "0",
+      "perToAddressMaxNumTransfers": "0",
+      "perInitiatedByAddressMaxNumTransfers": "0",
+      "amountTrackerId": "no-wins",
+      "resetTimeIntervals": { "startTime": "0", "intervalLength": "0" }
+    },
     "votingChallenges": [{
       "proposalId": "no-wins-proposal",
-      "optionId": "yes",
       "quorumThreshold": "1",
-      "passThreshold": "1",
-      "voterAddresses": ["<VERIFIER_ADDRESS>"]
+      "voters": [{ "address": "<VERIFIER_ADDRESS>", "weight": "1" }]
     }]
   }
 }
@@ -2647,12 +2667,18 @@ Same as YES Wins but with token ID 2 and a separate proposalId:
       "overrideToWithInitiator": true,
       "coins": [{ "amount": "500000", "denom": "<USDC_IBC_DENOM>" }]
     }],
+    "maxNumTransfers": {
+      "overallMaxNumTransfers": "18446744073709551615",
+      "perFromAddressMaxNumTransfers": "0",
+      "perToAddressMaxNumTransfers": "0",
+      "perInitiatedByAddressMaxNumTransfers": "0",
+      "amountTrackerId": "push-yes",
+      "resetTimeIntervals": { "startTime": "0", "intervalLength": "0" }
+    },
     "votingChallenges": [{
       "proposalId": "push-yes-proposal",
-      "optionId": "yes",
       "quorumThreshold": "1",
-      "passThreshold": "1",
-      "voterAddresses": ["<VERIFIER_ADDRESS>"]
+      "voters": [{ "address": "<VERIFIER_ADDRESS>", "weight": "1" }]
     }]
   }
 }
@@ -2697,12 +2723,18 @@ Same as Push YES but with token ID 2 and a separate proposalId:
       "overrideToWithInitiator": true,
       "coins": [{ "amount": "500000", "denom": "<USDC_IBC_DENOM>" }]
     }],
+    "maxNumTransfers": {
+      "overallMaxNumTransfers": "18446744073709551615",
+      "perFromAddressMaxNumTransfers": "0",
+      "perToAddressMaxNumTransfers": "0",
+      "perInitiatedByAddressMaxNumTransfers": "0",
+      "amountTrackerId": "push-no",
+      "resetTimeIntervals": { "startTime": "0", "intervalLength": "0" }
+    },
     "votingChallenges": [{
       "proposalId": "push-no-proposal",
-      "optionId": "yes",
       "quorumThreshold": "1",
-      "passThreshold": "1",
-      "voterAddresses": ["<VERIFIER_ADDRESS>"]
+      "voters": [{ "address": "<VERIFIER_ADDRESS>", "weight": "1" }]
     }]
   }
 }
@@ -2736,10 +2768,13 @@ After creating the collection and minting initial pairs:
 - DON'T set the alias denom/symbol the same as the denomUnit symbol — the chain rejects duplicate denom unit symbols. Use base denoms like "uyes"/"uno" with display denomUnits "YES"/"NO" (6 decimals)
 - DON'T use Smart Token standard — this uses mintEscrowAddress, not invariant paths
 - DON'T forget votingChallenges on settlement approvals
-- DON'T set maxNumTransfers on mint/redeem (should be unlimited = 0)
+- DON'T set maxNumTransfers on the paired mint approval (deposits should be unlimited = 0)
+- DO set maxNumTransfers.overallMaxNumTransfers to "18446744073709551615" (max uint64) on ALL approvals that use overrideFromWithApproverAddress: true (redeem + settlement). The chain REQUIRES a non-zero maxNumTransfers when overrideFromWithApproverAddress is true. Use max uint64 for effectively unlimited.
+- DON'T disable overrideFromWithApproverAddress to work around maxNumTransfers errors — that breaks payout routing. Always keep overrideFromWithApproverAddress: true on redemption/settlement approvals and set maxNumTransfers to max uint64.
 - DON'T forget to freeze all permissions
 - DON'T forget predeterminedBalances with BOTH token IDs in paired mint/redeem
-- DON'T set overrideFromWithApproverAddress on the deposit coinTransfer (filler pays, not escrow)`
+- DON'T set overrideFromWithApproverAddress on the deposit coinTransfer (filler pays, not escrow)
+- DON'T hardcode the creator address as the coinTransfer "to" on redemption/settlement — use overrideToWithInitiator: true so the person redeeming receives the payout`
   },
 ];
 
