@@ -2365,49 +2365,48 @@ Without this, the escrow has no funds and claims will fail.
   {
     id: 'intent',
     name: 'Intent / OTC Offer',
-    category: 'token-type',
+    category: 'feature',
     description: 'Standing offer to swap asset X for asset Y using user-level outgoing approvals on the shared Intent Exchange collection',
     summary: `No collection creation needed. Uses shared Intent Exchange collection (INTENT_EXCHANGE_COLLECTION_ID).
 
-- User sets an OUTGOING approval on the Intent Exchange collection via MsgUpdateUserApprovals
+- User sets an OUTGOING approval on the Intent Exchange collection via MsgSetOutgoingApproval
 - The outgoing approval has TWO coinTransfers:
   1. Payment: from filler to creator (overrideFromWithApproverAddress: false)
   2. Payout: from creator to filler (overrideFromWithApproverAddress: true, overrideToWithInitiator: true)
 - tokenIds: [{"start":"1","end":"1"}] with predeterminedBalances for token ID 1
-- maxNumTransfers.overallMaxNumTransfers controls partition count
-- autoDeletionOptions: { afterOverallMaxNumTransfers: true, allowPurgeIfExpired: true }
-- Fill = MsgTransferTokens from creator, prioritizing their outgoing approval
-- Cancel = MsgUpdateUserApprovals removing the approval
+- All intents are all-or-nothing (maxNumTransfers=1, afterOneUse=true, auto-deleted on fill)
+- Fill = 3-msg atomic tx: mint token ID 1 to creator, MsgTransferTokens prioritizing outgoing approval, burn token
+- Cancel = MsgDeleteOutgoingApproval
 - User may need to mint/own token ID 1 first (free mint on the collection)`,
     instructions: `## Intent / OTC Offer Configuration (User-Level Outgoing Approval Approach)
 
 ### Mental Model
 
-An intent is a standing offer: "I will sell X of asset A for Y of asset B." Instead of creating a new collection per intent, the creator sets an **outgoing approval** on the shared Intent Exchange collection (INTENT_EXCHANGE_COLLECTION_ID). When a filler triggers the approval, two coin transfers fire simultaneously:
-1. The filler pays the asking price (e.g. 10 USDC) to the creator
-2. The filler receives the offered asset (e.g. 0.1 ATOM) from the creator
+An intent is a standing offer: "I will sell X of asset A for Y of asset B." The creator sets an **outgoing approval** on the shared Intent Exchange collection (INTENT_EXCHANGE_COLLECTION_ID). When a filler triggers the approval, two coin transfers fire simultaneously:
+1. The filler pays the asking price (e.g. 100 USDC) to the creator
+2. The filler receives the offered asset (e.g. 1 ATOM) from the creator
+
+All intents are **all-or-nothing** — one fill consumes the entire offer. No partial fills.
 
 No \`build_token\`, \`set_standards\`, \`set_mint_escrow_coins\`, or any collection creation tools are needed.
-
-Example: "Selling 1 ATOM for 100 USDC in 10 fills" — creator sets an outgoing approval with overallMaxNumTransfers=10. Each fill costs 10 USDC and pays out 0.1 ATOM.
 
 ### Steps
 
 1. **Ensure token ownership**: The creator may need to mint/own token ID 1 on the Intent Exchange collection first (free mint available on the collection).
 
-2. **Set outgoing approval** via \`MsgUpdateUserApprovals\` on the Intent Exchange collection:
+2. **Set outgoing approval** via \`MsgSetOutgoingApproval\` on the Intent Exchange collection:
    - \`toListId: "All"\`
    - \`initiatedByListId: "All"\`
    - \`tokenIds: [{"start":"1","end":"1"}]\`
    - \`transferTimes\`: Full ranges \`[{"start":"1","end":"18446744073709551615"}]\` or set an expiry window (UNIX milliseconds)
-   - \`approvalCriteria.maxNumTransfers.overallMaxNumTransfers: "1"\` (or \`"<N>"\` for N partitions)
-   - \`approvalCriteria.autoDeletionOptions: { "afterOverallMaxNumTransfers": true, "allowPurgeIfExpired": true }\`
+   - \`approvalCriteria.maxNumTransfers.overallMaxNumTransfers: "1"\` (always 1, no partial fills)
+   - \`approvalCriteria.autoDeletionOptions: { "afterOneUse": true, "afterOverallMaxNumTransfers": true, "allowPurgeIfExpired": true, "allowCounterpartyPurge": false }\`
    - \`approvalCriteria.predeterminedBalances\` with token ID 1:
      \`\`\`json
      {
        "incrementedBalances": {
-         "startBalances": [{ "amount": "1", "badgeIds": [{"start":"1","end":"1"}], "ownershipTimes": [{"start":"1","end":"18446744073709551615"}] }],
-         "incrementBadgeIdsBy": "0",
+         "startBalances": [{ "amount": "1", "tokenIds": [{"start":"1","end":"1"}], "ownershipTimes": [{"start":"1","end":"18446744073709551615"}] }],
+         "incrementTokenIdsBy": "0",
          "incrementOwnershipTimesBy": "0"
        },
        "manualBalances": [],
@@ -2423,27 +2422,32 @@ Example: "Selling 1 ATOM for 100 USDC in 10 fills" — creator sets an outgoing 
    - TWO \`coinTransfers\`:
      1. **Payment** (filler pays creator):
         \`\`\`json
-        { "to": "<creatorAddress>", "overrideFromWithApproverAddress": false, "overrideToWithInitiator": false, "coins": [{ "denom": "<paymentDenom>", "amount": "<paymentAmountPerFill>" }] }
+        { "to": "<creatorAddress>", "overrideFromWithApproverAddress": false, "overrideToWithInitiator": false, "coins": [{ "denom": "<paymentDenom>", "amount": "<paymentAmount>" }] }
         \`\`\`
      2. **Payout** (creator pays filler):
         \`\`\`json
-        { "to": "", "overrideFromWithApproverAddress": true, "overrideToWithInitiator": true, "coins": [{ "denom": "<payoutDenom>", "amount": "<payoutAmountPerFill>" }] }
+        { "to": "", "overrideFromWithApproverAddress": true, "overrideToWithInitiator": true, "coins": [{ "denom": "<payoutDenom>", "amount": "<payoutAmount>" }] }
         \`\`\`
 
-3. **Fill**: Filler sends \`MsgTransferTokens\` from the creator's address, which prioritizes the creator's outgoing approval. The two coinTransfers execute atomically.
+3. **Fill**: 3-message atomic transaction:
+   a. \`MsgTransferTokens\`: Mint token ID 1 to the creator (from: "Mint", to: creatorAddress)
+   b. \`MsgTransferTokens\`: Transfer token from creator to filler, with \`prioritizedApprovals: [{ approvalId, approvalLevel: "outgoing", approverAddress: creatorAddress }]\` and \`onlyCheckPrioritizedOutgoingApprovals: true\`. This triggers both coinTransfers atomically.
+   c. \`MsgTransferTokens\`: Burn the token (from: fillerAddress, to: burn address)
 
-4. **Cancel**: Creator sends \`MsgUpdateUserApprovals\` removing the approval from their outgoing approvals list.
+4. **Cancel**: Creator sends \`MsgDeleteOutgoingApproval\` with the approvalId on the Intent Exchange collection.
 
 ### Common Mistakes
 
 - DON'T create a new collection — use the shared Intent Exchange collection (INTENT_EXCHANGE_COLLECTION_ID)
 - DON'T call \`build_token\`, \`set_standards\`, \`set_mint_escrow_coins\`, or other collection creation tools
-- DON'T forget \`autoDeletionOptions\` — without it, the approval persists after all fills are used
+- DON'T set \`overallMaxNumTransfers\` to anything other than 1 — all intents are all-or-nothing
+- DON'T forget \`autoDeletionOptions\` with \`afterOneUse: true\` — without it, the approval persists after being filled
 - DON'T forget \`predeterminedBalances\` with \`orderCalculationMethod.useOverallNumTransfers: true\` — the chain requires an order calculation method
 - DON'T omit \`manualBalances: []\` in predeterminedBalances — SDK crashes without it
 - DON'T add extra fields to coinTransfers — the ONLY fields are: to, overrideFromWithApproverAddress, overrideToWithInitiator, coins
 - DON'T forget the payout coinTransfer must have \`overrideFromWithApproverAddress: true\` and \`overrideToWithInitiator: true\`
-- DON'T set both coinTransfers to the same \`overrideFromWithApproverAddress\` value — one must be true (payout) and one must be false (payment)`
+- DON'T set both coinTransfers to the same \`overrideFromWithApproverAddress\` value — one must be true (payout) and one must be false (payment)
+- DON'T use MsgUpdateUserApprovals for cancel — use MsgDeleteOutgoingApproval instead`
   },
 ];
 
