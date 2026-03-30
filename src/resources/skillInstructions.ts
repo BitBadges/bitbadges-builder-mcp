@@ -2411,6 +2411,7 @@ approvalId: "intent-fill", fromListId: "Mint", toListId: "All", initiatedByListI
 - tokenIds: [{"start":"1","end":"1"}]
 - overallMaxNumTransfers: "<N>" (number of partitions)
 - incrementTokenIdsBy: "0" (same token ID each time)
+- transferTimes: FullRanges by default [{"start":"1","end":"18446744073709551615"}]. If the user requests an expiry (e.g., "expires in 1 day"), set transferTimes to [{"start":"<now>","end":"<now + duration>"}] where times are UNIX milliseconds. Only apply expiry to the fill approval — reclaim and burn should always use FullRanges.
 - TWO coinTransfers:
   1. Payment: to=creatorAddress, overrideFromWithApproverAddress: false, overrideToWithInitiator: false
   2. Payout: to="", overrideFromWithApproverAddress: true, overrideToWithInitiator: true
