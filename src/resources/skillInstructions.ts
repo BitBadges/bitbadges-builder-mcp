@@ -2760,10 +2760,11 @@ After creating the collection and minting initial pairs:
 
 1. \`build_token\` with 2 token IDs, standard 'Prediction Market'
 2. \`set_token_metadata\` for YES (token 1) and NO (token 2)
-3. Add 6 approvals via \`add_approval\` (paired-mint, pre-settlement-redeem, yes-wins, no-wins, push-yes, push-no)
-4. \`set_mint_escrow_coins\` — NOT needed upfront (coins come from deposits)
-5. Add alias paths via \`add_alias_path\` for YES and NO
-6. \`set_permissions\` with preset \`"fully-immutable"\` to freeze everything (NOT "locked-approvals" — that leaves some permissions neutral)
+3. \`set_invariants\` with \`{ "noCustomOwnershipTimes": true, "disablePoolCreation": false }\` — MUST set disablePoolCreation to false
+4. Add 6 approvals via \`add_approval\` (paired-mint, pre-settlement-redeem, yes-wins, no-wins, push-yes, push-no)
+5. \`set_mint_escrow_coins\` — NOT needed upfront (coins come from deposits)
+6. Add alias paths via \`add_alias_path\` for YES and NO
+7. \`set_permissions\` with preset \`"fully-immutable"\` to freeze everything (NOT "locked-approvals" — that leaves some permissions neutral)
 7. After collection creation: mint initial pairs + create pool
 
 ### Common Mistakes
