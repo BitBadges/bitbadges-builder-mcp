@@ -2470,9 +2470,13 @@ Two alias paths are REQUIRED — one for YES (token 1) and one for NO (token 2):
 }
 \`\`\`
 
-> **Note:** The \`to\` field on the mint coinTransfer must be a valid address (not empty). Use the creator's address. In a future version, this should be the collection's mint escrow address (via \`generate_backing_address\`).
+> **CRITICAL:** The \`to\` field MUST be the collection's mint escrow address so deposited USDC is available for redemption payouts. Since the escrow address depends on the collection ID (which is auto-assigned), you MUST either:
+> 1. Use \`query_collection\` after creation to get \`mintEscrowAddress\`, then update the approval in a second tx (permissions must not be frozen yet), OR
+> 2. Pre-compute it: the escrow address is deterministic from the collection ID via SDK \`generateAlias('tokenization', getAliasDerivationKeysForCollection(collectionId))\`
+>
+> DO NOT use the creator's address — that sends USDC to the creator's wallet instead of escrow, breaking redemption.
 
-Note: coinTransfer does NOT use override flags — the filler (initiator) pays USDC directly, not the escrow.
+Note: The deposit coinTransfer uses default routing (no overrides): initiator pays USDC → \`to\` address (escrow). The payout coinTransfers use \`overrideFromWithApproverAddress: true\` (escrow pays) + \`overrideToWithInitiator: true\` (redeemer receives).
 
 #### 2. Freely Transferable (allows transfers between users, pools, DEX)
 
@@ -2802,7 +2806,8 @@ After creating the collection and minting initial pairs:
 - DON'T forget to freeze all permissions
 - DON'T forget predeterminedBalances with BOTH token IDs in paired mint/redeem
 - DON'T set overrideFromWithApproverAddress on the deposit coinTransfer (filler pays, not escrow)
-- DON'T leave the "to" field empty on the paired mint coinTransfer — the chain rejects empty addresses. Use the creator's address as recipient.
+- DON'T leave the "to" field empty on the paired mint coinTransfer — the chain rejects empty addresses. Use the mint escrow address (query after creation or pre-compute from collection ID).
+- DON'T use the creator's address as "to" on the deposit — that sends USDC to the creator's wallet, not the escrow. Redemption will fail.
 - DON'T hardcode the creator address as the coinTransfer "to" on redemption/settlement — use overrideToWithInitiator: true so the person redeeming receives the payout
 - DON'T use "1" for startBalance amounts — YES/NO tokens have 6 decimals, so 1 display token = 1,000,000 base units. Use "1000000" for each startBalance amount.
 - DON'T use \`set_permissions\` preset "locked-approvals" — use "fully-immutable" to freeze ALL permissions including validTokenIds
