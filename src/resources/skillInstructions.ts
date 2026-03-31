@@ -2373,7 +2373,7 @@ Without this, the escrow has no funds and claims will fail.
 - Token ID 1 = YES, Token ID 2 = NO (via alias paths with 6 decimals)
 - mintEscrowAddress holds all deposited USDC
 - All permissions frozen after creation
-- 6 approvals: paired mint, pre-settlement redeem, yes-wins, no-wins, push-yes, push-no
+- 7 approvals: paired mint, freely transferable, pre-settlement redeem, yes-wins, no-wins, push-yes, push-no
 - Alias paths for YES (token 1) and NO (token 2) with 6 decimals
 - Settlement via votingChallenges with 1-of-1 multisig verifier
 - Liquidity pool: MsgCreateBalancerPool with badgeslp:collectionId:uyes and badgeslp:collectionId:uno, equal weights
@@ -2474,7 +2474,26 @@ Two alias paths are REQUIRED — one for YES (token 1) and one for NO (token 2):
 
 Note: coinTransfer does NOT use override flags — the filler (initiator) pays USDC directly, not the escrow.
 
-#### 2. Pre-Settlement Redeem (burn 1 YES + 1 NO → 1 USDC from escrow)
+#### 2. Freely Transferable (allows transfers between users, pools, DEX)
+
+\`\`\`json
+{
+  "approvalId": "transferable",
+  "fromListId": "!Mint",
+  "toListId": "All",
+  "initiatedByListId": "All",
+  "tokenIds": [{ "start": "1", "end": "2" }],
+  "approvalCriteria": {
+    "overridesFromOutgoingApprovals": false,
+    "overridesToIncomingApprovals": false,
+    "mustPrioritize": false
+  }
+}
+\`\`\`
+
+> This approval has NO coinTransfers, NO votingChallenges, and mustPrioritize: false. It allows auto-scanning so tokens can be freely transferred to pool addresses and between users.
+
+#### 3. Pre-Settlement Redeem (burn 1 YES + 1 NO → 1 USDC from escrow)
 
 \`\`\`json
 {
@@ -2524,7 +2543,7 @@ Note: coinTransfer does NOT use override flags — the filler (initiator) pays U
 }
 \`\`\`
 
-#### 3. YES Wins (burn YES → 1 USDC)
+#### 4. YES Wins (burn YES → 1 USDC)
 
 \`\`\`json
 {
@@ -2578,7 +2597,7 @@ Note: coinTransfer does NOT use override flags — the filler (initiator) pays U
 }
 \`\`\`
 
-#### 4. NO Wins (burn NO → 1 USDC)
+#### 5. NO Wins (burn NO → 1 USDC)
 
 Same as YES Wins but with token ID 2, separate proposalId, and separate amountTrackerId:
 
@@ -2634,7 +2653,7 @@ Same as YES Wins but with token ID 2, separate proposalId, and separate amountTr
 }
 \`\`\`
 
-#### 5. Push YES (burn YES → 0.5 USDC — fallback if market is indeterminate)
+#### 6. Push YES (burn YES → 0.5 USDC — fallback if market is indeterminate)
 
 \`\`\`json
 {
@@ -2688,7 +2707,7 @@ Same as YES Wins but with token ID 2, separate proposalId, and separate amountTr
 }
 \`\`\`
 
-#### 6. Push NO (burn NO → 0.5 USDC — fallback if market is indeterminate)
+#### 7. Push NO (burn NO → 0.5 USDC — fallback if market is indeterminate)
 
 Same as Push YES but with token ID 2 and a separate proposalId:
 
@@ -2761,7 +2780,11 @@ After creating the collection and minting initial pairs:
 1. \`build_token\` with 2 token IDs, standard 'Prediction Market'
 2. \`set_token_metadata\` for YES (token 1) and NO (token 2)
 3. \`set_invariants\` with \`{ "noCustomOwnershipTimes": true, "disablePoolCreation": false }\` — MUST set disablePoolCreation to false
-4. Add 6 approvals via \`add_approval\` (paired-mint, pre-settlement-redeem, yes-wins, no-wins, push-yes, push-no)
+4. Add 7 approvals via \`add_approval\`:
+   - \`paired-mint\`: Mint → All (deposit USDC, receive YES+NO)
+   - \`transferable\`: !Mint → All (free transfers between users/pools, NO coinTransfers, NO mustPrioritize, overridesFromOutgoingApprovals: false, overridesToIncomingApprovals: false)
+   - \`pre-settlement-redeem\`: !Mint → burn (redeem pair for USDC)
+   - \`yes-wins\`, \`no-wins\`, \`push-yes\`, \`push-no\`: settlement (vote-gated)
 5. \`set_mint_escrow_coins\` — NOT needed upfront (coins come from deposits)
 6. Add alias paths via \`add_alias_path\` for YES and NO
 7. \`set_permissions\` with preset \`"fully-immutable"\` to freeze everything (NOT "locked-approvals" — that leaves some permissions neutral)
