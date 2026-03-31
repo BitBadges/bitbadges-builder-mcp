@@ -2461,7 +2461,7 @@ Two alias paths are REQUIRED — one for YES (token 1) and one for NO (token 2):
       }
     },
     "coinTransfers": [{
-      "to": "<CREATOR_ADDRESS>",
+      "to": "Mint",
       "overrideFromWithApproverAddress": false,
       "overrideToWithInitiator": false,
       "coins": [{ "amount": "1000000", "denom": "<USDC_IBC_DENOM>" }]
@@ -2470,13 +2470,11 @@ Two alias paths are REQUIRED — one for YES (token 1) and one for NO (token 2):
 }
 \`\`\`
 
-> **CRITICAL:** The \`to\` field MUST be the collection's mint escrow address so deposited USDC is available for redemption payouts. Since the escrow address depends on the collection ID (which is auto-assigned), you MUST either:
-> 1. Use \`query_collection\` after creation to get \`mintEscrowAddress\`, then update the approval in a second tx (permissions must not be frozen yet), OR
-> 2. Pre-compute it: the escrow address is deterministic from the collection ID via SDK \`generateAlias('tokenization', getAliasDerivationKeysForCollection(collectionId))\`
+> **CRITICAL:** The \`to\` field MUST be \`"Mint"\`. The chain auto-resolves \`"Mint"\` to the collection's \`mintEscrowAddress\` at execution time for collection-level approvals. This ensures deposited USDC goes to the escrow (not the creator's wallet) and is available for redemption payouts.
 >
-> DO NOT use the creator's address — that sends USDC to the creator's wallet instead of escrow, breaking redemption.
+> DO NOT use the creator's address or any hardcoded address — use \`"Mint"\` which auto-resolves to the escrow.
 
-Note: The deposit coinTransfer uses default routing (no overrides): initiator pays USDC → \`to\` address (escrow). The payout coinTransfers use \`overrideFromWithApproverAddress: true\` (escrow pays) + \`overrideToWithInitiator: true\` (redeemer receives).
+Note: The deposit coinTransfer uses \`to: "Mint"\` with no overrides: initiator pays USDC → escrow (auto-resolved). The payout coinTransfers use \`to: ""\` with \`overrideFromWithApproverAddress: true\` (escrow pays) + \`overrideToWithInitiator: true\` (redeemer receives).
 
 #### 2. Freely Transferable (allows transfers between users, pools, DEX)
 
@@ -2785,10 +2783,10 @@ After creating the collection and minting initial pairs:
 2. \`set_token_metadata\` for YES (token 1) and NO (token 2)
 3. \`set_invariants\` with \`{ "noCustomOwnershipTimes": true, "disablePoolCreation": false }\` — MUST set disablePoolCreation to false
 4. Add 7 approvals via \`add_approval\`:
-   - \`paired-mint\`: Mint → All (deposit USDC, receive YES+NO)
+   - \`paired-mint\`: Mint → All (deposit USDC, receive YES+NO). coinTransfer \`to\` MUST be \`"Mint"\` — the chain auto-resolves this to the collection's mintEscrowAddress at execution time. No overrides on deposit.
    - \`transferable\`: !Mint → All (free transfers between users/pools, NO coinTransfers, NO mustPrioritize, overridesFromOutgoingApprovals: false, overridesToIncomingApprovals: false)
-   - \`pre-settlement-redeem\`: !Mint → burn (redeem pair for USDC)
-   - \`yes-wins\`, \`no-wins\`, \`push-yes\`, \`push-no\`: settlement (vote-gated)
+   - \`pre-settlement-redeem\`: !Mint → burn (redeem pair for USDC). coinTransfer \`to: ""\` with \`overrideFromWithApproverAddress: true\` + \`overrideToWithInitiator: true\` (escrow pays redeemer).
+   - \`yes-wins\`, \`no-wins\`, \`push-yes\`, \`push-no\`: settlement (vote-gated). Same payout pattern: \`to: ""\` with both overrides true.
 5. \`set_mint_escrow_coins\` — NOT needed upfront (coins come from deposits)
 6. Add alias paths via \`add_alias_path\` for YES and NO
 7. \`set_permissions\` with preset \`"fully-immutable"\` to freeze everything (NOT "locked-approvals" — that leaves some permissions neutral)
@@ -2806,8 +2804,8 @@ After creating the collection and minting initial pairs:
 - DON'T forget to freeze all permissions
 - DON'T forget predeterminedBalances with BOTH token IDs in paired mint/redeem
 - DON'T set overrideFromWithApproverAddress on the deposit coinTransfer (filler pays, not escrow)
-- DON'T leave the "to" field empty on the paired mint coinTransfer — the chain rejects empty addresses. Use the mint escrow address (query after creation or pre-compute from collection ID).
-- DON'T use the creator's address as "to" on the deposit — that sends USDC to the creator's wallet, not the escrow. Redemption will fail.
+- DON'T leave the "to" field empty on the paired mint coinTransfer — use \`"Mint"\` which auto-resolves to the collection's mintEscrowAddress at execution time.
+- DON'T use the creator's address or any hardcoded address as "to" on the deposit — use \`"Mint"\` for auto-routing to escrow.
 - DON'T hardcode the creator address as the coinTransfer "to" on redemption/settlement — use overrideToWithInitiator: true so the person redeeming receives the payout
 - DON'T use "1" for startBalance amounts — YES/NO tokens have 6 decimals, so 1 display token = 1,000,000 base units. Use "1000000" for each startBalance amount.
 - DON'T use \`set_permissions\` preset "locked-approvals" — use "fully-immutable" to freeze ALL permissions including validTokenIds

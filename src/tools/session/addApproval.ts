@@ -517,6 +517,22 @@ export function handleAddApproval(input: AddApprovalInput) {
       }));
     }
 
+    // Warn if coinTransfer has empty `to` without override — deposit pattern needs "Mint" or a valid address
+    if (Array.isArray(criteria.coinTransfers)) {
+      for (const ct of criteria.coinTransfers) {
+        if ((!ct.to || ct.to.trim() === '') && !ct.overrideToWithInitiator) {
+          return {
+            success: false,
+            error: 'coinTransfer has empty "to" with overrideToWithInitiator: false. ' +
+              'This means coins have no destination and the chain will reject it. ' +
+              'For deposit patterns, set "to" to "Mint" (auto-resolves to mintEscrowAddress) or a valid bb1 address. ' +
+              'For payout/escrow patterns, set overrideToWithInitiator: true.',
+            approvalId: finalApprovalId
+          };
+        }
+      }
+    }
+
     // Validate IBC denoms in coinTransfers — catch hallucinated denoms from training data
     const coinTransfers = (input.approvalCriteria as any)?.coinTransfers;
     const warnings: string[] = [];
