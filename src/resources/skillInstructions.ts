@@ -2367,7 +2367,7 @@ Without this, the escrow has no funds and claims will fail.
     name: 'Prediction Market',
     category: 'token-type',
     description: 'Binary prediction market with YES/NO outcome tokens, liquidity pool trading, and vote-based settlement',
-    summary: `Required standards: ["prediction-market"]
+    summary: `Required standards: ["Prediction Market"]
 
 - Binary prediction market: "Will X happen by Y?" Users deposit USDC to mint paired YES+NO tokens. Trade YES↔NO on a liquidity pool. Verifier settles by voting. Winner redeems 1:1.
 - Token ID 1 = YES, Token ID 2 = NO (via alias paths with 6 decimals)
@@ -2392,7 +2392,7 @@ Binary prediction market: "Will X happen by Y?" Users deposit USDC to mint paire
 ### Collection Structure
 
 - Token ID 1 = YES, Token ID 2 = NO (via alias paths with 6 decimals)
-- Standard: 'prediction-market'
+- Standard: 'Prediction Market'
 - mintEscrowAddress holds all deposited USDC
 - All permissions frozen after creation
 
@@ -2424,6 +2424,8 @@ Two alias paths are REQUIRED — one for YES (token 1) and one for NO (token 2):
 \`\`\`
 
 ### 6 Approvals
+
+**CRITICAL: All amounts in startBalances must be in BASE units (micro-units). Since YES/NO tokens have 6 decimals, 1 display token = 1,000,000 base units. Use "1000000" (not "1") for startBalance amounts when minting 1 display-YES + 1 display-NO per deposit.**
 
 #### 1. Paired Mint (deposit 1 USDC → receive 1 YES + 1 NO)
 
@@ -2756,12 +2758,12 @@ After creating the collection and minting initial pairs:
 
 ### Steps for AI Builder
 
-1. \`build_token\` with 2 token IDs, standard 'prediction-market'
+1. \`build_token\` with 2 token IDs, standard 'Prediction Market'
 2. \`set_token_metadata\` for YES (token 1) and NO (token 2)
 3. Add 6 approvals via \`add_approval\` (paired-mint, pre-settlement-redeem, yes-wins, no-wins, push-yes, push-no)
 4. \`set_mint_escrow_coins\` — NOT needed upfront (coins come from deposits)
 5. Add alias paths via \`add_alias_path\` for YES and NO
-6. \`set_permissions\` to freeze everything
+6. \`set_permissions\` with preset \`"fully-immutable"\` to freeze everything (NOT "locked-approvals" — that leaves some permissions neutral)
 7. After collection creation: mint initial pairs + create pool
 
 ### Common Mistakes
@@ -2777,7 +2779,10 @@ After creating the collection and minting initial pairs:
 - DON'T forget predeterminedBalances with BOTH token IDs in paired mint/redeem
 - DON'T set overrideFromWithApproverAddress on the deposit coinTransfer (filler pays, not escrow)
 - DON'T leave the "to" field empty on the paired mint coinTransfer — the chain rejects empty addresses. Use the creator's address as recipient.
-- DON'T hardcode the creator address as the coinTransfer "to" on redemption/settlement — use overrideToWithInitiator: true so the person redeeming receives the payout`
+- DON'T hardcode the creator address as the coinTransfer "to" on redemption/settlement — use overrideToWithInitiator: true so the person redeeming receives the payout
+- DON'T use "1" for startBalance amounts — YES/NO tokens have 6 decimals, so 1 display token = 1,000,000 base units. Use "1000000" for each startBalance amount.
+- DON'T use \`set_permissions\` preset "locked-approvals" — use "fully-immutable" to freeze ALL permissions including validTokenIds
+- DON'T use lowercase "prediction-market" as the standard — the correct name is "Prediction Market" (title case with space)`
   },
 ];
 
