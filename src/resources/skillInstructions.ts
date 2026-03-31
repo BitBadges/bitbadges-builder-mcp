@@ -2459,7 +2459,7 @@ Two alias paths are REQUIRED — one for YES (token 1) and one for NO (token 2):
       }
     },
     "coinTransfers": [{
-      "to": "",
+      "to": "<CREATOR_ADDRESS>",
       "overrideFromWithApproverAddress": false,
       "overrideToWithInitiator": false,
       "coins": [{ "amount": "1000000", "denom": "<USDC_IBC_DENOM>" }]
@@ -2467,6 +2467,8 @@ Two alias paths are REQUIRED — one for YES (token 1) and one for NO (token 2):
   }
 }
 \`\`\`
+
+> **Note:** The \`to\` field on the mint coinTransfer must be a valid address (not empty). Use the creator's address. In a future version, this should be the collection's mint escrow address (via \`generate_backing_address\`).
 
 Note: coinTransfer does NOT use override flags — the filler (initiator) pays USDC directly, not the escrow.
 
@@ -2774,6 +2776,7 @@ After creating the collection and minting initial pairs:
 - DON'T forget to freeze all permissions
 - DON'T forget predeterminedBalances with BOTH token IDs in paired mint/redeem
 - DON'T set overrideFromWithApproverAddress on the deposit coinTransfer (filler pays, not escrow)
+- DON'T leave the "to" field empty on the paired mint coinTransfer — the chain rejects empty addresses. Use the creator's address as recipient.
 - DON'T hardcode the creator address as the coinTransfer "to" on redemption/settlement — use overrideToWithInitiator: true so the person redeeming receives the payout`
   },
 ];
