@@ -2782,7 +2782,8 @@ After creating the collection and minting initial pairs:
 - DON'T hardcode the creator address as the coinTransfer "to" on redemption/settlement — use overrideToWithInitiator: true so the person redeeming receives the payout
 - DON'T use "1" for startBalance amounts — YES/NO tokens have 6 decimals, so 1 display token = 1,000,000 base units. Use "1000000" for each startBalance amount.
 - DON'T use \`set_permissions\` preset "locked-approvals" — use "fully-immutable" to freeze ALL permissions including validTokenIds
-- DON'T use lowercase "prediction-market" as the standard — the correct name is "Prediction Market" (title case with space)`
+- DON'T use lowercase "prediction-market" as the standard — the correct name is "Prediction Market" (title case with space)
+- DON'T set invariants.disablePoolCreation to true — prediction markets REQUIRE liquidity pools for YES/NO trading. Set it to false.`
   },
 ];
 
