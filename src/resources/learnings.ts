@@ -159,6 +159,18 @@ const LEARNINGS: LearningEntry[] = [
   },
   {
     topic: 'approvals',
+    title: 'maxScalingMultiplier is REQUIRED when allowAmountScaling is true',
+    content: 'When incrementedBalances.allowAmountScaling is true, maxScalingMultiplier MUST be set to a value > 0. The chain rejects transactions where maxScalingMultiplier is 0 with scaling enabled. This prevents unlimited scaling which could drain escrow funds. Set it to the maximum number of base units a single transfer should be able to claim (e.g., "100" means users can transfer up to 100x the base amount).',
+    severity: 'critical'
+  },
+  {
+    topic: 'approvals',
+    title: 'allowAmountScaling is incompatible with Quest, Subscription, and Invoice standards',
+    content: 'The doesFollow functions (isQuestApproval, isSubscriptionFaucetApproval, isInvoiceApproval) reject any approval with allowAmountScaling: true. These standards require fixed, predetermined amounts per transfer. Use scaling only for pay-per-token, prediction market, or credit token patterns.',
+    severity: 'critical'
+  },
+  {
+    topic: 'approvals',
     title: 'allowAmountScaling uses integer multiples only — no fractional scaling',
     content: 'The multiplier for allowAmountScaling must be an integer >= 1. The chain computes multiplier = transferAmount / baseAmount and rejects if not evenly divisible. For example, if startBalances has amount "3", you can transfer 3, 6, 9, 12... but not 4 or 7.',
     severity: 'tip'

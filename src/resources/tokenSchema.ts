@@ -270,6 +270,7 @@ predeterminedBalances:
     allowOverrideTimestamp: false               @rule MUST be false when allowAmountScaling is true
     allowOverrideWithAnyValidToken: false       @rule MUST be false when allowAmountScaling is true
     allowAmountScaling: true                    @rule Enables proportional transfers (any integer multiple)
+    maxScalingMultiplier: "100"               @rule MUST be > 0 when scaling is on (caps multiplier per transfer)
   orderCalculationMethod:
     useOverallNumTransfers: true
 coinTransfers: [{to: RECIPIENT, coins: [{amount: PRICE_PER_UNIT, denom: "ubadge"}]}]
