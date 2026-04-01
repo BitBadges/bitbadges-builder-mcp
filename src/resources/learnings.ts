@@ -160,7 +160,7 @@ const LEARNINGS: LearningEntry[] = [
   {
     topic: 'approvals',
     title: 'maxScalingMultiplier is REQUIRED when allowAmountScaling is true',
-    content: 'When incrementedBalances.allowAmountScaling is true, maxScalingMultiplier MUST be set to a value > 0. The chain rejects transactions where maxScalingMultiplier is 0 with scaling enabled. This prevents unlimited scaling which could drain escrow funds. Set it to the maximum number of base units a single transfer should be able to claim (e.g., "100" means users can transfer up to 100x the base amount).',
+    content: 'When incrementedBalances.allowAmountScaling is true, maxScalingMultiplier MUST be set to a value > 0. The chain rejects transactions where maxScalingMultiplier is 0 with scaling enabled. This prevents unlimited scaling which could drain escrow funds. Use startBalances with the smallest base unit (e.g., amount:"1" for 1 micro-unit) and a large maxScalingMultiplier (e.g., "1000000000000") so users can transfer any granular amount without fractional issues.',
     severity: 'critical'
   },
   {
