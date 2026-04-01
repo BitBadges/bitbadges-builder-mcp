@@ -160,13 +160,13 @@ const LEARNINGS: LearningEntry[] = [
   {
     topic: 'approvals',
     title: 'maxScalingMultiplier is REQUIRED when allowAmountScaling is true',
-    content: 'When incrementedBalances.allowAmountScaling is true, maxScalingMultiplier MUST be set to a value > 0. The chain rejects transactions where maxScalingMultiplier is 0 with scaling enabled. This prevents unlimited scaling which could drain escrow funds. Use startBalances with the smallest base unit (e.g., amount:"1" for 1 micro-unit) and a large maxScalingMultiplier (e.g., "1000000000000") so users can transfer any granular amount without fractional issues.',
+    content: 'When incrementedBalances.allowAmountScaling is true, maxScalingMultiplier MUST be set to a value > 0. The chain rejects transactions where maxScalingMultiplier is 0 with scaling enabled. IMPORTANT: maxScalingMultiplier is enforced PER TRANSFER, not cumulatively. A user can execute multiple transfers each up to the max. To cap total exposure, always pair scaling with maxNumTransfers or approvalAmounts. Without those, the only limit is the escrow balance. Use startBalances with the smallest base unit (e.g., amount:"1" for 1 micro-unit) and a large maxScalingMultiplier (e.g., "18446744073709551615") so users can transfer any granular amount without fractional issues.',
     severity: 'critical'
   },
   {
     topic: 'approvals',
-    title: 'allowAmountScaling is incompatible with Quest, Subscription, and Invoice standards',
-    content: 'The doesFollow functions (isQuestApproval, isSubscriptionFaucetApproval, isInvoiceApproval) reject any approval with allowAmountScaling: true. These standards require fixed, predetermined amounts per transfer. Use scaling only for pay-per-token, prediction market, or credit token patterns.',
+    title: 'allowAmountScaling is incompatible with fixed-amount standards',
+    content: 'The doesFollow functions reject any approval with allowAmountScaling: true for: Quests, Subscriptions, Invoices, Products, Bids/Listings, and Scheduled Payments. These standards require fixed, predetermined amounts per transfer. Use scaling only for pay-per-token, prediction market, or credit token patterns.',
     severity: 'critical'
   },
   {
