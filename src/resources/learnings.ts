@@ -153,6 +153,24 @@ const LEARNINGS: LearningEntry[] = [
   },
   {
     topic: 'approvals',
+    title: 'allowAmountScaling requires ALL other incrementedBalances fields to be zero/false/nil',
+    content: 'When incrementedBalances.allowAmountScaling is true, startBalances defines a static 1x base. The transfer can be any evenly divisible integer multiple of that base, and approvalCriteria.coinTransfers scale by the same multiplier. All other incrementedBalances fields (incrementTokenIdsBy, incrementOwnershipTimesBy, durationFromTimestamp, allowOverrideTimestamp, recurringOwnershipTimes, allowOverrideWithAnyValidToken) must be zero/false/nil.',
+    severity: 'critical'
+  },
+  {
+    topic: 'approvals',
+    title: 'allowAmountScaling uses integer multiples only — no fractional scaling',
+    content: 'The multiplier for allowAmountScaling must be an integer >= 1. The chain computes multiplier = transferAmount / baseAmount and rejects if not evenly divisible. For example, if startBalances has amount "3", you can transfer 3, 6, 9, 12... but not 4 or 7.',
+    severity: 'tip'
+  },
+  {
+    topic: 'approvals',
+    title: 'allowAmountScaling scales existing coinTransfers automatically',
+    content: 'When allowAmountScaling is enabled, the same approvalCriteria.coinTransfers are used — they just get multiplied by the scaling factor. No separate coinTransfer configuration needed. For pay-per-token pricing, set coinTransfers to the 1x price and enable scaling.',
+    severity: 'tip'
+  },
+  {
+    topic: 'approvals',
     title: 'durationFromTimestamp and recurringOwnershipTimes are mutually exclusive',
     content: 'If durationFromTimestamp is non-zero, recurringOwnershipTimes must be all zeros (startTime, intervalLength, chargePeriodLength all "0"), and vice versa. These are two different time-bounding approaches — the chain rejects if both are active on the same approval.',
     severity: 'critical'

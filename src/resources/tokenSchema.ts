@@ -259,6 +259,27 @@ maxNumTransfers:
   perInitiatedByAddressMaxNumTransfers: MAX_PER_USER or "0"
 \`\`\`
 
+### Amount Scaling (Pay-Per-Token / Variable Quantity)
+\`\`\`
+predeterminedBalances:
+  incrementedBalances:
+    startBalances: [{amount:"1", tokenIds:[{start:"1",end:"1"}], ownershipTimes:FOREVER}]
+    incrementTokenIdsBy: "0"                    @rule MUST be "0" when allowAmountScaling is true
+    incrementOwnershipTimesBy: "0"              @rule MUST be "0" when allowAmountScaling is true
+    durationFromTimestamp: "0"                  @rule MUST be "0" when allowAmountScaling is true
+    allowOverrideTimestamp: false               @rule MUST be false when allowAmountScaling is true
+    allowOverrideWithAnyValidToken: false       @rule MUST be false when allowAmountScaling is true
+    allowAmountScaling: true                    @rule Enables proportional transfers (any integer multiple)
+  orderCalculationMethod:
+    useOverallNumTransfers: true
+coinTransfers: [{to: RECIPIENT, coins: [{amount: PRICE_PER_UNIT, denom: "ubadge"}]}]
+                                                @note coinTransfers scale by the same multiplier automatically
+
+@pattern Pay-per-token: user transfers N tokens, pays N * PRICE_PER_UNIT
+@pattern Prediction market deposit: N USDC -> N YES + N NO tokens (single tx)
+@pattern Credit token purchase: buy N credits for N * price (single tx)
+\`\`\`
+
 ---
 
 ## Permission Presets
