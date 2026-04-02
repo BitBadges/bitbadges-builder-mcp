@@ -2841,9 +2841,9 @@ The escrow is funded upfront at collection creation via \`mintEscrowCoinsToTrans
 
 ## Token Structure
 
-- Token ID 1 = Bounty receipt token
+- Token ID 1 = Bounty token (vehicle for approval engine)
 - validTokenIds: [{ start: "1", end: "1" }]
-- No alias paths needed (single token, no liquidity pool)
+- 1 alias path: \`ubounty\` → token ID 1, symbol BOUNTY, 0 decimals, 1:1 conversion
 
 ## 3 Required Approvals
 
@@ -2916,11 +2916,12 @@ Same as Deny but:
 4. \`set_invariants\` — set { noCustomOwnershipTimes: true, disablePoolCreation: true }
 5. \`set_mint_escrow_coins\` — fund escrow with bounty amount
 6. \`add_approval\` x3 — add accept, deny, expire approvals
-7. \`set_permissions\` — freeze all permissions
-8. \`set_collection_metadata\` — name, description, image
-9. \`set_token_metadata\` — token 1 metadata
-10. \`validate_transaction\` — verify structure
-11. \`simulate_transaction\` — dry run
+7. \`add_alias_path\` — ubounty alias (symbol BOUNTY, 0 decimals, 1:1 token ID 1)
+8. \`set_permissions\` — freeze all permissions
+9. \`set_collection_metadata\` — name, description, image
+10. \`set_token_metadata\` — token 1 metadata
+11. \`validate_transaction\` — verify structure
+12. \`simulate_transaction\` — dry run
 
 ## Permissions
 
