@@ -2820,10 +2820,10 @@ After creating the collection and minting initial pairs:
     summary: `Required standards: ["Bounty"]
 
 - 1 token ID (bounty receipt token)
-- 5 collection-level approvals: escrow deposit, accept, deny, expire, burn
+- 5 collection-level approvals: escrow mint, accept, deny, expire, burn
 - Verifier decides outcome via MsgCastVote
-- Escrow uses mintEscrowAddress (coinTransfers to "Mint")
-- Amount scaling enabled (submitter picks bounty size)
+- Escrow pre-funded at creation via mintEscrowCoinsToTransfer (no post-deposit flow)
+- Fixed bounty amount (no amount scaling — amount set at creation)
 - All permissions frozen after creation
 - Expiration enforced via transferTimes windows
 - Fixed payout addresses (hardcoded recipient/submitter in coinTransfers)`,
@@ -2836,7 +2836,7 @@ A bounty is an escrow-based agreement between three parties:
 - **Recipient**: Receives the payout if the verifier accepts
 - **Verifier**: Decides whether to accept or deny the bounty
 
-The submitter mints a "bounty receipt" token (token ID 1) which represents the escrowed funds. The verifier votes to accept or deny. After the vote, anyone can execute the burn to trigger the coin transfer. If the verifier doesn't respond before expiration, the submitter can reclaim funds.
+The escrow is funded upfront at collection creation via \`mintEscrowCoinsToTransfer\`. The submitter then mints a "bounty receipt" token (token ID 1). The verifier votes to accept or deny. After the vote, anyone can execute the burn to trigger the coin transfer from escrow. If the verifier doesn't respond before expiration, the submitter can reclaim funds.
 
 ## Token Structure
 
@@ -2846,20 +2846,20 @@ The submitter mints a "bounty receipt" token (token ID 1) which represents the e
 
 ## 5 Required Approvals
 
-### 1. Escrow Deposit (bounty-escrow-*)
-Submitter mints bounty token, depositing coins to mintEscrowAddress.
+### 1. Escrow Mint (bounty-escrow-*)
+Submitter mints bounty receipt token. Escrow is pre-funded at creation via mintEscrowCoinsToTransfer — NO coinTransfers on this approval.
 
 Key fields:
 - fromListId: "Mint"
 - toListId: submitterAddress (only submitter receives the token)
 - initiatedByListId: submitterAddress
-- coinTransfers: [{ to: "Mint", overrideFromWithApproverAddress: false, overrideToWithInitiator: false, coins: [{ denom, amount: baseDepositAmount }] }]
+- coinTransfers: [] (empty — escrow pre-funded at creation)
 - predeterminedBalances.incrementedBalances:
-  - startBalances: [{ amount: baseDepositAmount, tokenIds: [{ start: "1", end: "1" }], ownershipTimes: fullRange }]
-  - allowAmountScaling: true
-  - maxScalingMultiplier: "18446744073709551615"
+  - startBalances: [{ amount: depositAmount, tokenIds: [{ start: "1", end: "1" }], ownershipTimes: fullRange }]
+  - allowAmountScaling: false
+  - maxScalingMultiplier: "0"
   - All other increment fields: "0" / false
-- maxNumTransfers.overallMaxNumTransfers: "1" (single deposit only)
+- maxNumTransfers.overallMaxNumTransfers: "1" (single mint only)
 - overridesFromOutgoingApprovals: true
 - overridesToIncomingApprovals: true
 
@@ -2870,8 +2870,8 @@ Key fields:
 - fromListId: "!Mint" (AllWithoutMint)
 - toListId: burn address (bb1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqs7gvmv)
 - initiatedByListId: "All"
-- coinTransfers: [{ to: recipientAddress, overrideFromWithApproverAddress: true, overrideToWithInitiator: false, coins: [{ denom, amount: baseDepositAmount }] }]
-- predeterminedBalances: same as escrow but with amount scaling
+- coinTransfers: [{ to: recipientAddress, overrideFromWithApproverAddress: true, overrideToWithInitiator: false, coins: [{ denom, amount: depositAmount }] }]
+- predeterminedBalances: same as escrow (fixed amount, no scaling)
 - votingChallenges: [{ proposalId: "bounty-accept-*", quorumThreshold: "100", voters: [{ address: verifierAddress, weight: "1" }] }]
 - transferTimes: [{ start: "1", end: expirationTimestamp }]
 - maxNumTransfers.overallMaxNumTransfers: "18446744073709551615" (required when overrideFromWithApproverAddress=true)
@@ -2890,8 +2890,8 @@ Key fields:
 - fromListId: "!Mint"
 - toListId: burn address
 - initiatedByListId: "All"
-- coinTransfers: [{ to: submitterAddress, overrideFromWithApproverAddress: true, overrideToWithInitiator: false, coins: [{ denom, amount: baseDepositAmount }] }]
-- predeterminedBalances: same as escrow with amount scaling
+- coinTransfers: [{ to: submitterAddress, overrideFromWithApproverAddress: true, overrideToWithInitiator: false, coins: [{ denom, amount: depositAmount }] }]
+- predeterminedBalances: same as escrow (fixed amount, no scaling)
 - NO votingChallenges (time-gated only)
 - transferTimes: [{ start: expirationTimestamp + 1, end: "18446744073709551615" }]
 - maxNumTransfers.overallMaxNumTransfers: "18446744073709551615"
@@ -2925,6 +2925,8 @@ Key fields:
 ## Key Differences from Prediction Markets
 
 - 1 token ID, not 2 (no YES/NO pair)
+- Escrow pre-funded at creation (mintEscrowCoinsToTransfer), NOT via coinTransfers on mint approval
+- Fixed amount (no allowAmountScaling — amount determined at creation)
 - Fixed payout addresses (hardcoded in coinTransfers.to), NOT overrideToWithInitiator
 - No "push" variant — just accept/deny/expire
 - No transferable approval (bounty receipt is non-transferable)
@@ -2962,6 +2964,8 @@ All permissions MUST be frozen (permanentlyForbiddenTimes: fullRange):
 
 ### Common Mistakes
 
+- DON'T add coinTransfers to the escrow mint approval — escrow is pre-funded via mintEscrowCoinsToTransfer at creation
+- DON'T use allowAmountScaling — bounty amount is fixed at creation time
 - DON'T use overrideToWithInitiator for bounty payouts — use hardcoded addresses in coinTransfers.to
 - DON'T forget maxNumTransfers = MAX_UINT64 when using overrideFromWithApproverAddress
 - DON'T forget to set maxNumTransfers.overallMaxNumTransfers = "1" on the escrow approval

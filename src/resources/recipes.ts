@@ -298,14 +298,16 @@ async function verifyAccess(userAddress: string): Promise<boolean> {
     name: 'Bounty Escrow Pattern',
     description: 'Create a bounty with escrow, verifier arbitration, and expiration',
     tags: ['bounty', 'escrow', 'verifier', 'voting', 'expiration'],
-    code: `// Bounty Standard — 5 Approvals
-// 1. Escrow: Mint → submitter, coinTransfers to "Mint" (escrow), maxNumTransfers=1, allowAmountScaling=true
+    code: `// Bounty Standard — 5 Approvals (escrow pre-funded via mintEscrowCoinsToTransfer)
+// 1. Escrow Mint: Mint → submitter, NO coinTransfers (escrow pre-funded), maxNumTransfers=1, fixed amount
 // 2. Accept: !Mint → burn, coinTransfers escrow → recipient (hardcoded), votingChallenge (verifier), transferTimes [1, expiration]
 // 3. Deny: !Mint → burn, coinTransfers escrow → submitter (hardcoded), votingChallenge (verifier), transferTimes [1, expiration]
 // 4. Expire: !Mint → burn, coinTransfers escrow → submitter, NO vote, transferTimes [expiration+1, MAX]
 // 5. Burn: !Mint → burn, no coinTransfers (cleanup)
 //
-// Key: coinTransfers use overrideFromWithApproverAddress=true (escrow pays) + overrideToWithInitiator=false (hardcoded recipient)
+// Key: Escrow funded at creation via mintEscrowCoinsToTransfer — NOT via coinTransfers on mint approval
+// Key: No allowAmountScaling — bounty amount fixed at creation
+// Key: coinTransfers on accept/deny/expire use overrideFromWithApproverAddress=true (escrow pays) + overrideToWithInitiator=false (hardcoded recipient)
 // Key: Accept/Deny gated by votingChallenges with verifier as sole voter (quorum=100, weight=1)
 // Key: Expiration enforced via non-overlapping transferTimes windows
 //

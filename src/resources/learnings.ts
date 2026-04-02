@@ -242,8 +242,8 @@ const LEARNINGS: LearningEntry[] = [
   },
   {
     topic: 'bounty',
-    title: 'Bounty escrow requires maxNumTransfers = 1',
-    content: 'The escrow deposit approval MUST have overallMaxNumTransfers = 1 to prevent the submitter from depositing multiple times. Settlement approvals need MAX_UINT64 because overrideFromWithApproverAddress=true requires non-zero maxNumTransfers.',
+    title: 'Bounty escrow is pre-funded at creation, NOT via coinTransfers',
+    content: 'Bounty escrow is funded upfront via mintEscrowCoinsToTransfer in the creation message. The escrow mint approval has NO coinTransfers (empty array). Amount is fixed at creation — no allowAmountScaling. Settlement approvals (accept/deny/expire) use overrideFromWithApproverAddress=true to pay from the pre-funded escrow.',
     severity: 'critical'
   }
 ];
