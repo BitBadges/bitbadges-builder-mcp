@@ -2423,7 +2423,7 @@ Two alias paths are REQUIRED — one for YES (token 1) and one for NO (token 2):
 ]
 \`\`\`
 
-### 6 Approvals
+### 7 Approvals
 
 **CRITICAL: All amounts in startBalances must be in BASE units (micro-units). Since YES/NO tokens have 6 decimals, 1 display token = 1,000,000 base units. Use "1000000" (not "1") for startBalance amounts when minting 1 display-YES + 1 display-NO per deposit.**
 

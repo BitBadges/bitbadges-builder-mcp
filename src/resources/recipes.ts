@@ -48,6 +48,7 @@ export const RECIPES: Recipe[] = [
 // | Pay to mint              | coinTransfers in approvalCriteria                          |
 // | Free mint (escrow payout)| mintEscrowCoinsToTransfer + overrideFromWithApproverAddress |
 // | Sequential NFT IDs       | incrementedBalances with incrementTokenIdsBy: "1"          |
+// | Pay-per-token (any qty)  | incrementedBalances with allowAmountScaling: true           |
 // | Limit per address        | maxNumTransfers.perInitiatedByAddressMaxNumTransfers       |
 // | Non-transferable         | No transfer approval + lock canUpdateCollectionApprovals   |
 // | Token-gated access       | BB-402 with must-own-badges                                |

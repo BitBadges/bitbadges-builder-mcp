@@ -134,7 +134,11 @@ const PredeterminedBalancesSchema = z.object({
       intervalLength: z.string().optional().default('0'),
       chargePeriodLength: z.string().optional().default('0')
     }).optional().describe('MUST be all zeros if using durationFromTimestamp. Mutually exclusive.'),
-    allowOverrideWithAnyValidToken: z.boolean().optional().default(false)
+    allowOverrideWithAnyValidToken: z.boolean().optional().default(false),
+    allowAmountScaling: z.boolean().optional().default(false)
+      .describe('When true, transfers can be any integer multiple of startBalances. ALL other increment/override fields MUST be "0"/false. coinTransfers scale proportionally.'),
+    maxScalingMultiplier: z.string().optional().default('0')
+      .describe('MUST be > "0" when allowAmountScaling is true. Caps the multiplier per transfer. Use large value (e.g. "18446744073709551615") for effectively unlimited.')
   }).optional(),
   orderCalculationMethod: z.object({
     useOverallNumTransfers: z.boolean().optional().default(true).describe('Most common. Sequential based on overall count.'),

@@ -554,6 +554,31 @@ export function handleAuditCollection(input: { collection: Record<string, unknow
     }
 
     // ========================================
+    // 4b. AMOUNT SCALING RISK ANALYSIS
+    // ========================================
+
+    for (const a of approvals) {
+      const criteria = a.approvalCriteria as Record<string, unknown> | undefined;
+      if (!criteria) continue;
+      const incrementedBal = (criteria.predeterminedBalances as Record<string, unknown> | undefined)?.incrementedBalances as Record<string, unknown> | undefined;
+      if (!incrementedBal?.allowAmountScaling) continue;
+      const approvalId = (a as Record<string, unknown>).approvalId as string || 'unnamed';
+
+      const hasCoinOverride = ((criteria.coinTransfers as Array<Record<string, unknown>>) || []).some(
+        (ct) => ct.overrideFromWithApproverAddress
+      );
+      if (hasCoinOverride) {
+        findings.push({
+          severity: 'warning' as const,
+          category: 'approval-design',
+          title: `Amount scaling with approver-funded payments ("${approvalId}")`,
+          detail: 'This approval uses allowAmountScaling with overrideFromWithApproverAddress on coin transfers. Users can multiply payment amounts drawn from the approver/escrow. This is expected for prediction markets and credit tokens but dangerous for bids or offers.',
+          recommendation: 'Verify maxScalingMultiplier is set to a reasonable cap. Review who can initiate transfers through this approval.'
+        });
+      }
+    }
+
+    // ========================================
     // 5. INVARIANTS ANALYSIS
     // ========================================
 
