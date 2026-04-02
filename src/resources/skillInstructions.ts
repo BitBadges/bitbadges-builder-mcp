@@ -2812,6 +2812,165 @@ After creating the collection and minting initial pairs:
 - DON'T use lowercase "prediction-market" as the standard — the correct name is "Prediction Market" (title case with space)
 - DON'T set invariants.disablePoolCreation to true — prediction markets REQUIRE liquidity pools for YES/NO trading. Set it to false.`
   },
+  {
+    id: 'bounty',
+    name: 'Bounty',
+    category: 'token-type',
+    description: 'Escrow-based bounty with verifier arbitration. Submitter escrows coins, verifier accepts (pays recipient) or denies (refunds submitter). Expires if no decision.',
+    summary: `Required standards: ["Bounty"]
+
+- 1 token ID (bounty receipt token)
+- 5 collection-level approvals: escrow deposit, accept, deny, expire, burn
+- Verifier decides outcome via MsgCastVote
+- Escrow uses mintEscrowAddress (coinTransfers to "Mint")
+- Amount scaling enabled (submitter picks bounty size)
+- All permissions frozen after creation
+- Expiration enforced via transferTimes windows
+- Fixed payout addresses (hardcoded recipient/submitter in coinTransfers)`,
+    instructions: `# Bounty Standard
+
+## Mental Model
+
+A bounty is an escrow-based agreement between three parties:
+- **Submitter**: Creates the bounty, deposits funds into escrow
+- **Recipient**: Receives the payout if the verifier accepts
+- **Verifier**: Decides whether to accept or deny the bounty
+
+The submitter mints a "bounty receipt" token (token ID 1) which represents the escrowed funds. The verifier votes to accept or deny. After the vote, anyone can execute the burn to trigger the coin transfer. If the verifier doesn't respond before expiration, the submitter can reclaim funds.
+
+## Token Structure
+
+- Token ID 1 = Bounty receipt token
+- validTokenIds: [{ start: "1", end: "1" }]
+- No alias paths needed (single token, no liquidity pool)
+
+## 5 Required Approvals
+
+### 1. Escrow Deposit (bounty-escrow-*)
+Submitter mints bounty token, depositing coins to mintEscrowAddress.
+
+Key fields:
+- fromListId: "Mint"
+- toListId: submitterAddress (only submitter receives the token)
+- initiatedByListId: submitterAddress
+- coinTransfers: [{ to: "Mint", overrideFromWithApproverAddress: false, overrideToWithInitiator: false, coins: [{ denom, amount: baseDepositAmount }] }]
+- predeterminedBalances.incrementedBalances:
+  - startBalances: [{ amount: baseDepositAmount, tokenIds: [{ start: "1", end: "1" }], ownershipTimes: fullRange }]
+  - allowAmountScaling: true
+  - maxScalingMultiplier: "18446744073709551615"
+  - All other increment fields: "0" / false
+- maxNumTransfers.overallMaxNumTransfers: "1" (single deposit only)
+- overridesFromOutgoingApprovals: true
+- overridesToIncomingApprovals: true
+
+### 2. Accept (bounty-accept-*)
+Verifier votes accept → burn token → coins to recipient.
+
+Key fields:
+- fromListId: "!Mint" (AllWithoutMint)
+- toListId: burn address (bb1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqs7gvmv)
+- initiatedByListId: "All"
+- coinTransfers: [{ to: recipientAddress, overrideFromWithApproverAddress: true, overrideToWithInitiator: false, coins: [{ denom, amount: baseDepositAmount }] }]
+- predeterminedBalances: same as escrow but with amount scaling
+- votingChallenges: [{ proposalId: "bounty-accept-*", quorumThreshold: "100", voters: [{ address: verifierAddress, weight: "1" }] }]
+- transferTimes: [{ start: "1", end: expirationTimestamp }]
+- maxNumTransfers.overallMaxNumTransfers: "18446744073709551615" (required when overrideFromWithApproverAddress=true)
+
+### 3. Deny (bounty-deny-*)
+Verifier votes deny → burn token → coins to submitter.
+
+Same as Accept but:
+- coinTransfers.to: submitterAddress (refund)
+- votingChallenges proposalId: "bounty-deny-*"
+
+### 4. Expire (bounty-expire-*)
+After expiration → burn token → coins to submitter. No verifier vote needed.
+
+Key fields:
+- fromListId: "!Mint"
+- toListId: burn address
+- initiatedByListId: "All"
+- coinTransfers: [{ to: submitterAddress, overrideFromWithApproverAddress: true, overrideToWithInitiator: false, coins: [{ denom, amount: baseDepositAmount }] }]
+- predeterminedBalances: same as escrow with amount scaling
+- NO votingChallenges (time-gated only)
+- transferTimes: [{ start: expirationTimestamp + 1, end: "18446744073709551615" }]
+- maxNumTransfers.overallMaxNumTransfers: "18446744073709551615"
+
+### 5. Burn (bounty-burn-*)
+Destroy token without payout (optional cleanup).
+
+Key fields:
+- fromListId: "!Mint"
+- toListId: burn address
+- initiatedByListId: "All"
+- No coinTransfers
+- No votingChallenges
+- No predeterminedBalances
+- transferTimes: fullRange
+
+## Settlement Flow
+
+1. Verifier sends MsgCastVote:
+   - collection_id: collectionId
+   - approval_level: "collection"
+   - approval_id: accept or deny approval ID
+   - proposal_id: matching proposal ID
+   - yes_weight: "100"
+
+2. After vote, anyone burns the token:
+   - MsgTransferTokens from holder to burn address
+   - prioritizedApprovals: [{ approvalId, approvalLevel: "collection" }]
+   - Coin transfer executes automatically (escrow → recipient or submitter)
+
+## Key Differences from Prediction Markets
+
+- 1 token ID, not 2 (no YES/NO pair)
+- Fixed payout addresses (hardcoded in coinTransfers.to), NOT overrideToWithInitiator
+- No "push" variant — just accept/deny/expire
+- No transferable approval (bounty receipt is non-transferable)
+- No alias paths or liquidity pools
+- Expiration via transferTimes windowing (accept/deny before, expire after)
+
+## Creation Flow (Tool Calls)
+
+1. \`build_token\` — initialize collection
+2. \`set_valid_token_ids\` — set [{ start: "1", end: "1" }]
+3. \`set_standards\` — set ["Bounty"]
+4. \`set_invariants\` — set { noCustomOwnershipTimes: true, disablePoolCreation: true }
+5. \`set_mint_escrow_coins\` — fund escrow with deposit coins
+6. \`add_approval\` x5 — add all 5 approvals
+7. \`set_permissions\` — freeze all permissions
+8. \`set_collection_metadata\` — name, description, image
+9. \`set_token_metadata\` — token 1 metadata
+10. \`validate_transaction\` — verify structure
+11. \`simulate_transaction\` — dry run
+
+## Permissions
+
+All permissions MUST be frozen (permanentlyForbiddenTimes: fullRange):
+- canDeleteCollection
+- canArchiveCollection
+- canUpdateStandards
+- canUpdateCustomData
+- canUpdateManager
+- canUpdateCollectionMetadata
+- canUpdateValidTokenIds
+- canUpdateTokenMetadata
+- canUpdateCollectionApprovals
+- canAddMoreAliasPaths
+- canAddMoreCosmosCoinWrapperPaths
+
+### Common Mistakes
+
+- DON'T use overrideToWithInitiator for bounty payouts — use hardcoded addresses in coinTransfers.to
+- DON'T forget maxNumTransfers = MAX_UINT64 when using overrideFromWithApproverAddress
+- DON'T forget to set maxNumTransfers.overallMaxNumTransfers = "1" on the escrow approval
+- DON'T use "Mint" as toListId for settlement approvals — burn address is bb1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqs7gvmv
+- DON'T omit manualBalances: [] in predeterminedBalances
+- DON'T omit fields in orderCalculationMethod — include ALL boolean fields
+- DON'T make expiration transferTimes overlap with accept/deny transferTimes
+- DON'T forget set_mint_escrow_coins — without it, the escrow is empty and payouts fail`
+  },
 ];
 
 

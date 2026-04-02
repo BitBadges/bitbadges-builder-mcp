@@ -31,7 +31,8 @@ export const RECIPES: Recipe[] = [
 // | Vault / escrow            | Smart Token      | "Smart Token"                               | Non-transferable variant                        |
 // | Time-expiring auth        | Custom 2FA       | "Custom-2FA"                                | allowPurgeIfExpired                             |
 // | Managed address list      | Address List     | "Address List"                              | Manager add/remove addresses                    |
-// | Invoices / bounties       | Payment Protocol | "ListView:..."                              | coinTransfer-based approvals                    |
+// | Invoices / payments       | Payment Protocol | "ListView:..."                              | coinTransfer-based approvals                    |
+// | Bounty / escrow           | Bounty           | "Bounty"                                    | 5 approvals, verifier voting, expiration        |
 // | DEX trading               | + Liquidity Pools| "Liquidity Pools"                           | disablePoolCreation: false, alias paths         |`
   },
   {
@@ -291,6 +292,30 @@ async function verifyAccess(userAddress: string): Promise<boolean> {
 //   if (!hasAccess) return res.status(402).json({ error: 'Token required' });
 //   next();
 // });`
+  },
+  {
+    id: 'bounty-escrow',
+    name: 'Bounty Escrow Pattern',
+    description: 'Create a bounty with escrow, verifier arbitration, and expiration',
+    tags: ['bounty', 'escrow', 'verifier', 'voting', 'expiration'],
+    code: `// Bounty Standard — 5 Approvals
+// 1. Escrow: Mint → submitter, coinTransfers to "Mint" (escrow), maxNumTransfers=1, allowAmountScaling=true
+// 2. Accept: !Mint → burn, coinTransfers escrow → recipient (hardcoded), votingChallenge (verifier), transferTimes [1, expiration]
+// 3. Deny: !Mint → burn, coinTransfers escrow → submitter (hardcoded), votingChallenge (verifier), transferTimes [1, expiration]
+// 4. Expire: !Mint → burn, coinTransfers escrow → submitter, NO vote, transferTimes [expiration+1, MAX]
+// 5. Burn: !Mint → burn, no coinTransfers (cleanup)
+//
+// Key: coinTransfers use overrideFromWithApproverAddress=true (escrow pays) + overrideToWithInitiator=false (hardcoded recipient)
+// Key: Accept/Deny gated by votingChallenges with verifier as sole voter (quorum=100, weight=1)
+// Key: Expiration enforced via non-overlapping transferTimes windows
+//
+// Settlement: MsgCastVote { approval_id, proposal_id, yes_weight: "100" }
+// Claim: MsgTransferTokens burn to bb1qqq...s7gvmv with prioritizedApprovals
+//
+// Standards: ["Bounty"]
+// Valid token IDs: [{ start: "1", end: "1" }]
+// Invariants: { noCustomOwnershipTimes: true, disablePoolCreation: true }
+// Permissions: ALL frozen`
   }
 ];
 
