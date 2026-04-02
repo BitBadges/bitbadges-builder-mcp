@@ -226,6 +226,25 @@ const LEARNINGS: LearningEntry[] = [
     title: 'collectionId "0" in MsgTransferTokens auto-lookups latest collection',
     content: 'When building post-creation transfer messages (e.g., auto-mint after collection creation), use collectionId "0" in MsgTransferTokens. The chain auto-resolves it to the latest collection ID created in the same transaction. This is required because the real collection ID is not known until the transaction is processed.',
     severity: 'tip'
+  },
+  // Bounty
+  {
+    topic: 'bounty',
+    title: 'Bounty coinTransfers use hardcoded addresses, NOT overrideToWithInitiator',
+    content: 'Unlike prediction markets where overrideToWithInitiator=true pays whoever initiates the burn, bounties hardcode the recipient/submitter address in coinTransfers.to and set overrideToWithInitiator=false. This ensures payout goes to the correct party regardless of who triggers the burn.',
+    severity: 'critical'
+  },
+  {
+    topic: 'bounty',
+    title: 'Bounty expiration uses transferTimes windowing',
+    content: 'Accept/deny approvals have transferTimes [1, expirationTime]. The expire approval has transferTimes [expirationTime+1, MAX_UINT64]. This ensures accept/deny can only happen before expiration, and expire can only happen after. No overlap.',
+    severity: 'important'
+  },
+  {
+    topic: 'bounty',
+    title: 'Bounty escrow is pre-funded at creation, NOT via coinTransfers',
+    content: 'Bounty escrow is funded upfront via mintEscrowCoinsToTransfer in the creation message. The escrow mint approval has NO coinTransfers (empty array). Amount is fixed at creation — no allowAmountScaling. Settlement approvals (accept/deny/expire) use overrideFromWithApproverAddress=true to pay from the pre-funded escrow.',
+    severity: 'critical'
   }
 ];
 
