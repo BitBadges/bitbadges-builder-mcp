@@ -2592,7 +2592,7 @@ Note: The deposit coinTransfer uses \`to: "Mint"\` with no overrides: initiator 
     },
     "votingChallenges": [{
       "proposalId": "yes-wins-proposal",
-      "quorumThreshold": "1",
+      "quorumThreshold": "100",
       "voters": [{ "address": "<VERIFIER_ADDRESS>", "weight": "1" }]
     }]
   }
@@ -2648,7 +2648,7 @@ Same as YES Wins but with token ID 2, separate proposalId, and separate amountTr
     },
     "votingChallenges": [{
       "proposalId": "no-wins-proposal",
-      "quorumThreshold": "1",
+      "quorumThreshold": "100",
       "voters": [{ "address": "<VERIFIER_ADDRESS>", "weight": "1" }]
     }]
   }
@@ -2702,7 +2702,7 @@ Same as YES Wins but with token ID 2, separate proposalId, and separate amountTr
     },
     "votingChallenges": [{
       "proposalId": "push-yes-proposal",
-      "quorumThreshold": "1",
+      "quorumThreshold": "100",
       "voters": [{ "address": "<VERIFIER_ADDRESS>", "weight": "1" }]
     }]
   }
@@ -2758,7 +2758,7 @@ Same as Push YES but with token ID 2 and a separate proposalId:
     },
     "votingChallenges": [{
       "proposalId": "push-no-proposal",
-      "quorumThreshold": "1",
+      "quorumThreshold": "100",
       "voters": [{ "address": "<VERIFIER_ADDRESS>", "weight": "1" }]
     }]
   }
@@ -3077,7 +3077,7 @@ On-chain crowdfunding with automatic goal tracking. Contributors deposit coins a
     "coinTransfers": [{
       "to": "<CROWDFUNDER_ADDRESS>",
       "overrideFromWithApproverAddress": true,
-      "overrideToWithInitiator": true,
+      "overrideToWithInitiator": false,
       "coins": [{ "amount": "1", "denom": "<DEPOSIT_DENOM>" }]
     }],
     "mustOwnTokens": [{
