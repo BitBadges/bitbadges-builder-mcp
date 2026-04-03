@@ -3301,10 +3301,10 @@ Bids must have transferTimes that stay valid through the END of the accept windo
   },
   {
     id: 'product-catalog',
-    name: 'Product Catalog',
+    name: 'Products',
     category: 'token-type',
     description: 'Multi-product storefront with per-product pricing, supply limits, and optional burn-on-purchase. Each product is a separate token ID.',
-    summary: `Required standards: ["Product Catalog"]
+    summary: `Required standards: ["Products"]
 
 - N token IDs (one per product), starting at 1
 - N+1 approvals: 1 purchase approval per product + 1 optional burn approval
@@ -3320,7 +3320,7 @@ Bids must have transferTimes that stay valid through the END of the accept windo
 - DON'T use votingChallenges, merkleChallenges, or mustOwnTokens
 - DO use unique approvalId per product (e.g. "product-purchase-1", "product-purchase-2")
 - DO set maxNumTransfers to supply limit (0 = unlimited)`,
-    instructions: `## Product Catalog Configuration
+    instructions: `## Products Configuration
 
 ### Mental Model
 
@@ -3329,7 +3329,7 @@ A multi-product storefront where each product is a separate token ID. Buyers pay
 ### Collection Structure
 
 - Token IDs 1..N (one per product)
-- Standard: "Product Catalog"
+- Standard: "Products"
 - validTokenIds: [{ start: "1", end: "<NUM_PRODUCTS>" }]
 - invariants: { noCustomOwnershipTimes: true }
 - All permissions frozen after creation
@@ -3399,7 +3399,7 @@ Each product gets its own purchase approval. There's also an optional global bur
 
 1. \\\`build_token\\\` — initialize collection
 2. \\\`set_valid_token_ids\\\` — set [{ start: "1", end: "<NUM_PRODUCTS>" }]
-3. \\\`set_standards\\\` — set ["Product Catalog"]
+3. \\\`set_standards\\\` — set ["Products"]
 4. \\\`set_invariants\\\` — set { noCustomOwnershipTimes: true }
 5. \\\`add_approval\\\` xN — one purchase approval per product
 6. \\\`add_approval\\\` — optional burn approval
