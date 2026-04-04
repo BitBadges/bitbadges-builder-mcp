@@ -11,7 +11,7 @@ import { SKILL_INSTRUCTIONS } from '../src/resources/skillInstructions.js';
 import { writeFileSync, mkdirSync } from 'fs';
 import { join } from 'path';
 
-const DOCS_DIR = join(import.meta.dirname, '../../bitbadges-docs/x-tokenization/examples/skills');
+const DOCS_DIR = process.env.DOCS_OUTPUT_DIR || join(import.meta.dirname, '../../bitbadges-docs/x-tokenization/examples/skills');
 
 mkdirSync(DOCS_DIR, { recursive: true });
 

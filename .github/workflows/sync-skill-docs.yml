@@ -1,0 +1,44 @@
+name: Sync Skill Docs to GitBook
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'src/resources/skillInstructions.ts'
+  workflow_dispatch:
+
+jobs:
+  sync-docs:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout MCP repo
+        uses: actions/checkout@v4
+
+      - name: Checkout docs repo
+        uses: actions/checkout@v4
+        with:
+          repository: trevormil/bitbadges-docs
+          token: ${{ secrets.ADMIN_PAT }}
+          path: bitbadges-docs
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate skill docs
+        env:
+          DOCS_OUTPUT_DIR: ${{ github.workspace }}/bitbadges-docs/x-tokenization/examples/skills
+        run: npx tsx scripts/gen-skill-docs.ts
+
+      - name: Push to docs repo
+        working-directory: bitbadges-docs
+        run: |
+          git config user.email "action@github.com"
+          git config user.name "GitHub Action"
+          git add x-tokenization/examples/skills/
+          git commit -m "Update MCP skill docs via GitHub Action [skip ci]" || echo "No changes to commit"
+          git push
