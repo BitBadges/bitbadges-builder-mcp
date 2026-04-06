@@ -218,7 +218,19 @@ const LEARNINGS: LearningEntry[] = [
   {
     topic: 'approvals',
     title: 'altTimeChecks for business-hours restrictions',
-    content: 'The altTimeChecks field on approval criteria allows denying transfers during specific UTC hours (offlineHours: 0-23) or days of week (offlineDays: 0=Sunday to 6=Saturday). Works in addition to transferTimes. Useful for compliance/RWA tokens that should only trade during business hours.',
+    content: 'The altTimeChecks field on approval criteria allows denying transfers during specific UTC hours (offlineHours: 0-23), days of week (offlineDays: 0=Sunday to 6=Saturday), months (offlineMonths: 1-12), days of month (offlineDaysOfMonth: 1-31), or ISO weeks (offlineWeeksOfYear: 1-52). Use timezoneOffsetMinutes (Uint) and timezoneOffsetNegative (bool) to adjust from UTC. Works in addition to transferTimes. Useful for compliance/RWA tokens that should only trade during business hours.',
+    severity: 'tip'
+  },
+  {
+    topic: 'approvals',
+    title: 'votingChallenges resetAfterExecution and delayAfterQuorum (v29)',
+    content: 'v29 adds two fields to votingChallenges: resetAfterExecution (bool) automatically resets all votes after the quorum is met and the transfer executes, enabling recurring multi-sig without rotating proposalIds. delayAfterQuorum (Uint, ms) enforces a waiting period after quorum is reached before execution is allowed, acting as a timelock.',
+    severity: 'tip'
+  },
+  {
+    topic: 'approvals',
+    title: 'userApprovalSettings for controlling user-level approvals (v29)',
+    content: 'v29 adds userApprovalSettings to approvalCriteria with two fields: allowedDenoms (string[]) restricts which coin denominations can appear in user-level coinTransfers, and disableUserCoinTransfers (bool) disables user coin transfers entirely. userRoyalties has been conceptually migrated here but the existing top-level field is kept for backward compatibility.',
     severity: 'tip'
   },
   {

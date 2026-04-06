@@ -511,12 +511,23 @@ For senderChecks/recipientChecks/initiatorChecks, ONLY these fields are valid:
     ],
     "offlineDays": [
       { "start": "0", "end": "0" }  // Block transfers on Sundays (0=Sunday, 6=Saturday)
-    ]
+    ],
+    "offlineMonths": [
+      { "start": "12", "end": "12" }  // Block transfers in December (1-12)
+    ],
+    "offlineDaysOfMonth": [
+      { "start": "1", "end": "1" }  // Block transfers on the 1st of each month (1-31)
+    ],
+    "offlineWeeksOfYear": [
+      { "start": "52", "end": "52" }  // Block transfers during ISO week 52 (1-52)
+    ],
+    "timezoneOffsetMinutes": "300",  // Timezone offset in minutes (e.g., 300 = UTC-5 or UTC+5)
+    "timezoneOffsetNegative": true   // If true, offset is negative (UTC-5). If false, positive (UTC+5).
   }
 }
 \`\`\`
 
-**Purpose**: Block transfers during specific hours or days of the week.
+**Purpose**: Block transfers during specific hours, days of the week, months, days of the month, or ISO weeks. Timezone offset adjusts all time checks from UTC.
 
 ### VotingChallenges Structure
 
@@ -533,13 +544,28 @@ For senderChecks/recipientChecks/initiatorChecks, ONLY these fields are valid:
         }
       ],
       "quorumThreshold": "50",  // Min percentage (0-100) of weight that must vote "yes"
-      "ownershipCheckParty": "initiator"  // "initiator" | "sender" | "recipient"
+      "ownershipCheckParty": "initiator",  // "initiator" | "sender" | "recipient"
+      "resetAfterExecution": true,  // v29: Reset all votes after quorum is met and transfer executes
+      "delayAfterQuorum": "86400000"  // v29: Delay in ms after quorum before execution is allowed (e.g., 24h)
     }
   ]
 }
 \`\`\`
 
-**Purpose**: Require that a governance proposal has passed before allowing transfers.`,
+**Purpose**: Require that a governance proposal has passed before allowing transfers. With v29, supports automatic vote reset after execution (for recurring multi-sig) and a configurable delay after quorum is reached.
+
+### UserApprovalSettings Structure (v29)
+
+\`\`\`json
+{
+  "userApprovalSettings": {
+    "allowedDenoms": ["ubadge", "ibc/A4DB..."],  // Restrict which coin denoms users can use in their approval coinTransfers
+    "disableUserCoinTransfers": false  // If true, users cannot attach coinTransfers to their approvals
+  }
+}
+\`\`\`
+
+**Purpose**: Controls user-level approval behavior. \`allowedDenoms\` restricts which coin denominations can appear in user-level coinTransfers. \`disableUserCoinTransfers\` disables user coin transfers entirely. Note: \`userRoyalties\` has been conceptually migrated here but the existing field is kept for backward compatibility.`,
 
   metadataRequirements: `## Metadata Requirements
 

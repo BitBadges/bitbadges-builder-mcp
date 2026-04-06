@@ -1382,7 +1382,8 @@ The burnable approval is additive — it sits alongside other collection approva
 - Non-voting voters count as 0% yes; threshold is % of ALL voters' total weight, not just those who voted
 - Votes can be updated (re-casting overwrites previous vote)
 - proposalId: unique identifier — changing it resets the vote tracker
-- Vote state does not reset after quorum met — designed for one-time transfers
+- v29: resetAfterExecution (bool) — automatically resets all votes after quorum is met and transfer executes, enabling recurring multi-sig
+- v29: delayAfterQuorum (Uint, ms) — enforces a waiting period after quorum before the transfer can execute (e.g., timelock)
 - Common patterns: unanimous (threshold: "100", equal weights), majority (threshold: "51"), weighted governance`,
     instructions: `## Multi-Sig / Voting Challenges
 
@@ -1411,6 +1412,8 @@ Voting challenges enable multi-signature-like approval where multiple parties mu
         { "address": "bb1bob...", "weight": "200" },
         { "address": "bb1charlie...", "weight": "50" }
       ],
+      "resetAfterExecution": false,
+      "delayAfterQuorum": "0",
       "uri": "",
       "customData": ""
     }
@@ -1424,6 +1427,8 @@ Voting challenges enable multi-signature-like approval where multiple parties mu
 - **quorumThreshold**: Percentage (0-100) of total possible weight that must vote "yes"
 - **voters**: List of voter addresses with their weights
 - **yesWeight** (in MsgCastVote): Percentage (0-100%) allocated to "yes"; remainder goes to "no"
+- **resetAfterExecution** (v29): If true, all votes are automatically reset after the quorum is met and the transfer executes. Enables recurring multi-sig without rotating proposalIds.
+- **delayAfterQuorum** (v29): Delay in milliseconds after quorum is reached before the transfer can execute. Acts as a timelock — gives voters time to change their vote or raise objections.
 
 ### Common Patterns
 
@@ -1473,7 +1478,7 @@ Different stakeholders have different voting power:
 - Votes can be updated (re-casting overwrites the previous vote)
 - Vote keys are scoped: \`collectionId-approverAddress-approvalLevel-approvalId-proposalId-voterAddress\`
 - Set realistic thresholds — high thresholds with many voters may be hard to meet if voters abstain
-- **Vote state does not reset** — votingChallenges are scoped to the approval and are typically used for one-time transfers (e.g., releasing funds once). Once the quorum is met, the approval remains satisfied. For more advanced recurring multi-sig solutions, you may need to get creative with other primitives (e.g., rotating proposalIds, dynamic stores, or manager-controlled approval updates).
+- **Vote reset behavior** — By default, vote state does not reset after quorum is met (one-time transfers). With v29's \`resetAfterExecution: true\`, votes are automatically cleared after a successful transfer, enabling recurring multi-sig workflows without rotating proposalIds. Use \`delayAfterQuorum\` to add a timelock between quorum and execution.
 - For full documentation, see the BitBadges docs on voting challenges`
   },
   {
