@@ -97,9 +97,7 @@ import {
   // New tools
   setIsArchivedTool, handleSetIsArchived,
   generateUniqueIdTool, handleGenerateUniqueId,
-  generateWrapperAddressTool, handleGenerateWrapperAddress,
-  // Load existing collection into session
-  loadCollectionTool, handleLoadCollection
+  generateWrapperAddressTool, handleGenerateWrapperAddress
 } from './tools/index.js';
 
 // Import resources
@@ -255,8 +253,7 @@ export function createServer(): Server {
         getTransactionTool,
         setIsArchivedTool,
         generateUniqueIdTool,
-        generateWrapperAddressTool,
-        loadCollectionTool
+        generateWrapperAddressTool
       ]
     };
   });
@@ -586,11 +583,6 @@ export function createServer(): Server {
         }
         case 'generate_wrapper_address': {
           const result = handleGenerateWrapperAddress(args as any);
-          return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
-        }
-
-        case 'load_collection': {
-          const result = await handleLoadCollection(args as any);
           return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
         }
 

@@ -7,7 +7,7 @@
       "dependencies": {
         "@modelcontextprotocol/sdk": "^1.0.0",
         "bech32": "^2.0.0",
-        "bitbadgesjs-sdk": "^0.32.1",
+        "bitbadgesjs-sdk": "^0.31.3",
         "zod": "^3.22.0",
       },
       "devDependencies": {
@@ -195,7 +195,7 @@
 
     "big-integer": ["big-integer@1.6.36", "", {}, "sha512-t70bfa7HYEA1D9idDbmuv7YbsbVkQ+Hp+8KFSul4aE5e/i1bjCNIRYJZlA8Q8p0r9T8cF/RVvwUgRA//FydEyg=="],
 
-    "bitbadgesjs-sdk": ["bitbadgesjs-sdk@0.32.1", "", { "dependencies": { "@bufbuild/protobuf": "^1.10.1", "axios": "^1.13.2", "bech32": "^2.0.0", "crypto-addr-codec": "^0.1.7", "ethers": "^6.13.0", "sha3": "^2.1.4", "typia": "^8.0.2", "web3-validator": "^2.0.6" } }, "sha512-bhJGrLFOD06YFbyzWjmDHDZpzHm8IuFukZ2DPEC3Qc98zOv7bGWy3idkLb1BwLL0v4zqxNGb5OWJFDvGMPmAhg=="],
+    "bitbadgesjs-sdk": ["bitbadgesjs-sdk@0.31.3", "", { "dependencies": { "@bufbuild/protobuf": "^1.10.1", "axios": "^1.13.2", "bech32": "^2.0.0", "crypto-addr-codec": "^0.1.7", "ethers": "^6.13.0", "sha3": "^2.1.4", "typia": "^8.0.2", "web3-validator": "^2.0.6" } }, "sha512-SkhhFHGbwHsuZfV8hNIpEjOJkxvcFUSY8wKAEovNcfFUz//wrLbQThOYUP38VdyQOQctQhf+O42aZLXJY7yfuA=="],
 
     "bl": ["bl@4.1.0", "", { "dependencies": { "buffer": "^5.5.0", "inherits": "^2.0.4", "readable-stream": "^3.4.0" } }, "sha512-1W07cM9gS6DcLperZfFSj+bWLtaPGSOHWhPiGzXmvVJbRLdG82sH/Kn8EtW1VqWVA54AKf2h5k5BbnIbwF3h6w=="],
 
