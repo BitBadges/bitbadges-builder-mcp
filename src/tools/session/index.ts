@@ -19,4 +19,5 @@ export * from './removeCosmosWrapperPath.js';
 export * from './addTransfer.js';
 export * from './removeTransfer.js';
 export * from './getTransaction.js';
+export * from './loadCollection.js';
 export { resetSession, getOrCreateSession } from '../../session/sessionState.js';
