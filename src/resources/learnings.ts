@@ -240,6 +240,23 @@ const LEARNINGS: LearningEntry[] = [
     content: 'Accept/deny approvals have transferTimes [1, expirationTime]. The expire approval has transferTimes [expirationTime+1, MAX_UINT64]. This ensures accept/deny can only happen before expiration, and expire can only happen after. No overlap.',
     severity: 'important'
   },
+  // Coin Transfers
+  {
+    topic: 'approvals',
+    title: 'AllowedDenoms enforcement on coinTransfers',
+    content: 'The chain enforces an AllowedDenoms parameter for coin transfers. If the allowed denoms list is non-empty, every coin denom in a coinTransfer must either be on the allowed list or use the "badgeslp:" prefix (liquidity pool shares). Transfers with unlisted denoms are rejected. Check the chain\'s allowed denoms before configuring coinTransfers with uncommon IBC denoms.',
+    severity: 'critical'
+  },
+
+  // MustOwnTokens
+  {
+    topic: 'approvals',
+    title: 'collectionId "0" in mustOwnTokens means "this collection" (self-reference)',
+    content: 'In mustOwnTokens, setting collectionId to "0" is a self-reference that resolves to the current collection at runtime. This is useful when an approval needs to gate on ownership of tokens from the same collection (e.g., requiring users to already hold a badge from this collection before they can claim another). This avoids hardcoding the collection ID, which is unknown at creation time when using collectionId "0" in MsgUniversalUpdateCollection.',
+    severity: 'important'
+  },
+
+  // Bounty
   {
     topic: 'bounty',
     title: 'Bounty escrow is pre-funded at creation, NOT via coinTransfers',
