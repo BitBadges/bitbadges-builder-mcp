@@ -200,6 +200,13 @@ export const ERROR_PATTERNS: ErrorPattern[] = [
     fix: 'Ensure all nested objects have required sub-fields. Common fixes: add resetTimeIntervals: { startTime: "0", intervalLength: "0" } to maxNumTransfers/approvalAmounts, add orderCalculationMethod with exactly one true field to predeterminedBalances.',
   },
   {
+    name: 'Denom not in allowed denoms list',
+    category: 'transfer',
+    triggers: ['is not in the allowed denoms list', 'allowed denoms', 'denom not allowed', 'allowedDenoms'],
+    explanation: 'The coin denom used in a coinTransfer is not on the chain\'s AllowedDenoms list. The chain enforces an allowlist for coin transfers — if the list is non-empty, every denom must either appear on it or use the "badgeslp:" prefix (liquidity pool shares).',
+    fix: 'Check the chain\'s allowed denoms list and use only approved denoms. Common allowed denoms include "ubadge" and standard IBC denoms (ibc/...). If you need a custom denom, it must be added to the chain\'s AllowedDenoms parameter via governance. Liquidity pool shares (badgeslp:*) are always allowed.',
+  },
+  {
     name: 'Duplicate approvalId',
     category: 'approvals',
     triggers: ['duplicate', 'approvalId', 'already exists', 'unique'],

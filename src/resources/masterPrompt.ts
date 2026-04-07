@@ -474,10 +474,12 @@ For senderChecks/recipientChecks/initiatorChecks, ONLY these fields are valid:
   "overrideToWithInitiator": false  // REQUIRED: Boolean
 }
 
+**AllowedDenoms**: The chain enforces an allowed denoms list for coin transfers. If the allowlist is non-empty, every coin denom must be on the list or use the "badgeslp:" prefix (LP shares). Using an unlisted denom causes a rejection. Common allowed denoms: "ubadge", standard IBC denoms (ibc/...).
+
 ### MustOwnTokens Structure
 
 {
-  "collectionId": "74",
+  "collectionId": "74",  // Use "0" to self-reference THIS collection (resolved at runtime)
   "amountRange": { "start": "1", "end": "18446744073709551615" },
   "ownershipTimes": [{ "start": "1", "end": "18446744073709551615" }],
   "tokenIds": [{ "start": "1", "end": "1" }],
@@ -485,6 +487,8 @@ For senderChecks/recipientChecks/initiatorChecks, ONLY these fields are valid:
   "mustSatisfyForAllAssets": false,
   "ownershipCheckParty": "initiator"  // "initiator" | "sender" | "recipient"
 }
+
+**Self-reference**: Set collectionId to "0" to mean "this collection" — the chain resolves it to the current collection ID at runtime. Useful when gating an approval on ownership of tokens from the same collection (e.g., require holding token 1 before claiming token 2). This avoids hardcoding the collection ID, which is unknown at creation time.
 
 ### DynamicStoreChallenges Structure
 
