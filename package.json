@@ -92,7 +92,7 @@
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.0",
     "bech32": "^2.0.0",
-    "bitbadgesjs-sdk": "^0.31.3",
+    "bitbadgesjs-sdk": "^0.32.1",
     "zod": "^3.22.0"
   },
   "devDependencies": {
