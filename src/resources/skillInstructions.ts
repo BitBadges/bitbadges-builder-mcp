@@ -1182,7 +1182,7 @@ When creating a Custom-2FA collection, follow these requirements:
     name: 'Address List',
     category: 'token-type',
     description: 'On-chain managed address list where membership = owning x1 of token ID 1',
-    summary: `IMPORTANT: Call build_address_list() — it handles all required structure automatically.
+    summary: `On-chain address list. Use per-field tools: set_standards(["Address List"]), add_approval (manager-add + manager-remove), set_permissions, set_invariants.
 
 - List membership = owning x1 of token ID 1
 - Manager can add (mint) and remove (burn) addresses
@@ -1191,21 +1191,17 @@ When creating a Custom-2FA collection, follow these requirements:
 - After building, proceed with audit_collection + validate_transaction as normal`,
     instructions: `## Address List Token Type
 
-**IMPORTANT: Call build_address_list() to create this collection.** The build_address_list tool handles all the required structure automatically (both add and remove approvals, correct standard, correct approvalIds, correct permissions).
-
-### Usage
-\`\`\`
-build_address_list({
-  creatorAddress: "bb1...",
-  name: "My List Name",
-  description: "Description of the list",
-  imageUrl: "https://..."
-})
-\`\`\`
+Use per-field tools to create this collection. It requires:
+1. set_standards(["Address List"])
+2. set_valid_token_ids([{ start: "1", end: "1" }])
+3. add_approval — manager-add: fromListId "Mint", toListId "All", initiatedByListId = manager address, overridesFromOutgoingApprovals: true, overridesToIncomingApprovals: true
+4. add_approval — manager-remove: fromListId "!Mint", toListId burn address (bb1qqq...s7gvmv), initiatedByListId = manager address, overridesFromOutgoingApprovals: true, overridesToIncomingApprovals: true
+5. set_permissions — lock canDeleteCollection, canUpdateStandards, canUpdateValidTokenIds
+6. set_invariants — noCustomOwnershipTimes: true, disablePoolCreation: true
 
 This creates a token collection where list membership = owning x1 of token ID 1. The manager can add (mint) and remove (burn) addresses. No peer-to-peer transfers.
 
-After calling build_address_list, proceed with audit_collection and validate_transaction as normal.`
+After building, proceed with audit_collection and validate_transaction as normal.`
   },
   {
     id: 'bb-402',
@@ -2043,7 +2039,7 @@ For expiring tokens, calculate timestamps:
 - BOTH approvals MUST have overridesFromOutgoingApprovals: true
 - NO peer-to-peer transfer approval — only manager can modify the list
 - Standard is "Address List" (NOT "Non-Transferable")
-- Use build_address_list tool for this type`,
+- Use per-field tools (set_standards, add_approval, set_permissions, set_invariants)`,
     instructions: `## Address List Configuration
 
 An address list collection represents membership as token ownership: owning x1 of token ID 1 = being on the list. The manager controls membership by minting (adding) and burning (removing) tokens.

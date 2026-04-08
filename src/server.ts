@@ -21,8 +21,6 @@ import {
   handleGeneratePermissions,
   generateAliasPathTool,
   handleGenerateAliasPath,
-  buildAddressListTool,
-  handleBuildAddressList,
   // Address utilities
   convertAddressTool,
   handleConvertAddress,
@@ -159,9 +157,6 @@ export function createServer(): Server {
         generateApprovalTool,
         generatePermissionsTool,
         generateAliasPathTool,
-
-        // High-level builders
-        buildAddressListTool,
 
         // Skill instructions tool
         {
@@ -307,14 +302,6 @@ export function createServer(): Server {
 
         case 'generate_alias_path': {
           const result = handleGenerateAliasPath(args as Parameters<typeof handleGenerateAliasPath>[0]);
-          return {
-            content: [{ type: 'text', text: JSON.stringify(result, null, 2) }]
-          };
-        }
-
-        // High-level builders
-        case 'build_address_list': {
-          const result = handleBuildAddressList(args as Parameters<typeof handleBuildAddressList>[0]);
           return {
             content: [{ type: 'text', text: JSON.stringify(result, null, 2) }]
           };
