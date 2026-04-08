@@ -12,7 +12,7 @@
 export const tokenSchemaResourceInfo = {
   uri: 'bitbadges://schema/token-builder',
   name: 'Token Builder Schema',
-  description: 'Annotated schema for build_collection: design axes, field reference, approval patterns, permission presets, and validation checklist',
+  description: 'Annotated schema for collection building: design axes, field reference, approval patterns, permission presets, and validation checklist',
   mimeType: 'text/markdown'
 };
 

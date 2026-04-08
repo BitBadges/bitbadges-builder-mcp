@@ -1182,7 +1182,7 @@ When creating a Custom-2FA collection, follow these requirements:
     name: 'Address List',
     category: 'token-type',
     description: 'On-chain managed address list where membership = owning x1 of token ID 1',
-    summary: `IMPORTANT: Call build_address_list() — NOT build_collection. The build_address_list tool handles all required structure automatically.
+    summary: `IMPORTANT: Call build_address_list() — it handles all required structure automatically.
 
 - List membership = owning x1 of token ID 1
 - Manager can add (mint) and remove (burn) addresses
@@ -1191,7 +1191,7 @@ When creating a Custom-2FA collection, follow these requirements:
 - After building, proceed with audit_collection + validate_transaction as normal`,
     instructions: `## Address List Token Type
 
-**IMPORTANT: Call build_address_list() to create this collection.** Do NOT call build_collection — it does not support address lists. The build_address_list tool handles all the required structure automatically (both add and remove approvals, correct standard, correct approvalIds, correct permissions).
+**IMPORTANT: Call build_address_list() to create this collection.** The build_address_list tool handles all the required structure automatically (both add and remove approvals, correct standard, correct approvalIds, correct permissions).
 
 ### Usage
 \`\`\`
@@ -2043,7 +2043,7 @@ For expiring tokens, calculate timestamps:
 - BOTH approvals MUST have overridesFromOutgoingApprovals: true
 - NO peer-to-peer transfer approval — only manager can modify the list
 - Standard is "Address List" (NOT "Non-Transferable")
-- Use build_address_list tool instead of build_collection for this type`,
+- Use build_address_list tool for this type`,
     instructions: `## Address List Configuration
 
 An address list collection represents membership as token ownership: owning x1 of token ID 1 = being on the list. The manager controls membership by minting (adding) and burning (removing) tokens.
@@ -2127,7 +2127,6 @@ Lock approvals and token IDs:
 - DON'T use approvalId other than "manager-add" and "manager-remove" — the frontend depends on these exact strings.
 - DON'T use standard "Non-Transferable" — address lists use "Address List".
 - DON'T add a peer-to-peer transfer approval — only the manager should modify the list.
-- DON'T use build_collection — use build_address_list instead for this type.
 - DON'T forget overridesFromOutgoingApprovals: true on BOTH approvals.`
   },
   {
@@ -2657,7 +2656,7 @@ After creating the collection and minting initial pairs:
 
 ### Steps for AI Builder
 
-1. \`build_collection\` with type 'prediction-market' and appropriate params
+1. Use per-field tools to initialize the collection (set_standards, set_valid_token_ids, etc.)
 2. \`set_token_metadata\` for YES (token 1) and NO (token 2)
 3. \`set_invariants\` with \`{ "noCustomOwnershipTimes": true, "disablePoolCreation": false }\` — MUST set disablePoolCreation to false
 4. Add 7 approvals via \`add_approval\`:
@@ -2788,7 +2787,7 @@ Same as Deny but:
 
 ## Creation Flow (Tool Calls)
 
-1. \`build_collection\` with type 'bounty' and appropriate params — initialize collection
+1. Use per-field tools to initialize the collection
 2. \`set_valid_token_ids\` — set [{ start: "1", end: "1" }]
 3. \`set_standards\` — set ["Bounty"]
 4. \`set_invariants\` — set { noCustomOwnershipTimes: true, disablePoolCreation: true }

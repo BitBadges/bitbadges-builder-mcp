@@ -92,12 +92,11 @@ When the user wants to:
 ## Build → Audit → Deploy Flow (MANDATORY)
 
 After EVERY collection build, follow this pipeline:
-1. **Build** → build_collection (with type: "vault", "subscription", "bounty", "crowdfund", etc.)
-2. **Audit** → audit_collection(collection: result.transaction, context: "use case description")
-3. **Fix** → Address critical/warning findings, re-audit if needed
+1. **Build** → Use per-field tools in parallel: set_standards, set_valid_token_ids, set_invariants, add_approval, set_permissions, set_default_balances, set_collection_metadata, set_token_metadata, add_alias_path, set_mint_escrow_coins
+2. **Audit** → audit_collection, validate_transaction
+3. **Fix** → Address findings, re-audit if needed
 4. **Present** → Show audit results to user with plain-language explanations
-5. **Validate** → validate_transaction
-6. **Deploy** → Return the completed transaction for user review and submission
+5. **Deploy** → get_transaction to retrieve the final transaction, return for user review and submission
 
 **IMPORTANT: JSON Output Format** — When returning the final transaction JSON, do NOT just print it inline in the terminal. Terminal output often introduces formatting artifacts (line wrapping, ANSI codes, truncation) that break JSON parsing. Instead:
 - **Preferred**: Save the JSON to a file (e.g., \`transaction.json\`) so the user can copy clean JSON
