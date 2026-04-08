@@ -92,7 +92,7 @@ When the user wants to:
 ## Build → Audit → Deploy Flow (MANDATORY)
 
 After EVERY collection build, follow this pipeline:
-1. **Build** → build_token (with tokenType: "nft-collection", "fungible-token", "smart-token", or "auto")
+1. **Build** → build_collection (with type: "vault", "subscription", "bounty", "crowdfund", etc.)
 2. **Audit** → audit_collection(collection: result.transaction, context: "use case description")
 3. **Fix** → Address critical/warning findings, re-audit if needed
 4. **Present** → Show audit results to user with plain-language explanations

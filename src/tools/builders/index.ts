@@ -2,7 +2,7 @@
  * High-level builders index
  */
 
-export * from './buildToken.js';
+export * from './buildCollection.js';
 export * from './buildAddressList.js';
 export * from './auditCollection.js';
 export * from './verifyStandards.js';

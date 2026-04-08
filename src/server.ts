@@ -21,8 +21,8 @@ import {
   handleGeneratePermissions,
   generateAliasPathTool,
   handleGenerateAliasPath,
-  buildTokenTool,
-  handleBuildToken,
+  buildCollectionTool,
+  handleBuildCollection,
   buildAddressListTool,
   handleBuildAddressList,
   // Address utilities
@@ -163,7 +163,7 @@ export function createServer(): Server {
         generateAliasPathTool,
 
         // High-level builders
-        buildTokenTool,
+        buildCollectionTool,
         buildAddressListTool,
 
         // Skill instructions tool
@@ -316,8 +316,8 @@ export function createServer(): Server {
         }
 
         // High-level builders
-        case 'build_token': {
-          const result = handleBuildToken(args as Parameters<typeof handleBuildToken>[0]);
+        case 'build_collection': {
+          const result = handleBuildCollection(args as Parameters<typeof handleBuildCollection>[0]);
           return {
             content: [{ type: 'text', text: JSON.stringify(result, null, 2) }]
           };

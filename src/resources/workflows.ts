@@ -54,7 +54,7 @@ Step 1: Choose token design
   → Decide: soulbound, subscription, tiered, etc.
 
 Step 2: Build the collection
-  → build_token (with tokenType: "nft-collection", "fungible-token", "smart-token", or "auto")
+  → build_collection (with type: "vault", "subscription", "bounty", "crowdfund", etc.)
   → Or get_skill_instructions("subscription") for subscriptions
 
 Step 3: Validate
@@ -209,7 +209,7 @@ Run a security audit on any collection build before deploying:
 
 \`\`\`
 Step 1: Build the collection
-  → build_token (with tokenType: "nft-collection", "fungible-token", "smart-token", or "auto")
+  → build_collection (with type: "vault", "subscription", "bounty", "crowdfund", etc.)
   → Save the result
 
 Step 2: Audit
