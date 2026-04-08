@@ -9,7 +9,7 @@
  */
 import { z } from 'zod';
 import { addTransfer } from '../../session/sessionState.js';
-import { ensureBb1 } from '../../sdk/addressUtils.js';
+import { ensureBb1, isAddressAlias } from '../../sdk/addressUtils.js';
 
 const MAX_UINT64 = '18446744073709551615';
 
@@ -27,12 +27,12 @@ const BalanceSchema = z.object({
 });
 
 const TransferSchema = z.object({
-  from: z.string().describe('Sender address (bb1... or 0x...). Use "Mint" to mint new tokens.'),
-  toAddresses: z.array(z.string()).describe('Recipient addresses (bb1... or 0x...).'),
+  from: z.string().describe('Sender address (bb1..., 0x..., or alias: MintEscrow, CosmosWrapper/N, IBCBacking). Use "Mint" to mint new tokens.'),
+  toAddresses: z.array(z.string()).describe('Recipient addresses (bb1..., 0x..., or alias: MintEscrow, CosmosWrapper/N, IBCBacking).'),
   balances: z.array(BalanceSchema).describe('What to transfer: amount × tokenIds × ownershipTimes.'),
   prioritizedApprovals: z.array(z.object({
     approvalId: z.string().describe('The approvalId from the collection that authorizes this transfer.'),
-    approverAddress: z.string().optional().default('').describe('Address of the approver. Usually empty string for collection-level approvals.')
+    approverAddress: z.string().optional().default('').describe('Address of the approver (bb1..., 0x..., or alias: MintEscrow, CosmosWrapper/N, IBCBacking). Usually empty string for collection-level approvals.')
   })).optional().default([]).describe('Which approval(s) to use. Required for minting — reference the mint approval by ID.'),
   merkleProofs: z.array(z.any()).optional().default([]),
   memo: z.string().optional().default('')
@@ -59,8 +59,8 @@ export const addTransferTool = {
         items: {
           type: 'object',
           properties: {
-            from: { type: 'string', description: 'Sender. Use "Mint" to mint new tokens.' },
-            toAddresses: { type: 'array', items: { type: 'string' }, description: 'Recipient addresses (bb1... or 0x...).' },
+            from: { type: 'string', description: 'Sender. Use "Mint" to mint new tokens. Also accepts aliases: MintEscrow, CosmosWrapper/N, IBCBacking.' },
+            toAddresses: { type: 'array', items: { type: 'string' }, description: 'Recipient addresses (bb1..., 0x..., or alias: MintEscrow, CosmosWrapper/N, IBCBacking).' },
             balances: {
               type: 'array',
               description: 'What to transfer: amount × tokenIds × ownershipTimes.',

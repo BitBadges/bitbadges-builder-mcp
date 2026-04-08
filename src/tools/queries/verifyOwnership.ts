@@ -8,7 +8,7 @@ import { verifyOwnership } from '../../sdk/apiClient.js';
 import { ensureBb1 } from '../../sdk/addressUtils.js';
 
 export const verifyOwnershipSchema = z.object({
-  address: z.string().describe('The address to verify (bb1... or 0x...)'),
+  address: z.string().describe('The address to verify (bb1..., 0x..., or alias: MintEscrow, CosmosWrapper/N, IBCBacking)'),
   requirements: z.string().describe('AssetConditionGroup structure as JSON string')
 });
 
@@ -29,7 +29,7 @@ export const verifyOwnershipTool = {
     properties: {
       address: {
         type: 'string',
-        description: 'The address to verify (bb1... or 0x...)'
+        description: 'The address to verify (bb1..., 0x..., or alias: MintEscrow, CosmosWrapper/N, IBCBacking)'
       },
       requirements: {
         type: 'string',

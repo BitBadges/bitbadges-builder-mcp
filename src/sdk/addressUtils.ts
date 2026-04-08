@@ -9,6 +9,22 @@ import crypto from 'crypto';
 const BITBADGES_PREFIX = 'bb';
 
 /**
+ * Address aliases — resolved on-chain to deterministic addresses.
+ * - MintEscrow: the collection's mint escrow address
+ * - CosmosWrapper/N: wrapper path address by index (0, 1, ...)
+ * - IBCBacking: the IBC backing path address
+ */
+export const ADDRESS_ALIASES = ['MintEscrow', 'IBCBacking'] as const;
+export const ADDRESS_ALIAS_PATTERN = /^(MintEscrow|IBCBacking|CosmosWrapper\/\d+)$/;
+
+/**
+ * Check if a string is a recognized address alias.
+ */
+export function isAddressAlias(value: string): boolean {
+  return ADDRESS_ALIAS_PATTERN.test(value);
+}
+
+/**
  * Check if a string is a valid hex string
  */
 function isHex(str: string): boolean {
@@ -71,6 +87,16 @@ export interface AddressValidationResult {
 }
 
 export function validateAddress(address: string): AddressValidationResult {
+  // Check for address aliases
+  if (isAddressAlias(address)) {
+    return {
+      valid: true,
+      chain: 'cosmos',
+      normalized: address,
+      isModuleDerived: true
+    };
+  }
+
   // Check ETH format
   if (address.startsWith('0x')) {
     const hex = address.slice(2);
@@ -151,6 +177,11 @@ export function toBitBadgesAddress(address: string): string {
 export function ensureBb1(address: string): string {
   if (!address) return address;
 
+  // Pass through address aliases (MintEscrow, CosmosWrapper/N, IBCBacking)
+  if (isAddressAlias(address)) {
+    return address;
+  }
+
   // Pass through special/reserved list values
   if (['Mint', 'All', 'None', 'Total', 'AllWithMint'].includes(address) ||
       address.startsWith('!') ||
@@ -195,6 +226,9 @@ export function ensureBb1ListId(listId: string): string {
 
   // Split on : and convert each part
   const parts = rest.split(':').map(part => {
+    if (isAddressAlias(part)) {
+      return part;
+    }
     if (part.startsWith('0x') && part.length === 42) {
       return ensureBb1(part);
     }

@@ -144,8 +144,8 @@ function classifyApproval(approval: Record<string, unknown>): ParsedApproval['ty
 
   if (from === 'Mint') return 'mint';
   if (criteria.allowBackedMinting === true) {
-    if (from.startsWith('bb1') && !from.startsWith('!')) return 'backing';
-    if (to.startsWith('bb1') && !to.startsWith('!')) return 'unbacking';
+    if ((from.startsWith('bb1') || from === 'IBCBacking' || /^CosmosWrapper\/\d+$/.test(from)) && !from.startsWith('!')) return 'backing';
+    if ((to.startsWith('bb1') || to === 'IBCBacking' || /^CosmosWrapper\/\d+$/.test(to)) && !to.startsWith('!')) return 'unbacking';
   }
   if (from === '!Mint' || from.startsWith('!Mint:') || from === 'All') {
     if (to === '!Mint' || to.startsWith('!Mint:') || to === 'All') {

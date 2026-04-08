@@ -5,7 +5,7 @@ import { ensureBb1 } from '../../sdk/addressUtils.js';
 export const setManagerSchema = z.object({
   sessionId: z.string().optional().describe("Session ID for per-request isolation."),
   creatorAddress: z.string().optional(),
-  manager: z.string().describe('Manager address (bb1... or 0x...). Defaults to creator. Controls collection updates within permission bounds.')
+  manager: z.string().describe('Manager address (bb1..., 0x..., or alias: MintEscrow, CosmosWrapper/N, IBCBacking). Defaults to creator. Controls collection updates within permission bounds.')
 });
 
 export type SetManagerInput = z.infer<typeof setManagerSchema>;
@@ -18,7 +18,7 @@ export const setManagerTool = {
     properties: {
       sessionId: { type: 'string', description: 'Session ID.' },
       creatorAddress: { type: 'string' },
-      manager: { type: 'string', description: 'Manager address (bb1... or 0x...).' }
+      manager: { type: 'string', description: 'Manager address (bb1..., 0x..., or alias: MintEscrow, CosmosWrapper/N, IBCBacking).' }
     },
     required: ['manager']
   }

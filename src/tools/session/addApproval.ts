@@ -10,7 +10,7 @@
 import { z } from 'zod';
 import { randomBytes } from 'crypto';
 import { addApproval as addApprovalToSession, getOrCreateSession } from '../../session/sessionState.js';
-import { ensureBb1, ensureBb1ListId } from '../../sdk/addressUtils.js';
+import { ensureBb1, ensureBb1ListId, isAddressAlias } from '../../sdk/addressUtils.js';
 import { getCoinDetails } from '../../sdk/coinRegistry.js';
 
 const MAX_UINT64 = '18446744073709551615';
@@ -84,7 +84,7 @@ const BalanceSchema = z.object({
 });
 
 const CoinTransferSchema = z.object({
-  to: z.string().describe('Recipient address (bb1...). Who receives the payment.'),
+  to: z.string().describe('Recipient address (bb1... or alias: MintEscrow, CosmosWrapper/N, IBCBacking). Who receives the payment.'),
   coins: z.array(z.object({
     denom: z.string().describe('Token denomination. Use full IBC denom for ICS20 tokens (e.g., "ibc/A4DB..." for ATOM). Use "ubadge" for BADGE. Amounts use base units (e.g., 5 ATOM = "5000000" with 6 decimals).'),
     amount: z.string().describe('Amount in base units as string.')
@@ -165,9 +165,9 @@ export const addApprovalSchema = z.object({
   sessionId: z.string().optional().describe("Session ID for per-request isolation."),
   creatorAddress: z.string().optional().describe('Creator bb1... address. Used to auto-create session if needed.'),
   approvalId: z.string().describe('Unique ID for this approval. Use descriptive names: "public-mint", "manager-mint", "subscription-mint", "transferable", "smart-token-backing", "smart-token-unbacking". Frontend displays this to users.'),
-  fromListId: z.string().describe('Who can send. "Mint" for minting. "!Mint" for post-mint transfers. "All" for anyone. bb1... for specific address. "!Mint:bb1..." for exclusion syntax (smart token unbacking).'),
-  toListId: z.string().optional().default('All').describe('Who can receive. "All" for anyone. bb1... for specific address (e.g., backing address for unbacking).'),
-  initiatedByListId: z.string().optional().default('All').describe('Who can initiate. "All" for public. bb1... for manager-only. Must be a reserved list ID.'),
+  fromListId: z.string().describe('Who can send. "Mint" for minting. "!Mint" for post-mint transfers. "All" for anyone. bb1... for specific address. Aliases accepted: MintEscrow, CosmosWrapper/N, IBCBacking. "!Mint:bb1..." for exclusion syntax (smart token unbacking).'),
+  toListId: z.string().optional().default('All').describe('Who can receive. "All" for anyone. bb1... for specific address. Aliases accepted: MintEscrow, CosmosWrapper/N, IBCBacking.'),
+  initiatedByListId: z.string().optional().default('All').describe('Who can initiate. "All" for public. bb1... for manager-only. Aliases accepted: MintEscrow, CosmosWrapper/N, IBCBacking. Must be a reserved list ID.'),
   tokenIds: z.array(UintRangeSchema).optional().describe('Token ID ranges this approval covers. Default: [{"start":"1","end":"1"}].'),
   transferTimes: z.array(UintRangeSchema).optional().describe('When this approval is active. Default: forever.'),
   ownershipTimes: z.array(UintRangeSchema).optional().describe('Ownership time ranges. Default: forever.'),
@@ -233,9 +233,9 @@ export const addApprovalTool = {
       sessionId: { type: 'string', description: 'Session ID.' },
       creatorAddress: { type: 'string', description: 'Creator address (bb1... or 0x...).' },
       approvalId: { type: 'string', description: 'Unique approval ID. Use descriptive names: "public-mint", "manager-mint", "subscription-mint", "transferable", "smart-token-backing", "smart-token-unbacking".' },
-      fromListId: { type: 'string', description: 'Who can send. "Mint" for minting. "!Mint" for post-mint transfers. bb1... or 0x... for specific address.' },
-      toListId: { type: 'string', description: 'Who can receive. Default "All".' },
-      initiatedByListId: { type: 'string', description: 'Who can initiate. "All" for public, bb1... or 0x... for manager-only.' },
+      fromListId: { type: 'string', description: 'Who can send. "Mint" for minting. "!Mint" for post-mint transfers. bb1..., 0x..., or alias (MintEscrow, CosmosWrapper/N, IBCBacking).' },
+      toListId: { type: 'string', description: 'Who can receive. Default "All". Accepts bb1..., 0x..., or alias (MintEscrow, CosmosWrapper/N, IBCBacking).' },
+      initiatedByListId: { type: 'string', description: 'Who can initiate. "All" for public, bb1..., 0x..., or alias (MintEscrow, CosmosWrapper/N, IBCBacking).' },
       tokenIds: { type: 'array', items: { type: 'object', properties: { start: { type: 'string' }, end: { type: 'string' } }, required: ['start', 'end'] }, description: 'Token ID ranges.' },
       transferTimes: { type: 'array', items: { type: 'object', properties: { start: { type: 'string' }, end: { type: 'string' } }, required: ['start', 'end'] } },
       ownershipTimes: { type: 'array', items: { type: 'object', properties: { start: { type: 'string' }, end: { type: 'string' } }, required: ['start', 'end'] } },
@@ -251,7 +251,7 @@ export const addApprovalTool = {
             items: {
               type: 'object',
               properties: {
-                to: { type: 'string', description: 'Recipient address (bb1... or 0x...). Who receives the payment.' },
+                to: { type: 'string', description: 'Recipient address (bb1..., 0x..., or alias: MintEscrow, CosmosWrapper/N, IBCBacking). Who receives the payment.' },
                 coins: {
                   type: 'array',
                   description: 'Coins to transfer as payment.',
@@ -451,10 +451,10 @@ export function handleAddApproval(input: AddApprovalInput) {
       if (['All', 'AllWithMint', 'Mint', 'None'].includes(check)) return true;
       if (check.startsWith('AllWithout')) {
         const rest = check.substring('AllWithout'.length);
-        return rest.length > 0 && rest.split(':').every((a: string) => a === 'Mint' || /^bb1[a-z0-9]+$/.test(a));
+        return rest.length > 0 && rest.split(':').every((a: string) => a === 'Mint' || /^bb1[a-z0-9]+$/.test(a) || isAddressAlias(a));
       }
       const parts = check.split(':');
-      return parts.length > 0 && parts.every((a: string) => a === 'Mint' || /^bb1[a-z0-9]+$/.test(a));
+      return parts.length > 0 && parts.every((a: string) => a === 'Mint' || /^bb1[a-z0-9]+$/.test(a) || isAddressAlias(a));
     }
     const listIds = {
       fromListId: input.fromListId,

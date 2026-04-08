@@ -12,7 +12,7 @@ import { ensureBb1 } from '../../sdk/addressUtils.js';
 
 export const queryBalanceSchema = z.object({
   collectionId: z.string().describe('The collection ID'),
-  address: z.string().describe('The address to check (bb1... or 0x...)'),
+  address: z.string().describe('The address to check (bb1..., 0x..., or alias: MintEscrow, CosmosWrapper/N, IBCBacking)'),
   tokenId: z.string().optional().describe('Optional. If provided, returns just the balance amount for this specific token ID at the current time, instead of the full balance array.')
 });
 
@@ -39,7 +39,7 @@ export const queryBalanceTool = {
       },
       address: {
         type: 'string',
-        description: 'The address to check (bb1... or 0x...)'
+        description: 'The address to check (bb1..., 0x..., or alias: MintEscrow, CosmosWrapper/N, IBCBacking)'
       },
       tokenId: {
         type: 'string',

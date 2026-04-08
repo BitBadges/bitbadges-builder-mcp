@@ -24,10 +24,10 @@ export const generateApprovalSchema = z.object({
     start: z.string(),
     end: z.string()
   })).optional().describe('Token ID ranges (defaults to token 1)'),
-  backingAddress: z.string().optional().describe('For Smart Token approvals: the IBC backing address'),
+  backingAddress: z.string().optional().describe('For Smart Token approvals: the IBC backing address (bb1..., 0x..., or alias: IBCBacking)'),
   paymentAmount: z.string().optional().describe('Payment amount in base units'),
   paymentDenom: z.string().optional().describe('Payment denomination'),
-  paymentRecipient: z.string().optional().describe('Address to receive payment'),
+  paymentRecipient: z.string().optional().describe('Address to receive payment (bb1..., 0x..., or alias: MintEscrow, CosmosWrapper/N, IBCBacking)'),
   maxPerUser: z.string().optional().describe('Maximum mints per user'),
   totalMax: z.string().optional().describe('Total maximum transfers'),
   fromListId: z.string().optional().describe('Override from list ID'),
@@ -93,7 +93,7 @@ export const generateApprovalTool = {
       },
       backingAddress: {
         type: 'string',
-        description: 'For Smart Token approvals: the IBC backing address (bb1... or 0x...)'
+        description: 'For Smart Token approvals: the IBC backing address (bb1..., 0x..., or alias: IBCBacking)'
       },
       paymentAmount: {
         type: 'string',
@@ -105,7 +105,7 @@ export const generateApprovalTool = {
       },
       paymentRecipient: {
         type: 'string',
-        description: 'Address to receive payment (bb1... or 0x...)'
+        description: 'Address to receive payment (bb1..., 0x..., or alias: MintEscrow, CosmosWrapper/N, IBCBacking)'
       },
       maxPerUser: {
         type: 'string',

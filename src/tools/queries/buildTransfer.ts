@@ -9,12 +9,12 @@
 
 import { z } from 'zod';
 import { getCollections } from '../../sdk/apiClient.js';
-import { ensureBb1 } from '../../sdk/addressUtils.js';
+import { ensureBb1, isAddressAlias } from '../../sdk/addressUtils.js';
 
 export const buildTransferSchema = z.object({
   collectionId: z.string().describe('The collection ID'),
-  fromAddress: z.string().describe('Sender address (bb1... or 0x...) — use "Mint" for minting'),
-  toAddress: z.string().describe('Recipient address (bb1... or 0x...) — for unbacking, use the backing address'),
+  fromAddress: z.string().describe('Sender address (bb1..., 0x..., or alias: MintEscrow, CosmosWrapper/N, IBCBacking) — use "Mint" for minting'),
+  toAddress: z.string().describe('Recipient address (bb1..., 0x..., or alias: MintEscrow, CosmosWrapper/N, IBCBacking) — for unbacking, use the backing address or IBCBacking alias'),
   tokenIds: z.array(z.object({
     start: z.string(),
     end: z.string()
@@ -57,11 +57,11 @@ export const buildTransferTool = {
       },
       fromAddress: {
         type: 'string',
-        description: 'Sender address (bb1... or 0x...) — use "Mint" for minting'
+        description: 'Sender address (bb1..., 0x..., or alias: MintEscrow, CosmosWrapper/N, IBCBacking) — use "Mint" for minting'
       },
       toAddress: {
         type: 'string',
-        description: 'Recipient address (bb1... or 0x...) — for unbacking, use the backing address'
+        description: 'Recipient address (bb1..., 0x..., or alias: MintEscrow, CosmosWrapper/N, IBCBacking) — for unbacking, use the backing address or IBCBacking alias'
       },
       tokenIds: {
         type: 'array',

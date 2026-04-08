@@ -5,6 +5,7 @@
 
 import { z } from 'zod';
 import { bech32 } from 'bech32';
+import { isAddressAlias } from '../../sdk/addressUtils.js';
 
 export const validateAddressSchema = z.object({
   address: z.string().describe('The address to validate')
@@ -27,13 +28,13 @@ export interface ValidateAddressResult {
 
 export const validateAddressTool = {
   name: 'validate_address',
-  description: 'Check if an address is valid and detect its chain type',
+  description: 'Check if an address is valid and detect its chain type. Also accepts address aliases: MintEscrow, CosmosWrapper/N, IBCBacking.',
   inputSchema: {
     type: 'object' as const,
     properties: {
       address: {
         type: 'string',
-        description: 'The address to validate'
+        description: 'The address to validate. Accepts bb1..., 0x..., or an alias: MintEscrow, CosmosWrapper/N, IBCBacking.'
       }
     },
     required: ['address']
@@ -90,6 +91,19 @@ export function handleValidateAddress(input: ValidateAddressInput): ValidateAddr
         valid: false,
         chain: 'unknown',
         error: 'Address is empty'
+      };
+    }
+
+    // Check for address aliases (MintEscrow, CosmosWrapper/N, IBCBacking)
+    if (isAddressAlias(address)) {
+      return {
+        success: true,
+        valid: true,
+        chain: 'cosmos',
+        normalized: address,
+        details: {
+          format: 'alias'
+        }
       };
     }
 

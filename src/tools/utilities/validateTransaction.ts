@@ -324,7 +324,7 @@ function validateApprovals(approvals: unknown[], path: string, issues: Validatio
     }
 
     // Check backing address approvals should NOT have overridesFromOutgoingApprovals: true
-    if (typeof a.fromListId === 'string' && a.fromListId.startsWith('bb1') && !a.fromListId.includes('Mint')) {
+    if (typeof a.fromListId === 'string' && (a.fromListId.startsWith('bb1') || /^(MintEscrow|IBCBacking|CosmosWrapper\/\d+)$/.test(a.fromListId)) && !a.fromListId.includes('Mint')) {
       const criteria = a.approvalCriteria as Record<string, unknown> | undefined;
       if (criteria && criteria.overridesFromOutgoingApprovals === true && criteria.allowBackedMinting === true) {
         issues.push({
@@ -935,10 +935,10 @@ export function handleValidateTransaction(input: ValidateTransactionInput): Vali
           message: 'MsgUniversalUpdateCollection missing "creator" field',
           path: `${msgPath}.value.creator`
         });
-      } else if (!value.creator.startsWith('bb1')) {
+      } else if (!value.creator.startsWith('bb1') && !/^(MintEscrow|IBCBacking|CosmosWrapper\/\d+)$/.test(value.creator as string)) {
         issues.push({
           severity: 'warning',
-          message: 'Creator address should start with "bb1"',
+          message: 'Creator address should start with "bb1" or be a valid alias (MintEscrow, CosmosWrapper/N, IBCBacking)',
           path: `${msgPath}.value.creator`
         });
       }

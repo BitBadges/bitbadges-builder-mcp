@@ -7,7 +7,7 @@
 import { z } from 'zod';
 import { generateAliasAddressForIBCBackedDenom } from '../../sdk/addressGenerator.js';
 import { lookupTokenInfo, resolveIbcDenom, getDecimals } from '../../sdk/coinRegistry.js';
-import { ensureBb1 } from '../../sdk/addressUtils.js';
+import { ensureBb1, isAddressAlias } from '../../sdk/addressUtils.js';
 import { handleAuditCollection } from './auditCollection.js';
 import { handleValidateTransaction } from '../utilities/validateTransaction.js';
 
@@ -692,8 +692,8 @@ function validate(message: Record<string, unknown>, resolvedMinting: ResolvedMin
   const value = message.value as Record<string, unknown>;
 
   // 1. Creator address
-  if (!(value.creator as string)?.startsWith('bb1')) {
-    warnings.push('CRITICAL: creator must start with "bb1"');
+  if (!(value.creator as string)?.startsWith('bb1') && !/^(MintEscrow|IBCBacking|CosmosWrapper\/\d+)$/.test(value.creator as string || '')) {
+    warnings.push('CRITICAL: creator must start with "bb1" or be a valid alias (MintEscrow, CosmosWrapper/N, IBCBacking)');
   }
 
   // 3-5. Approval checks
@@ -919,8 +919,8 @@ export function handleBuildToken(rawInput: BuildTokenRawInput): BuildTokenResult
 
     // Phase 1: Resolve
     input.creatorAddress = ensureBb1(input.creatorAddress);
-    if (!input.creatorAddress.startsWith('bb1')) {
-      return { success: false, error: 'Creator address must be a valid bb1... or 0x... address' };
+    if (!input.creatorAddress.startsWith('bb1') && !isAddressAlias(input.creatorAddress)) {
+      return { success: false, error: 'Creator address must be a valid bb1..., 0x..., or alias (MintEscrow, CosmosWrapper/N, IBCBacking)' };
     }
 
     const resolvedSupply = resolveSupply(input.supply);
