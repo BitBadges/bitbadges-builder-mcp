@@ -54,10 +54,11 @@ Step 1: Choose token design
   → Decide: soulbound, subscription, tiered, etc.
 
 Step 2: Build the collection
-  → build_token (with tokenType: "nft-collection", "fungible-token", "smart-token", or "auto")
+  → Use per-field tools: set_standards, set_valid_token_ids, set_invariants, add_approval, set_permissions, set_default_balances, set_collection_metadata, set_token_metadata, add_alias_path, set_mint_escrow_coins
   → Or get_skill_instructions("subscription") for subscriptions
 
 Step 3: Validate
+  → get_transaction to retrieve the built transaction
   → validate_transaction(transactionJson)
   → Fix any issues
 
@@ -209,8 +210,8 @@ Run a security audit on any collection build before deploying:
 
 \`\`\`
 Step 1: Build the collection
-  → build_token (with tokenType: "nft-collection", "fungible-token", "smart-token", or "auto")
-  → Save the result
+  → Use per-field tools: set_standards, set_valid_token_ids, set_invariants, add_approval, set_permissions, set_default_balances, set_collection_metadata, set_token_metadata, add_alias_path, set_mint_escrow_coins
+  → Use get_transaction to retrieve the built transaction
 
 Step 2: Audit
   → audit_collection(collection: result.transaction, context: "nft art collection")
