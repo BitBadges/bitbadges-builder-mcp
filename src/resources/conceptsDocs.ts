@@ -86,7 +86,13 @@ Collection approvals can override user-level approvals:
 - \`overridesFromOutgoingApprovals: true\` - Skip sender approval checks
 - \`overridesToIncomingApprovals: true\` - Skip recipient approval checks
 
-**Critical Rule**: Mint approvals (fromListId: "Mint") MUST have \`overridesFromOutgoingApprovals: true\` because the Mint address cannot set its own outgoing approvals.`,
+**Critical Rule**: Mint approvals (fromListId: "Mint") MUST have \`overridesFromOutgoingApprovals: true\` because the Mint address cannot set its own outgoing approvals.
+
+### v29 Approval Criteria Additions
+
+- **altTimeChecks**: Now supports \`offlineMonths\` (1-12), \`offlineDaysOfMonth\` (1-31), \`offlineWeeksOfYear\` (ISO 1-52), \`timezoneOffsetMinutes\`, and \`timezoneOffsetNegative\` in addition to the existing offlineHours/offlineDays.
+- **votingChallenges**: New \`resetAfterExecution\` (bool) resets votes after a successful transfer. New \`delayAfterQuorum\` (Uint, ms) adds a timelock between quorum and execution.
+- **userApprovalSettings**: New field on approvalCriteria with \`allowedDenoms\` (string[]) and \`disableUserCoinTransfers\` (bool) to control user-level approval behavior.`,
 
   permissions: `## Permissions
 

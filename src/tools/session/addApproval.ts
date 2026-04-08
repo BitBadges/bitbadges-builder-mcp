@@ -209,9 +209,13 @@ export const addApprovalSchema = z.object({
     userRoyalties: z.any().optional().describe('Royalty requirements. Advanced — use search_knowledge_base for details.'),
     dynamicStoreChallenges: z.array(z.any()).optional().describe('Dynamic store checks. Advanced — use search_knowledge_base for details.'),
     evmQueryChallenges: z.array(z.any()).optional().describe('EVM contract query requirements. Advanced — use search_knowledge_base for details.'),
-    votingChallenges: z.array(z.any()).optional().describe('Multi-sig voting requirements. Advanced — use search_knowledge_base for details.'),
+    votingChallenges: z.array(z.any()).optional().describe('Multi-sig voting requirements. Supports resetAfterExecution (bool, resets votes after quorum met) and delayAfterQuorum (Uint ms, delay before execution). Advanced — use search_knowledge_base for details.'),
     ethSignatureChallenges: z.array(z.any()).optional().describe('ETH signature requirements. Advanced — use search_knowledge_base for details.'),
-    altTimeChecks: z.any().optional().describe('Offline hours/days blocking. Advanced — use search_knowledge_base for details.'),
+    altTimeChecks: z.any().optional().describe('Offline time blocking. Supports offlineHours (0-23), offlineDays (0=Sun-6=Sat), offlineMonths (1-12), offlineDaysOfMonth (1-31), offlineWeeksOfYear (ISO 1-52), timezoneOffsetMinutes (Uint), timezoneOffsetNegative (bool). Advanced — use search_knowledge_base for details.'),
+    userApprovalSettings: z.object({
+      allowedDenoms: z.array(z.string()).optional().describe('Restrict which coin denominations can be used in user-level coinTransfers.'),
+      disableUserCoinTransfers: z.boolean().optional().describe('If true, disable user-level coin transfers entirely for this approval.'),
+    }).optional().describe('User-level approval settings (v29). Controls allowed denoms and user coin transfer behavior.'),
     senderChecks: z.any().optional().describe('Sender address validation. Advanced — use search_knowledge_base for details.'),
     recipientChecks: z.any().optional().describe('Recipient address validation. Advanced — use search_knowledge_base for details.'),
     initiatorChecks: z.any().optional().describe('Initiator address validation. Advanced — use search_knowledge_base for details.')
@@ -396,9 +400,17 @@ export const addApprovalTool = {
           userRoyalties: { type: 'object', description: 'Royalty requirements. Advanced — use search_knowledge_base for details.' },
           dynamicStoreChallenges: { type: 'array', description: 'Dynamic store checks. Advanced — use search_knowledge_base for details.' },
           evmQueryChallenges: { type: 'array', description: 'EVM contract query requirements. Advanced — use search_knowledge_base for details.' },
-          votingChallenges: { type: 'array', description: 'Multi-sig voting requirements. Advanced — use search_knowledge_base for details.' },
+          votingChallenges: { type: 'array', description: 'Multi-sig voting requirements. Supports resetAfterExecution and delayAfterQuorum. Advanced — use search_knowledge_base for details.' },
           ethSignatureChallenges: { type: 'array', description: 'ETH signature requirements. Advanced — use search_knowledge_base for details.' },
-          altTimeChecks: { type: 'object', description: 'Offline hours/days blocking. Advanced — use search_knowledge_base for details.' }
+          altTimeChecks: { type: 'object', description: 'Offline time blocking. Supports offlineHours, offlineDays, offlineMonths, offlineDaysOfMonth, offlineWeeksOfYear, timezoneOffsetMinutes, timezoneOffsetNegative. Advanced — use search_knowledge_base for details.' },
+          userApprovalSettings: {
+            type: 'object',
+            description: 'User-level approval settings (v29). Controls allowed denoms and user coin transfer behavior.',
+            properties: {
+              allowedDenoms: { type: 'array', items: { type: 'string' }, description: 'Restrict which coin denominations can be used in user-level coinTransfers.' },
+              disableUserCoinTransfers: { type: 'boolean', description: 'If true, disable user-level coin transfers entirely for this approval.' }
+            }
+          }
         }
       }
     },
