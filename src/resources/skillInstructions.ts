@@ -2465,7 +2465,7 @@ Note: The deposit coinTransfer uses \`to: "Mint"\` with no overrides: initiator 
     },
     "votingChallenges": [{
       "proposalId": "yes-wins-proposal",
-      "quorumThreshold": "1",
+      "quorumThreshold": "100",
       "voters": [{ "address": "<VERIFIER_ADDRESS>", "weight": "1" }]
     }]
   }
@@ -2521,7 +2521,7 @@ Same as YES Wins but with token ID 2, separate proposalId, and separate amountTr
     },
     "votingChallenges": [{
       "proposalId": "no-wins-proposal",
-      "quorumThreshold": "1",
+      "quorumThreshold": "100",
       "voters": [{ "address": "<VERIFIER_ADDRESS>", "weight": "1" }]
     }]
   }
@@ -2575,7 +2575,7 @@ Same as YES Wins but with token ID 2, separate proposalId, and separate amountTr
     },
     "votingChallenges": [{
       "proposalId": "push-yes-proposal",
-      "quorumThreshold": "1",
+      "quorumThreshold": "100",
       "voters": [{ "address": "<VERIFIER_ADDRESS>", "weight": "1" }]
     }]
   }
@@ -2631,7 +2631,7 @@ Same as Push YES but with token ID 2 and a separate proposalId:
     },
     "votingChallenges": [{
       "proposalId": "push-no-proposal",
-      "quorumThreshold": "1",
+      "quorumThreshold": "100",
       "voters": [{ "address": "<VERIFIER_ADDRESS>", "weight": "1" }]
     }]
   }
@@ -2825,6 +2825,476 @@ All permissions MUST be frozen (permanentlyForbiddenTimes: fullRange):
 ### Advanced: Self-Referencing with mustOwnTokens
 
 For bounties that require the verifier or submitter to hold a token from THIS collection (e.g., a reputation badge), use collectionId "0" in mustOwnTokens. The chain resolves "0" to the current collection ID at runtime, which is especially useful at creation time when the real ID is not yet known.`
+  },
+  {
+    id: 'crowdfund',
+    name: 'Crowdfund',
+    category: 'token-type',
+    description: 'On-chain crowdfunding with goal tracking via mustOwnTokens. Contributors deposit funds, receive refund tokens. Crowdfunder withdraws if goal met, contributors refund if not.',
+    summary: `Required standards: ["Crowdfund"]
+
+- 2 token IDs: Token 1 = Refund token (contributor holds), Token 2 = Progress token (crowdfunder accumulates)
+- 4 collection-level approvals: deposit-refund, deposit-progress, success (withdraw), refund
+- Contributors deposit coins → receive Token 1 (refund token). Paired approval mints Token 2 to crowdfunder (progress tracking).
+- Success: crowdfunder withdraws if mustOwnTokens confirms they hold >= goal of Token 2 (collectionId: 0 = self-reference)
+- Refund: after deadline, contributors burn Token 1 → escrow pays them back (only if goal NOT met via mustOwnTokens check)
+- allowAmountScaling: true on ALL 4 approvals (contributors choose deposit size, everything scales proportionally)
+- maxScalingMultiplier: MAX_UINT for unrestricted scaling
+- Deposit coinTransfer.to = "Mint" (auto-resolves to escrow)
+- requireToEqualsInitiatedBy: true on deposit-refund (contributor receives their own refund token)
+- All permissions frozen after creation
+- DON'T use votingChallenges — goal tracking is via mustOwnTokens, not voting
+- DON'T forget allowAmountScaling on ALL 4 approvals
+- DON'T set overrideFromWithApproverAddress on deposit (contributor pays, not escrow)
+- DO set overrideFromWithApproverAddress: true on success and refund (escrow pays out)
+- DO set overrideToWithInitiator: true on refund (contributor receives their own refund)
+- DO use collectionId: "0" in mustOwnTokens for self-reference`,
+    instructions: `## Crowdfund Configuration
+
+### Mental Model
+
+On-chain crowdfunding with automatic goal tracking. Contributors deposit coins and receive refund tokens. A progress token tracks total raised. If the goal is met, the crowdfunder withdraws all funds. If not, contributors burn their refund tokens to get deposits back.
+
+### Collection Structure
+
+- Token ID 1 = Refund token (contributor holds — burn to refund)
+- Token ID 2 = Progress token (crowdfunder accumulates — tracks total raised)
+- Standard: "Crowdfund"
+- validTokenIds: [{ start: "1", end: "2" }]
+- invariants: { noCustomOwnershipTimes: true }
+- All permissions frozen after creation
+
+### 4 Required Approvals
+
+#### 1. Deposit-Refund (contributor pays coins → receives Token 1)
+
+\`\`\`json
+{
+  "approvalId": "deposit-refund",
+  "fromListId": "Mint",
+  "toListId": "All",
+  "initiatedByListId": "All",
+  "tokenIds": [{ "start": "1", "end": "1" }],
+  "transferTimes": [{ "start": "1", "end": "<DEADLINE_TIMESTAMP>" }],
+  "approvalCriteria": {
+    "overridesFromOutgoingApprovals": true,
+    "overridesToIncomingApprovals": true,
+    "requireToEqualsInitiatedBy": true,
+    "coinTransfers": [{
+      "to": "Mint",
+      "overrideFromWithApproverAddress": false,
+      "overrideToWithInitiator": false,
+      "coins": [{ "amount": "1", "denom": "<DEPOSIT_DENOM>" }]
+    }],
+    "predeterminedBalances": {
+      "incrementedBalances": {
+        "startBalances": [{ "amount": "1", "tokenIds": [{ "start": "1", "end": "1" }], "ownershipTimes": [{ "start": "1", "end": "18446744073709551615" }] }],
+        "allowAmountScaling": true,
+        "maxScalingMultiplier": "18446744073709551615",
+        "incrementTokenIdsBy": "0",
+        "incrementOwnershipTimesBy": "0",
+        "durationFromTimestamp": "0",
+        "allowOverrideTimestamp": false
+      },
+      "orderCalculationMethod": { "useOverallNumTransfers": true }
+    },
+    "maxNumTransfers": { "overallMaxNumTransfers": "0" }
+  }
+}
+\`\`\`
+
+> **CRITICAL:** \`requireToEqualsInitiatedBy: true\` ensures the contributor receives their own refund token. \`allowAmountScaling: true\` lets contributors choose their deposit size — the coin payment and token amount scale together.
+
+#### 2. Deposit-Progress (paired: mints Token 2 to crowdfunder, no coinTransfer)
+
+\`\`\`json
+{
+  "approvalId": "deposit-progress",
+  "fromListId": "Mint",
+  "toListId": "<CROWDFUNDER_ADDRESS>",
+  "initiatedByListId": "All",
+  "tokenIds": [{ "start": "2", "end": "2" }],
+  "transferTimes": [{ "start": "1", "end": "<DEADLINE_TIMESTAMP>" }],
+  "approvalCriteria": {
+    "overridesFromOutgoingApprovals": true,
+    "overridesToIncomingApprovals": true,
+    "coinTransfers": [],
+    "predeterminedBalances": {
+      "incrementedBalances": {
+        "startBalances": [{ "amount": "1", "tokenIds": [{ "start": "2", "end": "2" }], "ownershipTimes": [{ "start": "1", "end": "18446744073709551615" }] }],
+        "allowAmountScaling": true,
+        "maxScalingMultiplier": "18446744073709551615",
+        "incrementTokenIdsBy": "0",
+        "incrementOwnershipTimesBy": "0",
+        "durationFromTimestamp": "0",
+        "allowOverrideTimestamp": false
+      },
+      "orderCalculationMethod": { "useOverallNumTransfers": true }
+    },
+    "maxNumTransfers": { "overallMaxNumTransfers": "0" }
+  }
+}
+\`\`\`
+
+> **toListId** is the crowdfunder's specific address (not "All"). No coinTransfer — this is the paired counterpart to deposit-refund.
+
+#### 3. Success / Withdraw (crowdfunder withdraws if goal met)
+
+\`\`\`json
+{
+  "approvalId": "success-withdraw",
+  "fromListId": "Mint",
+  "toListId": "<BURN_ADDRESS>",
+  "initiatedByListId": "<CROWDFUNDER_ADDRESS>",
+  "tokenIds": [{ "start": "1", "end": "1" }],
+  "transferTimes": [{ "start": "<DEADLINE + 1>", "end": "18446744073709551615" }],
+  "approvalCriteria": {
+    "overridesFromOutgoingApprovals": true,
+    "overridesToIncomingApprovals": true,
+    "coinTransfers": [{
+      "to": "<CROWDFUNDER_ADDRESS>",
+      "overrideFromWithApproverAddress": true,
+      "overrideToWithInitiator": false,
+      "coins": [{ "amount": "1", "denom": "<DEPOSIT_DENOM>" }]
+    }],
+    "mustOwnTokens": [{
+      "collectionId": "0",
+      "tokenIds": [{ "start": "2", "end": "2" }],
+      "amountRange": { "start": "<GOAL_AMOUNT>", "end": "18446744073709551615" },
+      "ownershipCheckParty": "<CROWDFUNDER_ADDRESS>"
+    }],
+    "predeterminedBalances": {
+      "incrementedBalances": {
+        "startBalances": [{ "amount": "1", "tokenIds": [{ "start": "1", "end": "1" }], "ownershipTimes": [{ "start": "1", "end": "18446744073709551615" }] }],
+        "allowAmountScaling": true,
+        "maxScalingMultiplier": "18446744073709551615",
+        "incrementTokenIdsBy": "0",
+        "incrementOwnershipTimesBy": "0",
+        "durationFromTimestamp": "0",
+        "allowOverrideTimestamp": false
+      },
+      "orderCalculationMethod": { "useOverallNumTransfers": true }
+    },
+    "maxNumTransfers": { "overallMaxNumTransfers": "1" }
+  }
+}
+\`\`\`
+
+> **mustOwnTokens with collectionId: "0"** = self-reference. Checks that the crowdfunder owns >= goal amount of Token 2 (progress token). Only available after deadline.
+
+#### 4. Refund (contributor burns Token 1 → gets deposit back, only if goal NOT met)
+
+\`\`\`json
+{
+  "approvalId": "refund",
+  "fromListId": "!Mint",
+  "toListId": "<BURN_ADDRESS>",
+  "initiatedByListId": "All",
+  "tokenIds": [{ "start": "1", "end": "1" }],
+  "transferTimes": [{ "start": "<DEADLINE + 1>", "end": "18446744073709551615" }],
+  "approvalCriteria": {
+    "overridesFromOutgoingApprovals": true,
+    "overridesToIncomingApprovals": true,
+    "coinTransfers": [{
+      "to": "",
+      "overrideFromWithApproverAddress": true,
+      "overrideToWithInitiator": true,
+      "coins": [{ "amount": "1", "denom": "<DEPOSIT_DENOM>" }]
+    }],
+    "mustOwnTokens": [{
+      "collectionId": "0",
+      "tokenIds": [{ "start": "2", "end": "2" }],
+      "amountRange": { "start": "0", "end": "<GOAL_AMOUNT - 1>" },
+      "ownershipCheckParty": "<CROWDFUNDER_ADDRESS>"
+    }],
+    "predeterminedBalances": {
+      "incrementedBalances": {
+        "startBalances": [{ "amount": "1", "tokenIds": [{ "start": "1", "end": "1" }], "ownershipTimes": [{ "start": "1", "end": "18446744073709551615" }] }],
+        "allowAmountScaling": true,
+        "maxScalingMultiplier": "18446744073709551615",
+        "incrementTokenIdsBy": "0",
+        "incrementOwnershipTimesBy": "0",
+        "durationFromTimestamp": "0",
+        "allowOverrideTimestamp": false
+      },
+      "orderCalculationMethod": { "useOverallNumTransfers": true }
+    },
+    "maxNumTransfers": {
+      "overallMaxNumTransfers": "18446744073709551615"
+    }
+  }
+}
+\`\`\`
+
+> Refund uses overrideFromWithApproverAddress: true (escrow pays) + overrideToWithInitiator: true (contributor receives). mustOwnTokens checks crowdfunder has LESS than goal of Token 2 (amountRange.end = goal - 1). allowAmountScaling: true so refund scales with deposit size. maxNumTransfers = MAX_UINT (needs non-zero with overrideFromWithApproverAddress).
+
+### Creation Flow (Tool Calls)
+
+1. \\\`build_token\\\` — initialize collection
+2. \\\`set_valid_token_ids\\\` — set [{ start: "1", end: "2" }]
+3. \\\`set_standards\\\` — set ["Crowdfund"]
+4. \\\`set_invariants\\\` — set { noCustomOwnershipTimes: true }
+5. \\\`add_approval\\\` x4 — deposit-refund, deposit-progress, success, refund
+6. \\\`set_collection_metadata\\\` — name, description, image
+7. \\\`set_token_metadata\\\` x2 — Token 1 (Refund), Token 2 (Progress)
+8. \\\`set_permissions\\\` — preset "fully-immutable"
+9. \\\`validate_transaction\\\` — verify structure
+10. \\\`simulate_transaction\\\` — dry run
+
+### Common Mistakes
+
+- DON'T forget allowAmountScaling: true on ALL 4 approvals — without it, all deposits are fixed at 1 base unit
+- DON'T use votingChallenges — goal tracking uses mustOwnTokens, not voting
+- DON'T forget maxScalingMultiplier: MAX_UINT — without it, scaling is capped at 0 (no scaling)
+- DON'T set overrideFromWithApproverAddress on deposit-refund or deposit-progress (contributor pays, not escrow)
+- DON'T forget requireToEqualsInitiatedBy: true on deposit-refund
+- DON'T forget the paired deposit-progress approval — it tracks total raised
+- DON'T set collectionId to the actual collection ID in mustOwnTokens — use "0" for self-reference
+- DON'T forget that success transferTimes must start AFTER the deadline (deadline + 1)
+- DON'T forget that refund mustOwnTokens amountRange.end = goal - 1 (strictly less than goal)
+- DON'T set maxNumTransfers = 0 on refund approval — overrideFromWithApproverAddress requires non-zero`
+  },
+  {
+    id: 'auction',
+    name: 'Auction',
+    category: 'token-type',
+    description: 'Single-item auction with intent-based bidding. Seller mints NFT directly to the winning bidder during the accept window.',
+    summary: `Required standards: ["Auction"]
+
+- 1 token ID (the auctioned item)
+- 2 collection-level approvals: mint-to-winner (combines mint + accept), burn (cleanup)
+- Mint-to-winner: seller mints NFT directly to winning bidder during accept window (bidDeadline → bidDeadline + acceptWindow)
+- No separate mint-at-creation step — token doesn't exist until seller accepts a bid
+- Burn: anyone can burn token to burn address (permanent cleanup)
+- Bidding via user-level outgoing approval intents (not collection approvals)
+- Bids must have transferTimes valid through end of accept window (not just bid deadline)
+- initiatedByListId on mint-to-winner = seller address (only seller can accept)
+- maxNumTransfers = 1 on all approvals (one-shot)
+- overridesToIncomingApprovals: false on mint-to-winner (bidder's incoming approval handles payment)
+- All permissions frozen after creation
+- DON'T use coinTransfers on collection approvals — payment happens via intent matching
+- DON'T set initiatedByListId to "All" on mint-to-winner — must be seller
+- DON'T set transferTimes to forever — must be bounded to accept window
+- DO use autoDeletionOptions.afterOneUse: true on mint-to-winner`,
+    instructions: `## Auction Configuration
+
+### Mental Model
+
+A single-item auction where the seller creates a collection, bidders place intent-based bids, and the seller mints the NFT directly to the winning bidder during the accept window. There is no separate mint-then-transfer flow — mint + accept happen in one action. The collection has NO coinTransfers — payment is handled entirely through the bidder's user-level approval (intent matching).
+
+### Collection Structure
+
+- Token ID 1 = The auctioned item
+- Standard: "Auction"
+- validTokenIds: [{ start: "1", end: "1" }]
+- invariants: { noCustomOwnershipTimes: true }
+- All permissions frozen after creation
+
+### Bidding Mechanism
+
+Bidders set user-level outgoing approvals on their own accounts that say "I will pay X coins for token 1 from this collection." The seller then accepts the best bid by minting the token directly to the winning bidder during the accept window. The bidder's outgoing approval handles the coin payment side via intent matching.
+
+Bids must have transferTimes that stay valid through the END of the accept window (not just the bid deadline), so the seller can match them during the entire accept period.
+
+### 2 Approvals
+
+#### 1. Mint-to-Winner (seller mints NFT directly to winning bidder during accept window)
+
+\\\`\\\`\\\`json
+{
+  "approvalId": "auction-mint-to-winner",
+  "fromListId": "Mint",
+  "toListId": "All",
+  "initiatedByListId": "<SELLER_ADDRESS>",
+  "tokenIds": [{ "start": "1", "end": "1" }],
+  "transferTimes": [{ "start": "<BID_DEADLINE>", "end": "<BID_DEADLINE + ACCEPT_WINDOW>" }],
+  "approvalCriteria": {
+    "overridesFromOutgoingApprovals": true,
+    "overridesToIncomingApprovals": false,
+    "coinTransfers": [],
+    "predeterminedBalances": {
+      "incrementedBalances": {
+        "startBalances": [{ "amount": "1", "tokenIds": [{ "start": "1", "end": "1" }], "ownershipTimes": [{ "start": "1", "end": "18446744073709551615" }] }]
+      },
+      "orderCalculationMethod": { "useOverallNumTransfers": true }
+    },
+    "maxNumTransfers": { "overallMaxNumTransfers": "1" },
+    "autoDeletionOptions": { "afterOneUse": true, "afterOverallMaxNumTransfers": true }
+  }
+}
+\\\`\\\`\\\`
+
+> **CRITICAL:** \\\`overridesToIncomingApprovals: false\\\` — the bidder's incoming approval (intent) must be checked so the coin payment side executes. \\\`transferTimes\\\` are bounded to the accept window only — the seller cannot mint before the bid deadline. \\\`toListId: "All"\\\` allows minting to any address (the winning bidder).
+
+#### 2. Burn (cleanup — anyone can burn the token)
+
+\\\`\\\`\\\`json
+{
+  "approvalId": "auction-burn",
+  "fromListId": "!Mint",
+  "toListId": "<BURN_ADDRESS>",
+  "initiatedByListId": "All",
+  "tokenIds": [{ "start": "1", "end": "1" }],
+  "transferTimes": [{ "start": "1", "end": "18446744073709551615" }],
+  "approvalCriteria": {
+    "overridesFromOutgoingApprovals": true,
+    "overridesToIncomingApprovals": true,
+    "coinTransfers": [],
+    "maxNumTransfers": { "overallMaxNumTransfers": "1" },
+    "autoDeletionOptions": { "afterOneUse": true, "afterOverallMaxNumTransfers": true }
+  }
+}
+\\\`\\\`\\\`
+
+### Auction Flow
+
+1. **Create**: Seller creates auction collection with 2 approvals. No token is minted yet.
+2. **Bid**: Bidders place intent-based bids (user-level outgoing approvals with coin payment offers). Bids must have transferTimes valid through end of accept window.
+3. **Accept**: After bid deadline, seller mints token 1 directly to the winning bidder's address. The bidder's outgoing approval triggers coin payment via intent matching. One action: mint + payment.
+4. **Cleanup**: If unsold, burn approval allows cleanup.
+
+### Creation Flow (Tool Calls)
+
+1. \\\`build_token\\\` — initialize collection
+2. \\\`set_valid_token_ids\\\` — set [{ start: "1", end: "1" }]
+3. \\\`set_standards\\\` — set ["Auction"]
+4. \\\`set_invariants\\\` — set { noCustomOwnershipTimes: true }
+5. \\\`add_approval\\\` x2 — mint-to-winner, burn
+6. \\\`set_collection_metadata\\\` — auction title, description, image
+7. \\\`set_token_metadata\\\` — token 1 metadata (the item being auctioned)
+8. \\\`set_permissions\\\` — preset "fully-immutable"
+9. \\\`validate_transaction\\\` — verify structure
+10. \\\`simulate_transaction\\\` — dry run
+
+### Common Mistakes
+
+- DON'T add coinTransfers to collection approvals — payment flows through intent matching, not collection-level coin transfers
+- DON'T set initiatedByListId to "All" on mint-to-winner — only the seller can accept bids
+- DON'T set transferTimes to forever — MUST be bounded to accept window (bidDeadline → bidDeadline + acceptWindow)
+- DON'T set overridesToIncomingApprovals to true on mint-to-winner — must be false so the bidder's incoming approval (payment intent) is checked
+- DON'T create a separate mint-to-seller approval — the token should not exist until the seller accepts a bid
+- DON'T forget autoDeletionOptions on mint-to-winner — without afterOneUse: true, the seller could mint to multiple bidders
+- DON'T forget that bids must have transferTimes valid through the END of the accept window, not just the bid deadline`
+  },
+  {
+    id: 'product-catalog',
+    name: 'Products',
+    category: 'token-type',
+    description: 'Multi-product storefront with per-product pricing, supply limits, and optional burn-on-purchase. Each product is a separate token ID.',
+    summary: `Required standards: ["Products"]
+
+- N token IDs (one per product), starting at 1
+- N+1 approvals: 1 purchase approval per product + 1 optional burn approval
+- Each purchase approval: fromListId="Mint", toListId="All" (or burn address if burn-on-purchase), 1 coinTransfer paying the store address
+- Payment goes directly to store address (NOT to escrow) — overrideFromWithApproverAddress: false
+- Each product has independent price, supply limit (maxNumTransfers), and burn-on-purchase toggle
+- predeterminedBalances.startBalances: 1x of that product's token ID
+- Optional burn approval: !Mint → burn address, no coinTransfers
+- invariants: { noCustomOwnershipTimes: true }
+- All permissions frozen after creation
+- DON'T use overrideFromWithApproverAddress — payment goes directly to store, not from escrow
+- DON'T use allowAmountScaling — fixed price per item
+- DON'T use votingChallenges, merkleChallenges, or mustOwnTokens
+- DO use unique approvalId per product (e.g. "product-purchase-1", "product-purchase-2")
+- DO set maxNumTransfers to supply limit (0 = unlimited)`,
+    instructions: `## Products Configuration
+
+### Mental Model
+
+A multi-product storefront where each product is a separate token ID. Buyers pay coins to mint a product token. Each product has its own price, supply limit, and optional burn-on-purchase setting. Payment goes directly to the store owner's address (not escrow).
+
+### Collection Structure
+
+- Token IDs 1..N (one per product)
+- Standard: "Products"
+- validTokenIds: [{ start: "1", end: "<NUM_PRODUCTS>" }]
+- invariants: { noCustomOwnershipTimes: true }
+- All permissions frozen after creation
+
+### Approval Structure
+
+Each product gets its own purchase approval. There's also an optional global burn approval.
+
+#### Purchase Approval (per product)
+
+\`\`\`json
+{
+  "approvalId": "product-purchase-1",
+  "fromListId": "Mint",
+  "toListId": "All",
+  "initiatedByListId": "All",
+  "tokenIds": [{ "start": "1", "end": "1" }],
+  "transferTimes": [{ "start": "1", "end": "18446744073709551615" }],
+  "approvalCriteria": {
+    "overridesFromOutgoingApprovals": true,
+    "overridesToIncomingApprovals": true,
+    "coinTransfers": [{
+      "to": "<STORE_ADDRESS>",
+      "overrideFromWithApproverAddress": false,
+      "overrideToWithInitiator": false,
+      "coins": [{ "amount": "<PRICE>", "denom": "<DENOM>" }]
+    }],
+    "predeterminedBalances": {
+      "incrementedBalances": {
+        "startBalances": [{ "amount": "1", "tokenIds": [{ "start": "1", "end": "1" }], "ownershipTimes": [{ "start": "1", "end": "18446744073709551615" }] }],
+        "incrementTokenIdsBy": "0",
+        "incrementOwnershipTimesBy": "0",
+        "durationFromTimestamp": "0",
+        "allowOverrideTimestamp": false,
+        "allowAmountScaling": false,
+        "maxScalingMultiplier": "0"
+      },
+      "orderCalculationMethod": { "useOverallNumTransfers": true }
+    },
+    "maxNumTransfers": { "overallMaxNumTransfers": "<SUPPLY_LIMIT_OR_0>" }
+  }
+}
+\`\`\`
+
+> For burn-on-purchase products, set toListId to the burn address instead of "All". The buyer never holds the token — it's minted directly to burn, and the purchase receipt is the transaction itself.
+
+#### Burn Approval (optional, for all products)
+
+\`\`\`json
+{
+  "approvalId": "product-burn",
+  "fromListId": "!Mint",
+  "toListId": "<BURN_ADDRESS>",
+  "initiatedByListId": "All",
+  "tokenIds": [{ "start": "1", "end": "<NUM_PRODUCTS>" }],
+  "transferTimes": [{ "start": "1", "end": "18446744073709551615" }],
+  "approvalCriteria": {
+    "overridesFromOutgoingApprovals": true,
+    "overridesToIncomingApprovals": true,
+    "coinTransfers": [],
+    "maxNumTransfers": { "overallMaxNumTransfers": "0" }
+  }
+}
+\`\`\`
+
+### Creation Flow (Tool Calls)
+
+1. \\\`build_token\\\` — initialize collection
+2. \\\`set_valid_token_ids\\\` — set [{ start: "1", end: "<NUM_PRODUCTS>" }]
+3. \\\`set_standards\\\` — set ["Products"]
+4. \\\`set_invariants\\\` — set { noCustomOwnershipTimes: true }
+5. \\\`add_approval\\\` xN — one purchase approval per product
+6. \\\`add_approval\\\` — optional burn approval
+7. \\\`set_collection_metadata\\\` — store name, description, image
+8. \\\`set_token_metadata\\\` xN — metadata for each product
+9. \\\`set_permissions\\\` — preset "fully-immutable"
+10. \\\`validate_transaction\\\` — verify structure
+11. \\\`simulate_transaction\\\` — dry run
+
+### Common Mistakes
+
+- DON'T use overrideFromWithApproverAddress on purchase approvals — payment goes directly to the store address, not from escrow
+- DON'T use allowAmountScaling — each purchase is exactly 1 item at fixed price
+- DON'T use a single approval for multiple products — each product needs its own approval with its own tokenIds, price, and supply limit
+- DON'T forget unique approvalIds — duplicate IDs will cause the chain to reject the transaction
+- DON'T set maxNumTransfers > 0 on the burn approval — burns should be unlimited
+- DON'T use votingChallenges, merkleChallenges, or mustOwnTokens — purchases are open to all
+- DON'T forget to set toListId to burn address for burn-on-purchase products`
   },
 ];
 
