@@ -3030,16 +3030,15 @@ On-chain crowdfunding with automatic goal tracking. Contributors deposit coins a
 
 ### Creation Flow (Tool Calls)
 
-1. \\\`build_token\\\` — initialize collection
-2. \\\`set_valid_token_ids\\\` — set [{ start: "1", end: "2" }]
-3. \\\`set_standards\\\` — set ["Crowdfund"]
-4. \\\`set_invariants\\\` — set { noCustomOwnershipTimes: true }
-5. \\\`add_approval\\\` x4 — deposit-refund, deposit-progress, success, refund
-6. \\\`set_collection_metadata\\\` — name, description, image
-7. \\\`set_token_metadata\\\` x2 — Token 1 (Refund), Token 2 (Progress)
-8. \\\`set_permissions\\\` — preset "fully-immutable"
-9. \\\`validate_transaction\\\` — verify structure
-10. \\\`simulate_transaction\\\` — dry run
+1. \\\`set_valid_token_ids\\\` — set [{ start: "1", end: "2" }]
+2. \\\`set_standards\\\` — set ["Crowdfund"]
+3. \\\`set_invariants\\\` — set { noCustomOwnershipTimes: true }
+4. \\\`add_approval\\\` x4 — deposit-refund, deposit-progress, success, refund
+5. \\\`set_collection_metadata\\\` — name, description, image
+6. \\\`set_token_metadata\\\` x2 — Token 1 (Refund), Token 2 (Progress)
+7. \\\`set_permissions\\\` — preset "fully-immutable"
+8. \\\`validate_transaction\\\` — verify structure
+9. \\\`simulate_transaction\\\` — dry run
 
 ### Common Mistakes
 
@@ -3155,16 +3154,15 @@ Bids must have transferTimes that stay valid through the END of the accept windo
 
 ### Creation Flow (Tool Calls)
 
-1. \\\`build_token\\\` — initialize collection
-2. \\\`set_valid_token_ids\\\` — set [{ start: "1", end: "1" }]
-3. \\\`set_standards\\\` — set ["Auction"]
-4. \\\`set_invariants\\\` — set { noCustomOwnershipTimes: true }
-5. \\\`add_approval\\\` x2 — mint-to-winner, burn
-6. \\\`set_collection_metadata\\\` — auction title, description, image
-7. \\\`set_token_metadata\\\` — token 1 metadata (the item being auctioned)
-8. \\\`set_permissions\\\` — preset "fully-immutable"
-9. \\\`validate_transaction\\\` — verify structure
-10. \\\`simulate_transaction\\\` — dry run
+1. \\\`set_valid_token_ids\\\` — set [{ start: "1", end: "1" }]
+2. \\\`set_standards\\\` — set ["Auction"]
+3. \\\`set_invariants\\\` — set { noCustomOwnershipTimes: true }
+4. \\\`add_approval\\\` x2 — mint-to-winner, burn
+5. \\\`set_collection_metadata\\\` — auction title, description, image
+6. \\\`set_token_metadata\\\` — token 1 metadata (the item being auctioned)
+7. \\\`set_permissions\\\` — preset "fully-immutable"
+8. \\\`validate_transaction\\\` — verify structure
+9. \\\`simulate_transaction\\\` — dry run
 
 ### Common Mistakes
 
@@ -3274,17 +3272,16 @@ Each product gets its own purchase approval. There's also an optional global bur
 
 ### Creation Flow (Tool Calls)
 
-1. \\\`build_token\\\` — initialize collection
-2. \\\`set_valid_token_ids\\\` — set [{ start: "1", end: "<NUM_PRODUCTS>" }]
-3. \\\`set_standards\\\` — set ["Products"]
-4. \\\`set_invariants\\\` — set { noCustomOwnershipTimes: true }
-5. \\\`add_approval\\\` xN — one purchase approval per product
-6. \\\`add_approval\\\` — optional burn approval
-7. \\\`set_collection_metadata\\\` — store name, description, image
-8. \\\`set_token_metadata\\\` xN — metadata for each product
-9. \\\`set_permissions\\\` — preset "fully-immutable"
-10. \\\`validate_transaction\\\` — verify structure
-11. \\\`simulate_transaction\\\` — dry run
+1. \\\`set_valid_token_ids\\\` — set [{ start: "1", end: "<NUM_PRODUCTS>" }]
+2. \\\`set_standards\\\` — set ["Products"]
+3. \\\`set_invariants\\\` — set { noCustomOwnershipTimes: true }
+4. \\\`add_approval\\\` xN — one purchase approval per product
+5. \\\`add_approval\\\` — optional burn approval
+6. \\\`set_collection_metadata\\\` — store name, description, image
+7. \\\`set_token_metadata\\\` xN — metadata for each product
+8. \\\`set_permissions\\\` — preset "fully-immutable"
+9. \\\`validate_transaction\\\` — verify structure
+10. \\\`simulate_transaction\\\` — dry run
 
 ### Common Mistakes
 
