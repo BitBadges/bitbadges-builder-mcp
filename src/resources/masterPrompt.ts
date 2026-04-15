@@ -93,7 +93,7 @@ When the user wants to:
 
 After EVERY collection build, follow this pipeline:
 1. **Build** → Use per-field tools in parallel: set_standards, set_valid_token_ids, set_invariants, add_approval, set_permissions, set_default_balances, set_collection_metadata, set_token_metadata, add_alias_path, set_mint_escrow_coins
-2. **Audit** → audit_collection, validate_transaction
+2. **Audit** → review_collection, validate_transaction
 3. **Fix** → Address findings, re-audit if needed
 4. **Present** → Show audit results to user with plain-language explanations
 5. **Deploy** → get_transaction to retrieve the final transaction, return for user review and submission

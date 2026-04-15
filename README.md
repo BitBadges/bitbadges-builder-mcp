@@ -1,20 +1,39 @@
 # BitBadges Builder MCP Server
 
+> ## DEPRECATED — Moved to `bitbadgesjs-sdk`
+>
+> **This standalone MCP server is deprecated and no longer maintained.** The MCP builder tools have been folded into the main `bitbadgesjs-sdk` package.
+>
+> **What to use instead:**
+>
+> ```bash
+> npm install -g bitbadgesjs-sdk
+> ```
+>
+> The SDK exposes the same MCP server plus a `builder` CLI. See the docs:
+>
+> - [Builder CLI commands](https://docs.bitbadges.io/for-developers/cli/builder-commands)
+> - [MCP server setup](https://docs.bitbadges.io/for-developers/mcp)
+> - SDK source: [`bitbadgesjs/packages/bitbadgesjs-sdk/src/builder`](https://github.com/bitbadges/bitbadgesjs/tree/main/packages/bitbadgesjs-sdk/src/builder)
+>
+> The standalone `bitbadges-builder-mcp` npm package and this repo are retained only for historical references and redirect purposes. Do not build against them — the `audit_collection` and related tools have been replaced by `review_collection` in the SDK, and no further updates will ship here.
+
+---
+
 MCP (Model Context Protocol) server for building, auditing, and querying BitBadges collections via AI. Works with Claude Desktop, Claude Code, Cursor, and any MCP-compatible client.
 
 **This MCP server does not sign or broadcast transactions.** It builds transaction JSON that your application signs and broadcasts using your own wallet/signer.
 
-## Quick Start
+## Quick Start (DEPRECATED — use `bitbadgesjs-sdk` instead)
 
 ### 1. Install
 
 ```bash
-npm install -g bitbadges-builder-mcp
-```
+# DEPRECATED: do not use
+# npm install -g bitbadges-builder-mcp
 
-Or use npx (no install needed):
-```bash
-npx bitbadges-builder-mcp
+# Use this instead:
+npm install -g bitbadgesjs-sdk
 ```
 
 ### 2. Configure Your MCP Client
@@ -91,7 +110,7 @@ You describe what you want
     ↓
 MCP builds transaction JSON (MsgUniversalUpdateCollection, MsgTransferTokens, etc.)
     ↓
-audit_collection catches security issues
+review_collection catches security issues
     ↓
 validate_transaction checks JSON format
     ↓
