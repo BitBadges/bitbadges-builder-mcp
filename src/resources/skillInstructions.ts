@@ -1188,7 +1188,7 @@ When creating a Custom-2FA collection, follow these requirements:
 - Manager can add (mint) and remove (burn) addresses
 - No peer-to-peer transfers
 - Requires TWO approvals: manager-add (minting) + manager-remove (burn to bb1qqq...s7gvmv)
-- After building, proceed with audit_collection + validate_transaction as normal`,
+- After building, proceed with review_collection + validate_transaction as normal`,
     instructions: `## Address List Token Type
 
 Use per-field tools to create this collection. It requires:
@@ -1201,7 +1201,7 @@ Use per-field tools to create this collection. It requires:
 
 This creates a token collection where list membership = owning x1 of token ID 1. The manager can add (mint) and remove (burn) addresses. No peer-to-peer transfers.
 
-After building, proceed with audit_collection and validate_transaction as normal.`
+After building, proceed with review_collection and validate_transaction as normal.`
   },
   {
     id: 'bb-402',

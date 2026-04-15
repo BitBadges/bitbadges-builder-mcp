@@ -214,7 +214,7 @@ Step 1: Build the collection
   → Use get_transaction to retrieve the built transaction
 
 Step 2: Audit
-  → audit_collection(collection: result.transaction, context: "nft art collection")
+  → review_collection(collection: result.transaction, context: "nft art collection")
   → Review all CRITICAL findings — these MUST be fixed
   → Review all WARNING findings — decide if they're intentional
 
@@ -224,7 +224,7 @@ Step 3: Fix critical issues
     lock permissions, set autoApproveAllIncomingTransfers
 
 Step 4: Re-audit
-  → audit_collection(collection: fixedTransaction)
+  → review_collection(collection: fixedTransaction)
   → Verify no more CRITICAL findings
 
 Step 5: Deploy
@@ -235,7 +235,7 @@ Step 5: Deploy
 Can also audit existing on-chain collections:
 \`\`\`
 Step 1: → query_collection(collectionId)
-Step 2: → audit_collection(collection: queryResult, context: "description")
+Step 2: → review_collection(collection: queryResult, context: "description")
 Step 3: → Present findings to user
 \`\`\``
 };
